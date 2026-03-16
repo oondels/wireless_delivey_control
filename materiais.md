@@ -1,17 +1,11 @@
-# Levantamento de Materiais — Projeto de Automação do Carrinho
-
-## Sobre o Projeto
-
-Automação de um sistema de controle de carrinho movido por motor com bobina e cabo de aço (subida e descida). Atualmente o controle só é possível na central de instalação. A proposta é adicionar um **painel embarcado no carrinho** com comunicação sem fio, permitindo controlar velocidade, acionamento e emergência diretamente do carrinho — sem depender da central.
-
----
+# Levantamento de Materiais — Projeto de Automação
 
 ## Resumo Financeiro
 
 | Métrica | Valor |
 |---|---|
-| Total de itens distintos | 8 |
-| **Custo total estimado** | **R$ 818,00** |
+| Total de itens distintos | 9 |
+| **Custo total estimado** | **R$ 786,00** |
 
 ---
 
@@ -25,8 +19,6 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 200,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/caixa-montagem-painel-eletrico-30x20x15-quadro-comando-autack-componentes-eletricos-300x200x150/p/MLB42019770) |
 
-> Organização do sistema de automação e alocamento dos componentes do painel. Um painel na central e um painel embarcado no carrinho.
-
 ---
 
 ### 2. Módulo Relé Arduino 8 Canais
@@ -37,7 +29,7 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 40,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/modulo-rele-8-canais-5v-10a-para-arduino-e-automaco-blutu/p/MLB45022588) |
 
-> Relés para controle e acionamento do sistema. Módulo com 8 canais, 5V, 10A.
+> Módulo com 8 canais, 5V, 10A — compatível com Arduino e automação.
 
 ---
 
@@ -49,7 +41,7 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 38,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/regulador-de-tensao-lm2596-conversor-dcdc-step-down-arduino/up/MLBU1172024220) |
 
-> Controle de tensão para as placas controladoras. Conversor DC-DC Step Down.
+> Conversor DC-DC Step Down para Arduino.
 
 ---
 
@@ -61,30 +53,37 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 60,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/kit-botao-de-emergencia-cogumelo-c-trava-1nf--placa/up/MLBU2231609916) |
 
-> 2 botões para controle de emergência e segurança do sistema — um no carrinho e um no painel central.
+> Kit com botão cogumelo com trava, 1NF + placa.
 
 ---
 
 ### 5. Botoeira de Pulso 22mm (Verde)
 | Campo | Detalhe |
 |---|---|
-| Quantidade | 10 unidades |
+| Quantidade | 5 unidades |
 | Valor unitário | R$ 25,00 |
-| **Valor total** | **R$ 250,00** |
+| **Valor total** | **R$ 125,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/botao-verde-c-contato-no--liga-motor-botoeira-pulso-22mm/up/MLBU2956673619) |
 
-**Distribuição das botoeiras (5 por painel × 2 painéis):**
-
-| Função | Qtd por painel | Total |
-|---|:---:|:---:|
-| Controle de velocidade | 3 | 6 |
-| Ir para frente | 1 | 2 |
-| Ir para trás | 1 | 2 |
-| **Total** | **5** | **10** |
+**Distribuição das botoeiras:**
+- 3 unidades → Seleção de velocidade
+- 2 unidades → *(a definir)*
 
 ---
 
-### 6. Micro Fim de Curso com Rolete
+### 6. Chave com Alavanca de Metal (Unipolar — Margirius)
+| Campo | Detalhe |
+|---|---|
+| Quantidade | 2 unidades |
+| Valor unitário | R$ 38,00 |
+| **Valor total** | **R$ 76,00** |
+| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/chave-calavanca-de-metal-unipolar-lig-desl-15a-margirius-cor-preto/p/MLB22548048) |
+
+> Chave liga/desliga 15A, cor preta.
+
+---
+
+### 7. Micro Fim de Curso com Rolete
 | Campo | Detalhe |
 |---|---|
 | Quantidade | 1 unidade |
@@ -92,11 +91,11 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 19,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/chave-fim-de-curso-nanf-me-8108-regulagem-alavanca-rolete/p/MLB2074706650) |
 
-> Sensor para reconhecer quando o carrinho está chegando à central e acionar a parada no local correto de estacionamento.
+> Chave fim de curso NANF ME-8108 com regulagem de alavanca e rolete.
 
 ---
 
-### 7. Micro Fim de Curso Switch (Haste 27mm)
+### 8. Micro Fim de Curso Switch (Haste 27mm)
 | Campo | Detalhe |
 |---|---|
 | Quantidade | 1 unidade |
@@ -104,11 +103,11 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 11,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/micro-switch-chave-fim-de-curso-alavanca-c-haste-27mm/up/MLBU1744692688) |
 
-> Sensor na frente do carrinho para detecção de obstáculos e prevenção de colisões.
+> Micro switch com alavanca e haste de 27mm.
 
 ---
 
-### 8. Placa ESP32 WROOM-32U (Wi-Fi + Antena Externa)
+### 9. Placa ESP32 WROOM-32U (Wi-Fi + Antena Externa)
 | Campo | Detalhe |
 |---|---|
 | Quantidade | 2 unidades |
@@ -116,7 +115,7 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | **Valor total** | **R$ 200,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/placa-modulo-esp32-wroom-32u-cabo-antena-wifi/p/MLB62742338) |
 
-> Placa controladora do sistema responsável pelo processamento e pela comunicação sem fio entre o carrinho e o painel central.
+> Módulo ESP32 WROOM-32U com cabo e antena externa Wi-Fi.
 
 ---
 
@@ -128,12 +127,16 @@ Automação de um sistema de controle de carrinho movido por motor com bobina e 
 | 2 | Módulo Relé 8 Canais | 1 | R$ 40,00 | R$ 40,00 |
 | 3 | Step Down LM2596 | 2 | R$ 19,00 | R$ 38,00 |
 | 4 | Botão de Emergência | 2 | R$ 30,00 | R$ 60,00 |
-| 5 | Botoeira de Pulso 22mm | 10 | R$ 25,00 | R$ 250,00 |
-| 6 | Micro Fim de Curso Rolete | 1 | R$ 19,00 | R$ 19,00 |
-| 7 | Micro Fim de Curso Switch | 1 | R$ 11,00 | R$ 11,00 |
-| 8 | ESP32 Wi-Fi + Antena | 2 | R$ 100,00 | R$ 200,00 |
-| | | | **TOTAL** | **R$ 818,00** |
+| 5 | Botoeira de Pulso | 5 | R$ 25,00 | R$ 125,00 |
+| 6 | Chave com Alavanca | 2 | R$ 38,00 | R$ 76,00 |
+| 7 | Micro Fim de Curso Rolete | 1 | R$ 19,00 | R$ 19,00 |
+| 8 | Micro Fim de Curso Switch | 1 | R$ 11,00 | R$ 11,00 |
+| 9 | ESP32 Wi-Fi + Antena | 2 | R$ 100,00 | R$ 200,00 |
+| | | | **TOTAL** | **R$ 769,00** |
 
 ---
 
 *Levantamento gerado em: março/2026*
+
+
+Compra Efetua COm valor de R$360 (No mercado livre, pelo cartao mercado pago) - Alguns materiais eu ja tinha
