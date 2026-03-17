@@ -119,3 +119,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-016 implementa classe Led para o Principal — construtor com GPIO, métodos ligar/desligar/piscar/atualizar, piscar não-bloqueante via millis(). Apenas LED LINK REMOTE no Principal. Ref: leds/SPEC.md §4.2, §5.
+
+## 2026-03-17 - T-016 - Implementar classe Led do Principal
+
+- Outcome: Classe Led implementada com construtor Led(uint8_t gpio), métodos ligar() (HIGH, piscando=false), desligar() (LOW, piscando=false), piscar(uint16_t intervalo_ms) (não-bloqueante via millis()), atualizar() (toggle no intervalo). No Principal, apenas LED LINK REMOTE usa esta abstração — LEDs compartilhados com relés não utilizam.
+- Files changed: `principal/include/leds.h`, `principal/src/leds.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-017 implementa principal.cpp — loop principal integrando todas as classes. Instanciar todos os objetos, setup() chama init() de cada módulo, loop() executa: ler botões → atualizar máquina de estados → processar velocidade → enviar status → atualizar LEDs. Estado inicial PARADO, freio acionado. Ref: IMPLEMENTATION_PLAN §2.6.
