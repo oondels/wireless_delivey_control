@@ -159,3 +159,11 @@
 - Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-021 implementa atualizarLeds() do Remote — recebe PacoteStatus, atualiza 7 LEDs conforme spec. LINK (fixo/piscar 1Hz por timeout 1000ms), MOTOR (SUBINDO/DESCENDO), VEL1-3 (velocidade), EMERGÊNCIA (piscar 4Hz / fixo), ALARME (piscar 2Hz se rearme_ativo + botão travado). Ref: leds/SPEC.md §3.2.
+
+## 2026-03-17 - T-021 - Implementar atualizarLeds() do Remote
+
+- Outcome: Função atualizarLeds() em atualizar_leds.h/cpp. Recebe PacoteStatus + timestamp + 7 refs Led. Lógica conforme spec: LINK (timeout 1000ms → piscar 500ms), MOTOR (SUBINDO/DESCENDO → ligar), VEL1-3 (exclusividade por campo velocidade), EMERGÊNCIA (piscar 125ms / fixo / off), ALARME (piscar 250ms se rearme_ativo + botão LOW). Chama atualizar() de cada Led no final.
+- Files changed: `remote/include/atualizar_leds.h`, `remote/src/atualizar_leds.cpp`
+- Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-022 implementa remote.cpp — loop principal integrando Botoes, Comunicacao, 7x Led e atualizarLeds(). setup() inicializa GPIOs/ESP-NOW/LEDs. loop() executa: botoes.ler() → montar PacoteRemote → enviar (200ms + imediato) → atualizarLeds(). Ref: IMPLEMENTATION_PLAN §2.5.
