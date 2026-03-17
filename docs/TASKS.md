@@ -31,7 +31,7 @@ Referência: `docs/IMPLEMENTATION_PLAN.md` v3.2
 
 ## Fase 2 — Firmware: Principal — Comunicação
 
-- [ ] T-011: Implementar comunicação ESP-NOW no Principal — inicialização WiFi + esp_now, registro de peer (MAC do Remote), callback `OnDataRecv` (validar checksum, resetar watchdog, processar emergência imediata se `emergencia == 1`), envio de `PacoteStatus` a cada 200 ms e imediato em mudança de estado. Ref: `comunicacao/SPEC.md` §7–9
+- [x] T-011: Implementar comunicação ESP-NOW no Principal — inicialização WiFi + esp_now, registro de peer (MAC do Remote), callback `OnDataRecv` (validar checksum, resetar watchdog, processar emergência imediata se `emergencia == 1`), envio de `PacoteStatus` a cada 200 ms e imediato em mudança de estado. Ref: `comunicacao/SPEC.md` §7–9
 
 ## Fase 2 — Firmware: Principal — Motor e Velocidade
 

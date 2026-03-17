@@ -79,3 +79,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-011 implementa comunicação ESP-NOW no Principal — WiFi + esp_now init, peer register, OnDataRecv (checksum + watchdog reset + emergência), envio de PacoteStatus. Ref: comunicacao/SPEC.md §7-9.
+
+## 2026-03-16 - T-011 - Implementar comunicação ESP-NOW no Principal
+
+- Outcome: Módulo comunicacao.h/cpp com WiFi STA + esp_now_init, registro de peer (MAC placeholder), callback on_data_recv (valida checksum, reseta watchdog, ativa emergência imediata se emergencia==1), comunicacao_enviar_status() com checksum calculado antes do envio. Variáveis voláteis: ultimo_pacote_remote, novo_pacote_recebido.
+- Files changed: `principal/include/comunicacao.h`, `principal/src/comunicacao.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-012 implementa motor.h/cpp — acionar_motor(direcao) e desligar_motor(), exclusividade mútua dos relés DIREÇÃO A/B, dead-time 100ms via millis(). Ref: motor/SPEC.md §2. NOTA: MAC do Remote é placeholder (0xFF) — será definido no deploy.
