@@ -55,3 +55,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-008 implementa lógica de emergência — flag emergencia_ativa, leitura do botão EMERGÊNCIA (nível contínuo), ativação imediata. Ref: seguranca/SPEC.md §3.
+
+## 2026-03-16 - T-008 - Implementar lógica de emergência
+
+- Outcome: Módulo emergencia.h/cpp com flag volatile emergencia_ativa (global), emergencia_verificar() que checa botão local (LOW=ativo) e emergência do Remote, emergencia_botao_local_ativo(). Flag nunca limpa automaticamente — invariante §9.3.
+- Files changed: `principal/include/emergencia.h`, `principal/src/emergencia.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-009 implementa rearme — botão REARME (pulso) limpa emergencia_ativa e FALHA_COMUNICACAO. Caso especial: se pacote_remote.emergencia == 1, seta rearme_ativo = 1. Ref: seguranca/SPEC.md §3.4-3.5.

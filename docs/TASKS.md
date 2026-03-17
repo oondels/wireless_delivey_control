@@ -25,7 +25,7 @@ Referência: `docs/IMPLEMENTATION_PLAN.md` v3.2
 
 - [x] T-006: Implementar `freio.h` / `freio.cpp` — funções `acionar_freio()` (GPIO HIGH) e `liberar_freio()` (GPIO LOW). Sem leitura de sensor — microchave é hardware externo. Ref: `motor/SPEC.md` §4
 - [x] T-007: Implementar `sensores.h` / `sensores.cpp` — leitura do fim de curso com debounce 20 ms via `millis()`. Função `fim_de_curso_acionado()` retorna estado filtrado. Ref: `motor/SPEC.md` §5
-- [ ] T-008: Implementar lógica de emergência no Principal — flag `emergencia_ativa`, leitura do botão EMERGÊNCIA (trava mecânica, nível contínuo), ativação imediata (motor OFF → freio ON → flag true). Ref: `seguranca/SPEC.md` §3
+- [x] T-008: Implementar lógica de emergência no Principal — flag `emergencia_ativa`, leitura do botão EMERGÊNCIA (trava mecânica, nível contínuo), ativação imediata (motor OFF → freio ON → flag true). Ref: `seguranca/SPEC.md` §3
 - [ ] T-009: Implementar lógica de rearme no Principal — botão REARME (pulso) limpa `emergencia_ativa` e `FALHA_COMUNICACAO`; caso especial: se `pacote_remote.emergencia == 1` no momento do rearme, setar `rearme_ativo = 1` no PacoteStatus. Ref: `seguranca/SPEC.md` §3.4–3.5
 - [ ] T-010: Implementar watchdog de comunicação no Principal — constante `WATCHDOG_TIMEOUT_MS = 500`, verificação a cada ciclo do loop (`millis() - ultimo_pacote_remote > timeout`), transição para `FALHA_COMUNICACAO`. Ref: `seguranca/SPEC.md` §4
 
