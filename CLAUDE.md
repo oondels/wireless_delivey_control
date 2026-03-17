@@ -60,27 +60,41 @@ This project uses the **Ralph Loop** methodology: Claude works autonomously thro
 
 Each iteration must follow this exact sequence:
 
+```text
+ 1. READ    → README.md and docs/specs/README.md (orient)
+ 2. READ    → docs/PROGRESS.md (current status), if exists. Understand what’s done, what’s next, and the context for the next task.
+ 3. READ    → docs/TASKS.md (find next incomplete task, where status is false)
+ 4. READ    → relevant domain SPEC.md for that task
+ 5. PICK    → select ONLY the single next incomplete task
+ 6. IMPLEMENT → write or modify code for that task only
+ 7. VERIFY  → build/compile affected firmware; run available tests
+ 8. COMMIT  → git commit with descriptive pt-BR message
+ 9. UPDATE  → mark task complete (status=true) in docs/TASKS.md
+10. UPDATE  → append one entry to docs/PROGRESS.md (create file if it doesn’t exist — see format below)
+11. CHECK   → verify if changes require updating any spec or README.md; if so, update the revision date in the corresponding file footer
+12. SIGNAL  → if all tasks done, output <promise>COMPLETO</promise>
 ```
-1. READ       → README.md and docs/specs/README.md (orient)
-3. READ       → docs/PROGRESS.md (current status), if exists. Understand what’s done, what’s next, and the context for the next task.
-2. READ       → docs/TASKS.md (find next incomplete task), where status is false
-3. READ       → relevant domain SPEC.md for that task
-4. PICK       → select ONLY the single next incomplete task
-5. IMPLEMENT  → write or modify code for that task only
-6. VERIFY     → build/compile affected firmware; run available tests
-7. COMMIT     → git commit with descriptive pt-BR message
-8. UPDATE     → mark task complete, status=true, in docs/TASKS.md
-9. UPDATE/CREATE → if exisiting docs PROGRESS.md, update it; else create PROGRESS.md with current status. Follow the format:
-   ```
-   # Progresso do Projeto
 
-   - [x] Task 1: descrição breve, detalhes relevantes e fonte de conhecimento para proxima iteração.
-   - [ ] Task 2: descrição breve
-   - [ ] Task 3: descrição breve
-   ...
-   ```
-10. CHECK → Verifica se a alteracao necessita atualizar alguma spec ou readme.md; se sim, atualiza a data de ultima revisao no rodape da spec correspondente
-11. SIGNAL     → if all tasks done, output <promise>COMPLETO</promise>
+### PROGRESS.md Format
+
+`docs/PROGRESS.md` is the persistent execution memory for completed tasks. Each iteration must read it before starting and append one entry after completing a task.
+
+**Update rules:**
+- Add one entry per completed task.
+- Do not rewrite old entries unless they are factually wrong.
+- Record only durable knowledge that helps the next iteration.
+- Include the task id, outcome, files changed, validations run, and any follow-up note.
+
+**Entry template:**
+
+```md
+## YYYY-MM-DD - T-XXX - Short title
+
+- Outcome: what was completed.
+- Files changed: path1, path2, path3.
+- Validations: commands run or checks performed.
+- Docs updated: DESIGN_SPEC.md, README.md, or none.
+- Notes for next task: only the information the next iteration needs plus any additional context.
 ```
 
 ### One Task Per Iteration — No Exceptions
