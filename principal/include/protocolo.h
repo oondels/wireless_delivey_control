@@ -76,7 +76,7 @@ inline uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 // Constantes de timing (ms)
 // ============================================================
 
-#define HEARTBEAT_INTERVALO_MS   200
+#define HEARTBEAT_INTERVALO_MS   100
 #define WATCHDOG_TIMEOUT_MS      500
 #define STATUS_INTERVALO_MS      200
 

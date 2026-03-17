@@ -13,6 +13,7 @@
  */
 
 #include "maquina_estados.h"
+#include "logger.h"
 
 void MaquinaEstados::init() {
     _estado = ESTADO_PARADO;
@@ -29,6 +30,9 @@ EstadoSistema MaquinaEstados::atualizar(
 ) {
     // Prioridade 1: emergência (botão local OU flag já ativa OU Remote)
     if (emergencia.verificar(pacoteRemote.emergencia)) {
+        if (_estado != ESTADO_EMERGENCIA) {
+            LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — emergencia ativa");
+        }
         motor.desligar();
         freio.acionar();
         _estado = ESTADO_EMERGENCIA;
@@ -37,6 +41,9 @@ EstadoSistema MaquinaEstados::atualizar(
 
     // Prioridade 2: watchdog de comunicação
     if (watchdog.expirado()) {
+        if (_estado != ESTADO_FALHA_COMUNICACAO) {
+            LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — falha de comunicacao");
+        }
         motor.desligar();
         freio.acionar();
         _estado = ESTADO_FALHA_COMUNICACAO;

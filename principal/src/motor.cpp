@@ -9,6 +9,7 @@
  */
 
 #include "motor.h"
+#include "logger.h"
 
 void Motor::init() {
     pinMode(PIN_RELE_DIRECAO_A, OUTPUT);
@@ -26,9 +27,11 @@ void Motor::relesOff() {
 
 void Motor::ativarDirecao(Direcao dir) {
     if (dir == DIR_SUBIR) {
+        LOG_INFO("MOTOR", "Motor ativado — direcao SUBIR");
         digitalWrite(PIN_RELE_DIRECAO_A, HIGH);
         digitalWrite(PIN_RELE_DIRECAO_B, LOW);
     } else if (dir == DIR_DESCER) {
+        LOG_INFO("MOTOR", "Motor ativado — direcao DESCER");
         digitalWrite(PIN_RELE_DIRECAO_A, LOW);
         digitalWrite(PIN_RELE_DIRECAO_B, HIGH);
     }
@@ -63,6 +66,7 @@ bool Motor::acionar(Direcao dir) {
 
     // Direção diferente com motor ativo — iniciar dead-time
     if (_direcao != DIR_NENHUMA) {
+        LOG_INFO("MOTOR", "Inversao de direcao — iniciando dead-time 100ms");
         relesOff();
         _direcao         = DIR_NENHUMA;
         _emDeadTime      = true;
@@ -77,6 +81,9 @@ bool Motor::acionar(Direcao dir) {
 }
 
 void Motor::desligar() {
+    if (_direcao != DIR_NENHUMA) {
+        LOG_INFO("MOTOR", "Motor desligado");
+    }
     relesOff();
     _direcao         = DIR_NENHUMA;
     _emDeadTime      = false;

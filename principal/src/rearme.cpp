@@ -12,9 +12,10 @@
  */
 
 #include "rearme.h"
+#include "logger.h"
 
 void Rearme::init() {
-    pinMode(PIN_BTN_REARME, INPUT);
+    pinMode(PIN_BTN_REARME, INPUT_PULLUP);  // GPIO 25 — pull-up interno
     _rearmeAtivo    = false;
     _ultimoEstado   = HIGH;
     _estadoFiltrado = HIGH;
@@ -50,13 +51,18 @@ void Rearme::verificar(EstadoSistema* estadoAtual, bool emergenciaRemote, Emerge
 
     // Botão EMERGÊNCIA local ainda ativo → rearme bloqueado
     if (emergencia.botaoLocalAtivo()) {
+        LOG_WARN("REARM", "Rearme BLOQUEADO — botao emergencia local ainda ativo");
         return;
     }
 
     // Executa rearme
+    LOG_INFO("REARM", "Rearme executado — emergencia limpa, estado -> PARADO");
     emergencia.ativa() = false;
     *estadoAtual = ESTADO_PARADO;
 
     // Caso especial: emergência Remote ainda travada
+    if (emergenciaRemote) {
+        LOG_WARN("REARM", "Rearme com emergencia Remote ainda travada — rearme_ativo = 1");
+    }
     _rearmeAtivo = emergenciaRemote;
 }

@@ -31,6 +31,7 @@
 #include "comunicacao.h"
 #include "maquina_estados.h"
 #include "leds.h"
+#include "logger.h"
 
 // Instâncias globais dos módulos
 Freio          freio;
@@ -48,6 +49,12 @@ Led            ledLink(PIN_LED_LINK);
 // Controle de envio periódico de status
 uint32_t       ultimoEnvioStatusMs = 0;
 EstadoSistema  estadoAnterior      = ESTADO_PARADO;
+
+// Controle de logging de transições (evitar spam)
+bool           watchdogAnteriorExpirado = false;
+bool           subirAnterior            = false;
+bool           descerAnterior           = false;
+uint8_t        velocidadeAnteriorLog    = 1;
 
 void setup() {
     Serial.begin(115200);
@@ -80,6 +87,25 @@ void loop() {
         emergencia
     );
 
+    // Log de botões de direção (transições)
+    if (btn.subir_hold && !subirAnterior) {
+        LOG_INFO("BOTAO", "Botao SUBIR pressionado (hold)");
+    } else if (!btn.subir_hold && subirAnterior) {
+        LOG_INFO("BOTAO", "Botao SUBIR solto");
+    }
+    if (btn.descer_hold && !descerAnterior) {
+        LOG_INFO("BOTAO", "Botao DESCER pressionado (hold)");
+    } else if (!btn.descer_hold && descerAnterior) {
+        LOG_INFO("BOTAO", "Botao DESCER solto");
+    }
+    subirAnterior  = btn.subir_hold;
+    descerAnterior = btn.descer_hold;
+
+    // Log de botões de velocidade (pulso)
+    if (btn.vel1_pulso) LOG_INFO("BOTAO", "Botao VEL1 pressionado");
+    if (btn.vel2_pulso) LOG_INFO("BOTAO", "Botao VEL2 pressionado");
+    if (btn.vel3_pulso) LOG_INFO("BOTAO", "Botao VEL3 pressionado");
+
     // 3. Atualizar máquina de estados (prioridade sequencial)
     EstadoSistema novoEstado = maquinaEstados.atualizar(
         emergencia,
@@ -91,6 +117,20 @@ void loop() {
         comunicacao.ultimoPacote()
     );
 
+    // Log de transição de estado
+    if (novoEstado != estadoAnterior) {
+        LOG_INFO_VAL("ESTADO", "Transicao: ", String(estadoParaString(estadoAnterior)) + " -> " + estadoParaString(novoEstado));
+    }
+
+    // Log de watchdog
+    bool watchdogAtualExpirado = watchdog.expirado();
+    if (watchdogAtualExpirado && !watchdogAnteriorExpirado) {
+        LOG_ERROR("WDOG", "Watchdog EXPIRADO — sem comunicacao com Remote");
+    } else if (!watchdogAtualExpirado && watchdogAnteriorExpirado) {
+        LOG_INFO("WDOG", "Watchdog recuperado — comunicacao restabelecida");
+    }
+    watchdogAnteriorExpirado = watchdogAtualExpirado;
+
     // 4. Processar velocidade (pulsos de VEL1/VEL2/VEL3)
     if (btn.vel1_pulso) velocidade.selecionar(1);
     if (btn.vel2_pulso) velocidade.selecionar(2);
@@ -99,6 +139,9 @@ void loop() {
     // Processar velocidade do Remote (se novo pacote com comando de velocidade)
     if (comunicacao.novoPacoteRecebido()) {
         uint8_t cmd = comunicacao.ultimoPacote().comando;
+        if (cmd == CMD_VEL1 || cmd == CMD_VEL2 || cmd == CMD_VEL3) {
+            LOG_INFO_VAL("REMOTO", "Comando de velocidade recebido do Remote: ", comandoParaString(cmd));
+        }
         if (cmd == CMD_VEL1) velocidade.selecionar(1);
         if (cmd == CMD_VEL2) velocidade.selecionar(2);
         if (cmd == CMD_VEL3) velocidade.selecionar(3);

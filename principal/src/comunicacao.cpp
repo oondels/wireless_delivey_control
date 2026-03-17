@@ -37,6 +37,7 @@ void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
     // Processar emergência imediatamente (prioridade máxima)
     if (pacote.emergencia == 1 && _pEmergencia) {
         _pEmergencia->ativa() = true;
+        // LOG de emergencia Remote é feito em emergencia.cpp
     }
 
     // Copiar pacote para variável estática

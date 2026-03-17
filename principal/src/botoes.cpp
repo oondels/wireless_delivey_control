@@ -17,7 +17,12 @@ const uint8_t Botoes::_pinos[NUM_BOTOES] = {
 
 void Botoes::init() {
     for (int i = 0; i < NUM_BOTOES; i++) {
-        pinMode(_pinos[i], INPUT);
+        // GPIOs 32, 33: pull-up interno; GPIOs 34-39: pull-up externo (input-only)
+        if (_pinos[i] == 32 || _pinos[i] == 33) {
+            pinMode(_pinos[i], INPUT_PULLUP);
+        } else {
+            pinMode(_pinos[i], INPUT);
+        }
         _ultimaLeitura[i]  = HIGH;
         _estadoFiltrado[i] = HIGH;
         _ultimoCambio[i]   = 0;

@@ -19,6 +19,7 @@
 #include "comunicacao.h"
 #include "leds.h"
 #include "atualizar_leds.h"
+#include "logger.h"
 
 // Instâncias globais
 Botoes      botoes;
@@ -39,6 +40,10 @@ uint32_t ultimoEnvioMs = 0;
 // Estado anterior dos botões para detectar mudança
 EstadoBotoes btnAnterior = {};
 
+// Controle de logging de transições
+uint8_t estadoAnteriorLog  = ESTADO_PARADO;
+bool    linkAnteriorOk     = false;
+
 void setup() {
     Serial.begin(115200);
     Serial.println("=== Módulo Remote — Inicializando ===");
@@ -52,6 +57,26 @@ void setup() {
 void loop() {
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();
+
+    // Log de transições de botões
+    if (btn.subir_hold && !btnAnterior.subir_hold) {
+        LOG_INFO("BOTAO", "Botao SUBIR pressionado (hold)");
+    } else if (!btn.subir_hold && btnAnterior.subir_hold) {
+        LOG_INFO("BOTAO", "Botao SUBIR solto");
+    }
+    if (btn.descer_hold && !btnAnterior.descer_hold) {
+        LOG_INFO("BOTAO", "Botao DESCER pressionado (hold)");
+    } else if (!btn.descer_hold && btnAnterior.descer_hold) {
+        LOG_INFO("BOTAO", "Botao DESCER solto");
+    }
+    if (btn.vel1_pulso) LOG_INFO("BOTAO", "Botao VEL1 pressionado");
+    if (btn.vel2_pulso) LOG_INFO("BOTAO", "Botao VEL2 pressionado");
+    if (btn.vel3_pulso) LOG_INFO("BOTAO", "Botao VEL3 pressionado");
+    if (btn.emergencia && !btnAnterior.emergencia) {
+        LOG_WARN("BOTAO", "Botao EMERGENCIA ativado (trava)");
+    } else if (!btn.emergencia && btnAnterior.emergencia) {
+        LOG_INFO("BOTAO", "Botao EMERGENCIA liberado");
+    }
 
     // 2. Montar PacoteRemote
     PacoteRemote pacote = {};
@@ -93,6 +118,22 @@ void loop() {
     }
 
     btnAnterior = btn;
+
+    // Log de status recebido do Principal (transições)
+    const volatile PacoteStatus& st = comunicacao.ultimoStatus();
+    if (st.estado_sistema != estadoAnteriorLog) {
+        LOG_INFO_VAL("STATUS", "Principal reporta estado: ", estadoParaString(st.estado_sistema));
+        estadoAnteriorLog = st.estado_sistema;
+    }
+
+    // Log de link (comunicação)
+    bool linkAtualOk = (millis() - comunicacao.ultimoStatusRecebidoMs() <= 1000);
+    if (linkAtualOk && !linkAnteriorOk) {
+        LOG_INFO("LINK", "Comunicacao com Principal restabelecida");
+    } else if (!linkAtualOk && linkAnteriorOk) {
+        LOG_WARN("LINK", "Comunicacao com Principal perdida (timeout > 1s)");
+    }
+    linkAnteriorOk = linkAtualOk;
 
     // 4. Atualizar LEDs com base no último status recebido
     atualizarLeds(

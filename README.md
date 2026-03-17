@@ -1,7 +1,7 @@
 # Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 3.2  
-**Data:** 2026-03-16  
+**Versão:** 3.3
+**Data:** 2026-03-17
 **Status:** Em execução
 
 ---
@@ -142,14 +142,14 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 
 | Função | Tipo | GPIO | Observação |
 |---|---|---|---|
-| Botão SUBIR | Entrada | 36 | Input-only, pull-up externo |
-| Botão DESCER | Entrada | 39 | Input-only, pull-up externo |
-| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo |
-| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo |
-| Botão VEL3 | Entrada | 32 | Pull-up externo |
-| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up externo — não usa strapping pin |
-| Botão REARME | Entrada | 25 | Pull-up externo |
-| Fim de curso | Entrada | 26 | Pull-up externo — não usa strapping pin |
+| Botão SUBIR | Entrada | 36 (VP) | Input-only, pull-up externo obrigatório |
+| Botão DESCER | Entrada | 39 (VN) | Input-only, pull-up externo obrigatório |
+| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo obrigatório |
+| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
+| Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
+| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
+| Botão REARME | Entrada | 25 | Pull-up interno (INPUT_PULLUP) |
+| Fim de curso | Entrada | 26 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
 | Relé + LED DIREÇÃO A | Saída | 4 | HIGH = motor sentido SUBIR |
 | Relé + LED DIREÇÃO B | Saída | 16 | HIGH = motor sentido DESCER |
 | Relé + LED VEL1 | Saída | 17 | HIGH = velocidade 1 |
@@ -159,16 +159,22 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | LED LINK REMOTE | Saída | 21 | Comunicação ativa com Remote |
 | **Total** | | **15** | **8 entradas + 7 saídas** |
 
+> GPIOs confirmados fisicamente na placa ESP32 WROOM-32U utilizada.
+> GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
+> GPIOs 32, 33, 25 e 26 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIOs 0, 2, 12 e 15 evitados (strapping pins de boot).
+> Pinos de flash SPI interna (D0, D1, D2, D3, CLK, CMD) não utilizados.
+
 ### 5.2 Módulo Remote
 
 | Função | Tipo | GPIO | Observação |
 |---|---|---|---|
-| Botão SUBIR | Entrada | 36 | Input-only, pull-up externo |
-| Botão DESCER | Entrada | 39 | Input-only, pull-up externo |
-| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo |
-| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo |
-| Botão VEL3 | Entrada | 32 | Pull-up externo |
-| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up externo — não usa strapping pin |
+| Botão SUBIR | Entrada | 36 | Input-only, pull-up externo obrigatório |
+| Botão DESCER | Entrada | 39 | Input-only, pull-up externo obrigatório |
+| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo obrigatório |
+| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
+| Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
+| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
 | LED LINK | Saída | 4 | Comunicação com Principal |
 | LED MOTOR | Saída | 16 | Motor em operação |
 | LED VEL1 | Saída | 17 | Velocidade 1 ativa |
@@ -178,7 +184,10 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | LED ALARME | Saída | 21 | Rearme com botão local ainda travado |
 | **Total** | | **13** | **6 entradas + 7 saídas** |
 
-> GPIOs de ambos os módulos definidos. Mapeamento de entradas consistente entre Principal e Remote (mesmos GPIOs para botões com funções idênticas). Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas. Pinos input-only (34, 35, 36, 39) usados apenas como entrada com pull-up externo.
+> GPIOs de ambos os módulos definidos. Mapeamento de entradas consistente entre Principal e Remote (mesmos GPIOs para botões com funções idênticas).
+> GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
+> GPIOs 32 e 33 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas.
 
 ---
 
@@ -373,7 +382,75 @@ Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor defini
 
 ---
 
-## 11. Requisitos Não-Funcionais
+## 11. Sistema de Logging (Debug/Testes)
+
+O firmware inclui um sistema de logging via **Serial** (115200 baud) para facilitar testes e depuração antes do deploy em produção. O sistema registra transições de estado e ações relevantes, **não** estados repetidos a cada ciclo do loop.
+
+### 11.1 Formato das Mensagens
+
+```
+[timestamp_ms] [NIVEL] [MODULO] mensagem
+```
+
+Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
+
+### 11.2 Módulos Monitorados — Principal
+
+| Tag | Eventos logados |
+|---|---|
+| `BOTAO` | Pressionar/soltar SUBIR, DESCER; pulsos VEL1/2/3 |
+| `EMERG` | Emergência ativada (botão local ou sinal Remote) |
+| `FREIO` | Acionamento e liberação do freio (transição) |
+| `MOTOR` | Ativação, desligamento, inversão com dead-time |
+| `VELOC` | Alteração de velocidade (nível 1/2/3) |
+| `REARM` | Rearme executado, bloqueado, ou com Remote travado |
+| `SENSOR` | Fim de curso acionado/liberado |
+| `MAQEST` | Bloqueio de movimentação (emergência/falha comunicação) |
+| `ESTADO` | Transição de estado (ex: PARADO → SUBINDO) |
+| `WDOG` | Watchdog expirado/recuperado |
+| `REMOTO` | Comando de velocidade recebido do Remote |
+
+### 11.3 Módulos Monitorados — Remote
+
+| Tag | Eventos logados |
+|---|---|
+| `BOTAO` | Pressionar/soltar SUBIR, DESCER, VEL1/2/3, EMERGÊNCIA |
+| `STATUS` | Estado recebido do Principal (transições) |
+| `LINK` | Comunicação perdida/restabelecida |
+
+### 11.4 Exemplo de Saída Serial
+
+```
+[1523] [INFO] [BOTAO] Botao SUBIR pressionado (hold)
+[1523] [INFO] [FREIO] Liberando freio
+[1523] [INFO] [MOTOR] Motor ativado — direcao SUBIR
+[1523] [INFO] [ESTADO] Transicao: PARADO -> SUBINDO
+[3891] [INFO] [BOTAO] Botao SUBIR solto
+[3891] [INFO] [MOTOR] Motor desligado
+[3891] [INFO] [FREIO] Acionando freio
+[3891] [INFO] [ESTADO] Transicao: SUBINDO -> PARADO
+[5200] [WARN] [EMERG] Emergencia ATIVADA — botao local pressionado
+[5200] [WARN] [MAQEST] Movimentacao BLOQUEADA — emergencia ativa
+[5200] [INFO] [ESTADO] Transicao: PARADO -> EMERGENCIA
+```
+
+### 11.5 Desabilitar em Produção
+
+Adicionar no `platformio.ini` do módulo desejado:
+
+```ini
+build_flags = -DLOG_DISABLED
+```
+
+Com `LOG_DISABLED`, todas as macros de logging compilam como no-op (zero overhead em Flash e RAM).
+
+### 11.6 Arquivo Compartilhado
+
+O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros de logging e funções auxiliares `estadoParaString()` e `comandoParaString()` para saída legível.
+
+---
+
+## 12. Requisitos Não-Funcionais
 
 - **Latência:** < 100 ms entre botão e resposta do motor.
 - **Watchdog:** Timeout padrão 500 ms, configurável.
@@ -386,17 +463,17 @@ Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor defini
 
 ---
 
-## 12. Fora de Escopo (v1.0)
+## 13. Fora de Escopo (v1.0)
 
 - Fim de curso na posição inferior (margem do rio).
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
-- Registro de logs de operação.
+- Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).
 - Múltiplos remotes simultâneos.
 
 ---
 
-## 13. Glossário
+## 14. Glossário
 
 | Termo | Definição |
 |---|---|

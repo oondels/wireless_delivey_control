@@ -40,9 +40,10 @@
 | alimentação, bateria, 18650, LM2596, TP4056 | `hardware_io/SPEC.md` | §3 |
 | lista de materiais, BOM | `hardware_io/SPEC.md` | §14 |
 | enclosure, IP54 | `hardware_io/SPEC.md` | §3.2 |
-| visão geral, arquitetura, mestre-escravo, glossário | `DESIGN_SPEC.md` | §1–§2 (arquitetura), §12 (glossário) |
+| logging, debug, Serial, logger.h, LOG_INFO, LOG_WARN | `README.md` | §11 (detalhes completos), `DESIGN_SPEC.md` §11 (resumo) |
+| visão geral, arquitetura, mestre-escravo, glossário | `DESIGN_SPEC.md` | §1–§2 (arquitetura), §13 (glossário) |
 | requisitos não-funcionais, latência, alcance | `DESIGN_SPEC.md` | §10 |
-| fora de escopo v1.0 | `DESIGN_SPEC.md` | §11 |
+| fora de escopo v1.0 | `DESIGN_SPEC.md` | §12 |
 
 ---
 

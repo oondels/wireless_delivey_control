@@ -1,7 +1,7 @@
 # Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 3.1  
-**Data:** 2026-03-16  
+**Versão:** 3.2
+**Data:** 2026-03-17
 **Status:** Em execução
 
 ---
@@ -327,17 +327,23 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 
 ---
 
-## 11. Fora de Escopo (v1.0)
+## 11. Sistema de Logging (Debug/Testes)
+
+O firmware inclui logging via Serial (115200 baud) para depuração pré-deploy. Implementado como header-only `logger.h` com macros que compilam como no-op quando desabilitadas (`-DLOG_DISABLED`). Registra apenas transições de estado e ações (não polled states). Formato: `[timestamp_ms] [NIVEL] [MODULO] mensagem`. Ver `README.md` §11 para detalhes completos.
+
+---
+
+## 12. Fora de Escopo (v1.0)
 
 - Fim de curso na posição inferior (margem do rio).
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
-- Registro de logs de operação.
+- Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).
 - Múltiplos remotes simultâneos.
 
 ---
 
-## 12. Glossário
+## 13. Glossário
 
 | Termo | Definição |
 |---|---|

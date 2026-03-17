@@ -154,7 +154,8 @@ If the same task fails more than 3 consecutive iterations:
 └── README.md
 ```
 
-> Source code directories (e.g. `principal/`, `remote/`) will be created during implementation as per `docs/IMPLEMENTATION_PLAN.md`.
+> Source code directories (`principal/`, `remote/`) contain the firmware implementation.
+> Both modules share `logger.h` (header-only logging via Serial, desabilitável com `-DLOG_DISABLED`).
 
 ---
 

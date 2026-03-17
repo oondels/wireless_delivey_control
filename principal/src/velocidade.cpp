@@ -5,6 +5,7 @@
  */
 
 #include "velocidade.h"
+#include "logger.h"
 
 const uint8_t Velocidade::_pinos[3] = {PIN_RELE_VEL1, PIN_RELE_VEL2, PIN_RELE_VEL3};
 
@@ -33,6 +34,7 @@ void Velocidade::selecionar(uint8_t nivel) {
     if (nivel < 1 || nivel > 3 || nivel == _nivel) {
         return;
     }
+    LOG_INFO_VAL("VELOC", "Velocidade alterada para ", nivel);
     desacionarTodos();
     acionarNivel(nivel);
     _nivel = nivel;
