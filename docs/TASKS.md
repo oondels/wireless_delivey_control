@@ -35,7 +35,7 @@ Referência: `docs/IMPLEMENTATION_PLAN.md` v3.2
 
 ## Fase 2 — Firmware: Principal — Motor e Velocidade
 
-- [ ] T-012: Implementar `motor.h` / `motor.cpp` — funções `acionar_motor(direcao)` e `desligar_motor()`, exclusividade mútua dos relés DIREÇÃO A/B, dead-time 100 ms na inversão via `millis()` (nunca `delay()`). Ref: `motor/SPEC.md` §2
+- [x] T-012: Implementar `motor.h` / `motor.cpp` — funções `acionar_motor(direcao)` e `desligar_motor()`, exclusividade mútua dos relés DIREÇÃO A/B, dead-time 100 ms na inversão via `millis()` (nunca `delay()`). Ref: `motor/SPEC.md` §2
 - [ ] T-013: Implementar controle de velocidade no Principal — relés VEL1/2/3 com exclusividade mútua (desacionar anterior → acionar novo), variável `velocidade_atual` (padrão VEL1 na inicialização), incluir no campo `velocidade` do PacoteStatus. Ref: `motor/SPEC.md` §3
 - [ ] T-014: Implementar leitura de botões do Principal — debounce 50 ms para todos, SUBIR/DESCER lidos como hold (nível), VEL1/2/3/REARME como pulso (borda de descida), EMERGÊNCIA como nível contínuo (trava). Ref: `hardware_io/SPEC.md` §4
 

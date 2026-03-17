@@ -87,3 +87,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-012 implementa motor.h/cpp — acionar_motor(direcao) e desligar_motor(), exclusividade mútua dos relés DIREÇÃO A/B, dead-time 100ms via millis(). Ref: motor/SPEC.md §2. NOTA: MAC do Remote é placeholder (0xFF) — será definido no deploy.
+
+## 2026-03-16 - T-012 - Implementar motor.h / motor.cpp
+
+- Outcome: Módulo motor com acionar_motor(dir), desligar_motor(), motor_direcao_atual(), motor_em_dead_time(). Dead-time 100ms não-bloqueante via millis() com direção pendente. Exclusividade mútua garantida. Enum Direcao (NENHUMA, SUBIR, DESCER).
+- Files changed: `principal/include/motor.h`, `principal/src/motor.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-013 implementa velocidade — relés VEL1/2/3 com exclusividade mútua, velocidade_atual (padrão VEL1), incluir no PacoteStatus. Ref: motor/SPEC.md §3.
