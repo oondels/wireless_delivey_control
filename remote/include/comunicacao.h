@@ -30,13 +30,17 @@ public:
     uint32_t ultimoStatusRecebidoMs() const { return _ultimoStatusMs; }
 
 private:
+    static constexpr uint8_t MAC_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
     static void onDataRecv(const uint8_t* mac, const uint8_t* data, int len);
+    static void atualizarPeerPrincipal(const uint8_t* mac);
+    static bool registrarPeer(const uint8_t* mac);
 
     // Membros estáticos para acesso no callback C
     static volatile PacoteStatus _ultimoStatus;
     static volatile uint32_t     _ultimoStatusMs;
-
-    uint8_t _macPrincipal[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    static uint8_t _macPrincipalAtual[6];
+    static bool    _peerPrincipalConhecido;
 };
 
 #endif // COMUNICACAO_H

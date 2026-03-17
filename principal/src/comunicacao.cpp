@@ -9,11 +9,62 @@
 
 #include "comunicacao.h"
 
+constexpr uint8_t Comunicacao::MAC_BROADCAST[6];
+
 // Definição dos membros estáticos
 WatchdogComm*          Comunicacao::_pWatchdog   = nullptr;
 Emergencia*            Comunicacao::_pEmergencia = nullptr;
 volatile PacoteRemote  Comunicacao::_ultimoPacote = {};
 volatile bool          Comunicacao::_novoPacote   = false;
+uint8_t                Comunicacao::_macRemoteAtual[6] = {
+    Comunicacao::MAC_BROADCAST[0],
+    Comunicacao::MAC_BROADCAST[1],
+    Comunicacao::MAC_BROADCAST[2],
+    Comunicacao::MAC_BROADCAST[3],
+    Comunicacao::MAC_BROADCAST[4],
+    Comunicacao::MAC_BROADCAST[5]
+};
+bool                   Comunicacao::_peerRemotoConhecido = false;
+
+bool Comunicacao::registrarPeer(const uint8_t* mac) {
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, mac, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+
+    if (esp_now_is_peer_exist(mac)) {
+        return true;
+    }
+
+    return esp_now_add_peer(&peerInfo) == ESP_OK;
+}
+
+void Comunicacao::atualizarPeerRemoto(const uint8_t* mac) {
+    if (mac == nullptr) {
+        return;
+    }
+
+    if (_peerRemotoConhecido && memcmp(_macRemoteAtual, mac, 6) == 0) {
+        return;
+    }
+
+    if (!registrarPeer(mac)) {
+        return;
+    }
+
+    memcpy(_macRemoteAtual, mac, 6);
+    _peerRemotoConhecido = true;
+
+    Serial.printf(
+        "[INFO] Peer MAC Remote detectado: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        _macRemoteAtual[0],
+        _macRemoteAtual[1],
+        _macRemoteAtual[2],
+        _macRemoteAtual[3],
+        _macRemoteAtual[4],
+        _macRemoteAtual[5]
+    );
+}
 
 void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
     if (len != sizeof(PacoteRemote)) {
@@ -28,6 +79,8 @@ void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
     if (cs != pacote.checksum) {
         return;
     }
+
+    atualizarPeerRemoto(mac);
 
     // Pacote válido — resetar watchdog
     if (_pWatchdog) {
@@ -61,16 +114,13 @@ void Comunicacao::init(WatchdogComm& watchdog, Emergencia& emergencia) {
     // Registrar callback de recepção
     esp_now_register_recv_cb(onDataRecv);
 
-    // Registrar peer (Remote)
-    esp_now_peer_info_t peerInfo = {};
-    memcpy(peerInfo.peer_addr, _macRemote, 6);
-    peerInfo.channel = 0;
-    peerInfo.encrypt = false;
-
-    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-        Serial.println("[ERRO] Falha ao registrar peer Remote");
+    // Registrar broadcast para descoberta inicial do peer
+    if (!registrarPeer(MAC_BROADCAST)) {
+        Serial.println("[ERRO] Falha ao registrar peer broadcast");
         return;
     }
+
+    Serial.println("[INFO] Peer Remote ainda nao detectado — modo descoberta em broadcast");
 
     Serial.println("[OK] ESP-NOW inicializado — Principal");
 }
@@ -78,5 +128,6 @@ void Comunicacao::init(WatchdogComm& watchdog, Emergencia& emergencia) {
 void Comunicacao::enviarStatus(const PacoteStatus& status) {
     PacoteStatus pacote = status;
     pacote.checksum = calcular_checksum((const uint8_t*)&pacote, sizeof(PacoteStatus) - 1);
-    esp_now_send(_macRemote, (const uint8_t*)&pacote, sizeof(PacoteStatus));
+    const uint8_t* destino = _peerRemotoConhecido ? _macRemoteAtual : MAC_BROADCAST;
+    esp_now_send(destino, (const uint8_t*)&pacote, sizeof(PacoteStatus));
 }
