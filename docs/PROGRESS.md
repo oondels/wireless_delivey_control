@@ -47,3 +47,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-007 implementa sensores.h/sensores.cpp — leitura do fim de curso com debounce 20ms via millis(). Ref: motor/SPEC.md §5.
+
+## 2026-03-16 - T-007 - Implementar sensores.h / sensores.cpp
+
+- Outcome: Módulo de sensores com debounce 20ms via millis(). fim_de_curso_acionado() retorna true quando GPIO LOW estável por 20ms (pull-up externo). Não-bloqueante.
+- Files changed: `principal/include/sensores.h`, `principal/src/sensores.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-008 implementa lógica de emergência — flag emergencia_ativa, leitura do botão EMERGÊNCIA (nível contínuo), ativação imediata. Ref: seguranca/SPEC.md §3.
