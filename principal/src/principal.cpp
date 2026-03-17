@@ -55,6 +55,10 @@ bool           watchdogAnteriorExpirado = false;
 bool           subirAnterior            = false;
 bool           descerAnterior           = false;
 bool           emergenciaRemotaAnterior = false;
+bool           comandoMovRemotoAnteriorAtivo = false;
+uint8_t        ultimoComandoMovRemoto = CMD_HEARTBEAT;
+bool           ultimoComandoMovRemotoBloqueado = false;
+uint8_t        ultimaOrigemBloqueioMovRemoto = 0;
 uint8_t        velocidadeAnteriorLog    = 1;
 
 void setup() {
@@ -154,23 +158,47 @@ void loop() {
         if (cmd == CMD_SUBIR || cmd == CMD_DESCER) {
             bool emergenciaPrincipalAtiva = emergencia.isAtiva();
             bool emergenciaRemoteAtiva = (pkt.emergencia == 1);
-
-            if (emergenciaPrincipalAtiva || emergenciaRemoteAtiva) {
-                String origemBloqueio = "principal";
-                if (emergenciaPrincipalAtiva && emergenciaRemoteAtiva) {
-                    origemBloqueio = "principal+remote";
-                } else if (emergenciaRemoteAtiva) {
-                    origemBloqueio = "remote";
-                }
-
-                LOG_WARN_VAL(
-                    "REMOTO",
-                    "Comando de movimentacao bloqueado por emergencia (origem: ",
-                    origemBloqueio + "): " + comandoParaString(cmd)
-                );
-            } else {
-                LOG_INFO_VAL("REMOTO", "Comando de movimentacao recebido do Remote: ", comandoParaString(cmd));
+            bool comandoBloqueado = emergenciaPrincipalAtiva || emergenciaRemoteAtiva;
+            uint8_t origemBloqueio = 0;
+            if (emergenciaPrincipalAtiva && emergenciaRemoteAtiva) {
+                origemBloqueio = 3;
+            } else if (emergenciaPrincipalAtiva) {
+                origemBloqueio = 1;
+            } else if (emergenciaRemoteAtiva) {
+                origemBloqueio = 2;
             }
+
+            bool deveLogarMovimento =
+                !comandoMovRemotoAnteriorAtivo ||
+                (cmd != ultimoComandoMovRemoto) ||
+                (comandoBloqueado != ultimoComandoMovRemotoBloqueado) ||
+                (origemBloqueio != ultimaOrigemBloqueioMovRemoto);
+
+            if (deveLogarMovimento) {
+                if (comandoBloqueado) {
+                    String origemBloqueioTxt = "principal";
+                    if (origemBloqueio == 3) {
+                        origemBloqueioTxt = "principal+remote";
+                    } else if (origemBloqueio == 2) {
+                        origemBloqueioTxt = "remote";
+                    }
+
+                    LOG_WARN_VAL(
+                        "REMOTO",
+                        "Comando de movimentacao bloqueado por emergencia (origem: ",
+                        origemBloqueioTxt + "): " + comandoParaString(cmd)
+                    );
+                } else {
+                    LOG_INFO_VAL("REMOTO", "Comando de movimentacao recebido do Remote: ", comandoParaString(cmd));
+                }
+            }
+
+            comandoMovRemotoAnteriorAtivo = true;
+            ultimoComandoMovRemoto = cmd;
+            ultimoComandoMovRemotoBloqueado = comandoBloqueado;
+            ultimaOrigemBloqueioMovRemoto = origemBloqueio;
+        } else {
+            comandoMovRemotoAnteriorAtivo = false;
         }
 
         if (pkt.emergencia == 1 && !emergenciaRemotaAnterior) {
