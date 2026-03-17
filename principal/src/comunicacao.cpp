@@ -1,8 +1,7 @@
 /**
  * comunicacao.cpp — Implementação ESP-NOW do Módulo Principal
  *
- * OnDataRecv: valida checksum, reseta watchdog, processa emergência
- * imediata se emergencia == 1.
+ * OnDataRecv: valida checksum e reseta watchdog.
  *
  * Ref: comunicacao/SPEC.md §7-9
  */
@@ -13,7 +12,6 @@ constexpr uint8_t Comunicacao::MAC_BROADCAST[6];
 
 // Definição dos membros estáticos
 WatchdogComm*          Comunicacao::_pWatchdog   = nullptr;
-Emergencia*            Comunicacao::_pEmergencia = nullptr;
 volatile PacoteRemote  Comunicacao::_ultimoPacote = {};
 volatile bool          Comunicacao::_novoPacote   = false;
 uint8_t                Comunicacao::_macRemoteAtual[6] = {
@@ -87,20 +85,13 @@ void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
         _pWatchdog->resetar();
     }
 
-    // Processar emergência imediatamente (prioridade máxima)
-    if (pacote.emergencia == 1 && _pEmergencia) {
-        _pEmergencia->ativa() = true;
-        // LOG de emergencia Remote é feito em emergencia.cpp
-    }
-
     // Copiar pacote para variável estática
     memcpy((void*)&_ultimoPacote, &pacote, sizeof(PacoteRemote));
     _novoPacote = true;
 }
 
-void Comunicacao::init(WatchdogComm& watchdog, Emergencia& emergencia) {
+void Comunicacao::init(WatchdogComm& watchdog) {
     _pWatchdog   = &watchdog;
-    _pEmergencia = &emergencia;
 
     // WiFi em modo station (necessário para ESP-NOW)
     WiFi.mode(WIFI_STA);

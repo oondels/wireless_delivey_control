@@ -75,7 +75,7 @@ void setup() {
     motor.init();
     velocidade.init();       // Padrão VEL1
     botoes.init();
-    comunicacao.init(watchdog, emergencia);
+    comunicacao.init(watchdog);
     maquinaEstados.init();   // Estado PARADO
 
     Serial.println("=== Módulo Principal — Pronto ===");
