@@ -46,23 +46,25 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 ### 4.1 Botões
 
-| Botão | Tipo | Debounce | Leitura | Descrição |
-|---|---|---|---|---|
-| SUBIR | Táctil | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
-| DESCER | Táctil | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
-| VEL1 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
-| VEL2 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
-| VEL3 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
-| EMERGÊNCIA | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
-| REARME | Táctil | 50 ms | Pulso (borda) | Desativar emergência |
+| Botão | GPIO | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|---|
+| SUBIR | 36 | Táctil | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
+| DESCER | 39 | Táctil | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
+| VEL1 | 34 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
+| VEL2 | 35 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
+| VEL3 | 32 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
+| EMERGÊNCIA | 33 | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+| REARME | 25 | Táctil | 50 ms | Pulso (borda) | Desativar emergência |
+
+> GPIOs 34, 35, 36, 39 são input-only (sem pull-up interno) — usar pull-up externo 10kΩ.
 
 **Total: 7 entradas digitais**
 
 ### 4.2 Sensores
 
-| Sensor | Tipo | Debounce | Leitura | Descrição |
-|---|---|---|---|---|
-| Fim de curso | Microswitch | 20 ms | Nível | Posição final de subida (estacionamento) |
+| Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|---|
+| Fim de curso | 26 | Microswitch | 20 ms | Nível | Posição final de subida (estacionamento) |
 
 **Total: 1 entrada digital**
 
@@ -74,22 +76,22 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 ### 5.1 Relés (com LED Compartilhado)
 
-| Relé | Função | LED Associado | Acionamento |
-|---|---|---|---|
-| DIREÇÃO A | Motor sentido SUBIR | LED SUBIR | GPIO HIGH = ativo |
-| DIREÇÃO B | Motor sentido DESCER | LED DESCER | GPIO HIGH = ativo |
-| VEL1 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO HIGH = ativo |
-| VEL2 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO HIGH = ativo |
-| VEL3 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO HIGH = ativo |
-| FREIO | Freio mecânico | LED FREIO | GPIO HIGH = freio aplicado |
+| Relé | GPIO | Função | LED Associado | Acionamento |
+|---|---|---|---|---|
+| DIREÇÃO A | 4 | Motor sentido SUBIR | LED SUBIR | GPIO HIGH = ativo |
+| DIREÇÃO B | 16 | Motor sentido DESCER | LED DESCER | GPIO HIGH = ativo |
+| VEL1 | 17 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO HIGH = ativo |
+| VEL2 | 5 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO HIGH = ativo |
+| VEL3 | 18 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO HIGH = ativo |
+| FREIO | 19 | Freio mecânico | LED FREIO | GPIO HIGH = freio aplicado |
 
 **Total: 6 GPIOs de saída (compartilhados relé + LED)**
 
 ### 5.2 LEDs Exclusivos
 
-| LED | Função |
-|---|---|
-| LINK REMOTE | Indica comunicação ativa com Remote |
+| LED | GPIO | Função |
+|---|---|---|
+| LINK REMOTE | 21 | Indica comunicação ativa com Remote |
 
 **Total: 1 GPIO de saída exclusivo**
 

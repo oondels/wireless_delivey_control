@@ -298,15 +298,19 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 
 ### 9.2 LEDs no Painel Central
 
+> No Módulo Principal, os LEDs de relé (DIREÇÃO A/B, VEL1/2/3, FREIO) são controlados pelo mesmo GPIO que aciona o relé correspondente — ver pinout em `README.md` §5.1. O único LED com GPIO exclusivo é o LINK REMOTE.
+
 | LED | GPIO | Comportamento | Condição |
 |---|---|---|---|
-| VEL1 | 1 | Ligado fixo | `velocidade_atual == 1` |
-| VEL2 | 1 | Ligado fixo | `velocidade_atual == 2` |
-| VEL3 | 1 | Ligado fixo | `velocidade_atual == 3` |
-| EMERGÊNCIA | 1 | Ligado fixo | `emergencia_ativa == true` |
-| LINK REMOTE | 1 | Ligado fixo | Comunicação com Remote ativa (watchdog OK) |
+| DIREÇÃO A | 4 | Ligado fixo | Motor ativo sentido subida (compartilhado c/ relé) |
+| DIREÇÃO B | 16 | Ligado fixo | Motor ativo sentido descida (compartilhado c/ relé) |
+| VEL1 | 17 | Ligado fixo | `velocidade_atual == 1` (compartilhado c/ relé) |
+| VEL2 | 5 | Ligado fixo | `velocidade_atual == 2` (compartilhado c/ relé) |
+| VEL3 | 18 | Ligado fixo | `velocidade_atual == 3` (compartilhado c/ relé) |
+| FREIO | 19 | Ligado fixo | Relé de freio acionado (compartilhado c/ relé) |
+| LINK REMOTE | 21 | Ligado fixo | Comunicação com Remote ativa (watchdog OK) |
 
-**Total: 5 GPIOs de saída**
+**Total: 7 GPIOs de saída** (6 compartilhados com relés + 1 exclusivo)
 
 ---
 

@@ -140,24 +140,24 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 
 ### 5.1 Módulo Principal
 
-| Função | Tipo | GPIO |
-|---|---|---|
-| Botão SUBIR | Entrada | A definir |
-| Botão DESCER | Entrada | A definir |
-| Botão VEL1 | Entrada | A definir |
-| Botão VEL2 | Entrada | A definir |
-| Botão VEL3 | Entrada | A definir |
-| Botão EMERGÊNCIA (trava) | Entrada | A definir |
-| Botão REARME | Entrada | A definir |
-| Fim de curso | Entrada | A definir |
-| Relé + LED DIREÇÃO A | Saída | A definir |
-| Relé + LED DIREÇÃO B | Saída | A definir |
-| Relé + LED VEL1 | Saída | A definir |
-| Relé + LED VEL2 | Saída | A definir |
-| Relé + LED VEL3 | Saída | A definir |
-| Relé + LED FREIO | Saída | A definir |
-| LED LINK REMOTE | Saída | A definir |
-| **Total** | | **8 entradas + 7 saídas = 15 GPIOs** |
+| Função | Tipo | GPIO | Observação |
+|---|---|---|---|
+| Botão SUBIR | Entrada | 36 | Input-only, pull-up externo |
+| Botão DESCER | Entrada | 39 | Input-only, pull-up externo |
+| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo |
+| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo |
+| Botão VEL3 | Entrada | 32 | Pull-up externo |
+| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up externo — não usa strapping pin |
+| Botão REARME | Entrada | 25 | Pull-up externo |
+| Fim de curso | Entrada | 26 | Pull-up externo — não usa strapping pin |
+| Relé + LED DIREÇÃO A | Saída | 4 | HIGH = motor sentido SUBIR |
+| Relé + LED DIREÇÃO B | Saída | 16 | HIGH = motor sentido DESCER |
+| Relé + LED VEL1 | Saída | 17 | HIGH = velocidade 1 |
+| Relé + LED VEL2 | Saída | 5 | HIGH = velocidade 2 |
+| Relé + LED VEL3 | Saída | 18 | HIGH = velocidade 3 |
+| Relé + LED FREIO | Saída | 19 | HIGH = freio aplicado |
+| LED LINK REMOTE | Saída | 21 | Comunicação ativa com Remote |
+| **Total** | | **15** | **8 entradas + 7 saídas** |
 
 ### 5.2 Módulo Remote
 
@@ -178,7 +178,7 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | LED ALARME | Saída | A definir |
 | **Total** | | **6 entradas + 7 saídas = 13 GPIOs** |
 
-> Os valores de GPIO serão definidos na Fase 1 do plano de implementação, respeitando as restrições de boot do ESP32 (evitar GPIOs 0, 2, 12 e 15 para entradas críticas).
+> GPIOs do Módulo Principal definidos. GPIOs do Módulo Remote serão definidos na próxima tarefa da Fase 1. Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas. Pinos input-only (34, 35, 36, 39) usados apenas como entrada com pull-up externo.
 
 ---
 
