@@ -95,3 +95,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-013 implementa velocidade — relés VEL1/2/3 com exclusividade mútua, velocidade_atual (padrão VEL1), incluir no PacoteStatus. Ref: motor/SPEC.md §3.
+
+## 2026-03-16 - T-013 - Implementar controle de velocidade
+
+- Outcome: Módulo velocidade.h/cpp com velocidade_selecionar(nivel), velocidade_atual(). Exclusividade mútua: desaciona anterior antes de acionar novo. Padrão VEL1 na init.
+- Files changed: `principal/include/velocidade.h`, `principal/src/velocidade.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-014 implementa leitura de botões do Principal — debounce 50ms, SUBIR/DESCER hold (nível), VEL1/2/3/REARME pulso (borda descida), EMERGÊNCIA nível contínuo. Ref: hardware_io/SPEC.md §4.
