@@ -2,7 +2,7 @@
 
 **Versão:** 3.2  
 **Data:** 2026-03-16  
-**Status:** Rascunho
+**Status:** Em execução
 
 ---
 

@@ -25,7 +25,7 @@ Other components: relay module (motor/system actuation), LM2596 step-down conver
 
 ## Language
 
-Project documentation and code comments are in **Brazilian Portuguese (pt-BR)**. Maintain this convention for all comments, variable names where contextual, commit messages, and documentation.
+Project documentation and code comments are in **Brazilian Portuguese (pt-BR)**. Maintain this convention for all comments, variable can be in english, commit messages, and documentation.
 
 ---
 
