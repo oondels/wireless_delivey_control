@@ -19,3 +19,6 @@ Other components: 8-channel relay module (motor/system actuation), LM2596 step-d
 ## Language
 
 Project documentation is in Brazilian Portuguese (pt-BR). Maintain this convention for comments, commit messages, and documentation.
+
+## GOLDEN RULES
+1. **Security** - You just have acces to view or edit files in this project/repository. Do not attempt to access any other files or repositories. Just if it was explicitly shared with you by user.

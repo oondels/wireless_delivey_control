@@ -1,139 +1,414 @@
-# Levantamento de Materiais — Projeto de Automação do Carrinho
+# Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-## Sobre o Projeto
-
-Automação de um sistema de controle de carrinho movido por motor com bobina e cabo de aço (subida e descida). Atualmente o controle só é possível na central de instalação. A proposta é adicionar um **painel embarcado no carrinho** com comunicação sem fio, permitindo controlar velocidade, acionamento e emergência diretamente do carrinho — sem depender da central.
+**Versão:** 3.2  
+**Data:** 2026-03-16  
+**Status:** Rascunho
 
 ---
 
-## Resumo Financeiro
+## 1. Visão Geral
 
-| Métrica | Valor |
+O sistema moderniza o controle de um carrinho de transporte de jet skis movido por guincho motorizado. A operação, antes restrita a um painel fixo no depósito, passa a ser realizada por controle remoto sem fio, permitindo que o operador acompanhe o equipamento ao longo de todo o trajeto entre o depósito e a margem do rio.
+
+A **prioridade absoluta do sistema é a segurança (Fail-Safe):** qualquer falha de comunicação, queda de energia ou acionamento de emergência resulta no freio mecânico sendo aplicado imediatamente.
+
+---
+
+## 2. Arquitetura do Sistema
+
+O sistema adota uma arquitetura **Mestre-Escravo** com dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem roteador).
+
+```
+┌──────────────────────────────────┐     ESP-NOW (bidirecional)     ┌─────────────────────────────────┐
+│     MÓDULO PRINCIPAL             │  ────────────────────────────► │     MÓDULO REMOTE               │
+│  (Painel Central / Mestre)       │  ◄────────────────────────────  │  (Carrinho / Escravo)           │
+│                                  │   Cmds ←→ Heartbeat / Status   │                                 │
+│  - ESP32                         │                                 │  - ESP32                        │
+│  - Botões do painel fixo         │                                 │  - Botões do operador           │
+│  - Botão de emergência c/ trava  │                                 │  - Botão de emergência c/ trava │
+│  - Relés: direção, velocidade,   │                                 │  - LEDs de status (cor física)  │
+│    freio                         │                                 │  - Bateria                      │
+│  - Fim de curso estacionamento   │                                 │  - Enclosure IP54               │
+│  - LEDs compartilhados c/ relés  │                                 │                                 │
+│  - Alimentação rede elétrica     │                                 │                                 │
+└──────────────────────────────────┘                                 └─────────────────────────────────┘
+                │
+                │ Circuito elétrico direto (sem ESP32)
+                ▼
+    ┌───────────────────────┐
+    │  MICROCHAVE DO FREIO  │
+    │  Acionamento hardware │
+    │  direto no circuito   │
+    │  do freio mecânico    │
+    └───────────────────────┘
+```
+
+### 2.1 Hierarquia de Controle
+
+O Módulo Principal possui **autoridade máxima** sobre o sistema:
+
+- Comandos de direção e velocidade do Painel Central têm prioridade sobre os do Remote.
+- O Painel Central pode ativar **e desativar** o estado de emergência, incluindo emergências originadas no Remote.
+- O Remote **nunca** pode desativar uma emergência por conta própria; apenas solicitar seu acionamento.
+
+---
+
+## 3. Descrição dos Módulos
+
+### 3.1 Módulo Principal (Painel Central)
+
+| Item | Descrição |
 |---|---|
-| Total de itens distintos | 8 |
-| **Custo total estimado** | **R$ 818,00** |
+| Microcontrolador | ESP32 |
+| Localização | Painel fixo no estacionamento/depósito |
+| Alimentação | Fonte derivada da rede elétrica 110/220V |
+| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava), REARME; fim de curso do estacionamento |
+| Saídas relés/LEDs | 1 GPIO por canal — aciona relé **e** LED simultaneamente via ligação física: DIREÇÃO A, DIREÇÃO B, VEL1, VEL2, VEL3, FREIO |
+| LEDs exclusivos | LINK REMOTE (sem relé associado — GPIO dedicado) |
+| Comunicação | ESP-NOW — recebe pacotes do Remote, envia status de retorno |
 
----
+### 3.2 Módulo Remote (Carrinho)
 
-## Lista de Materiais
-
-### 1. Painel de Controle
-| Campo | Detalhe |
+| Item | Descrição |
 |---|---|
-| Quantidade | 2 unidades |
-| Valor unitário | R$ 100,00 |
-| **Valor total** | **R$ 200,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/caixa-montagem-painel-eletrico-30x20x15-quadro-comando-autack-componentes-eletricos-300x200x150/p/MLB42019770) |
+| Microcontrolador | ESP32 |
+| Localização | Embarcado no carrinho de transporte |
+| Alimentação | Bateria recarregável (ex: Li-Ion 18650 + regulador 3.3V) |
+| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava) |
+| Saídas LEDs | GPIOs dedicados: LINK, MOTOR, VEL1, VEL2, VEL3, EMERGÊNCIA, ALARME |
+| Comunicação | ESP-NOW — transmite comandos e heartbeat para o Principal |
 
-> Organização do sistema de automação e alocamento dos componentes do painel. Um painel na central e um painel embarcado no carrinho.
+> O Remote não possui relés. Todos os seus LEDs são GPIOs dedicados.
 
 ---
 
-### 2. Módulo Relé Arduino 8 Canais
-| Campo | Detalhe |
+## 4. Arquitetura de Hardware — GPIOs e Ligações Físicas
+
+### 4.1 Compartilhamento GPIO: Relé + LED (Módulo Principal)
+
+No Módulo Principal, cada saída de relé possui um LED indicativo conectado **em paralelo** na mesma saída GPIO. Quando o ESP32 aciona o GPIO (HIGH), ele energiza simultaneamente o relé e o LED. Quando desaciona (LOW), ambos apagam.
+
+```
+GPIO ESP32
+    │
+    ├──► Bobina do relé (via transistor/driver)
+    │
+    └──► LED 3V (com resistor em série 220Ω)
+```
+
+> **Atenção de hardware:** a corrente total do GPIO deve suportar o LED (tipicamente ~10 mA) mais a corrente de controle do driver do relé. Recomenda-se usar um transistor ou driver de relé (ex: ULN2003) para não sobrecarregar o GPIO diretamente. O LED pode ser ligado entre o coletor do transistor e VCC, ou diretamente no GPIO se a corrente total for segura.
+
+**Canais com GPIO compartilhado (relé + LED) no Principal:**
+
+| Canal | Relé aciona | LED indica |
+|---|---|---|
+| DIREÇÃO A | Motor sentido SUBIDA | Motor ativo — sentido subida |
+| DIREÇÃO B | Motor sentido DESCIDA | Motor ativo — sentido descida |
+| VEL1 | Potenciômetro velocidade 1 | Velocidade 1 selecionada |
+| VEL2 | Potenciômetro velocidade 2 | Velocidade 2 selecionada |
+| VEL3 | Potenciômetro velocidade 3 | Velocidade 3 selecionada |
+| FREIO | Relé de freio | Freio acionado pelo sistema |
+
+**Canal com GPIO exclusivo (sem relé) no Principal:**
+
+| Canal | Função |
 |---|---|
-| Quantidade | 1 unidade |
-| Valor unitário | R$ 40,00 |
-| **Valor total** | **R$ 40,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/modulo-rele-8-canais-5v-10a-para-arduino-e-automaco-blutu/p/MLB45022588) |
+| LINK REMOTE | LED indicando comunicação ativa com o Remote |
 
-> Relés para controle e acionamento do sistema. Módulo com 8 canais, 5V, 10A.
+### 4.2 Microchave do Freio — Acionamento Direto por Hardware
+
+A microchave do freio **não está conectada ao ESP32**. Ela atua diretamente no circuito elétrico do freio mecânico, interrompendo ou permitindo a alimentação do freio de forma independente do firmware.
+
+**Implicação para o firmware:** o ESP32 Principal não lê o estado do freio. A trava física é garantida pela microchave em hardware. O firmware controla o relé de freio (acionar/liberar), mas a microchave pode sobrepor esse estado diretamente no circuito elétrico, funcionando como uma camada de segurança adicional independente do software.
+
+Esta abordagem é mais segura pois garante o acionamento do freio mesmo em caso de falha total do firmware.
+
+### 4.3 Fim de Curso do Estacionamento
+
+Sensor instalado no estacionamento que é acionado quando o carrinho chega à posição final de subida. Este sensor **está conectado ao ESP32 Principal** como entrada digital.
+
+**Comportamento ao acionar:**
+- O Principal detecta o sinal do fim de curso (com debounce de 20 ms).
+- O motor é cortado imediatamente (desaciona relés de direção).
+- O relé de freio é acionado.
+- O sistema entra no estado `PARADO` — não é emergência, não requer rearme.
+- O operador pode retomar a operação normalmente.
 
 ---
 
-### 3. Step Down (Regulador de Tensão LM2596)
-| Campo | Detalhe |
+## 5. Pinout Resumido
+
+### 5.1 Módulo Principal
+
+| Função | Tipo | GPIO |
+|---|---|---|
+| Botão SUBIR | Entrada | A definir |
+| Botão DESCER | Entrada | A definir |
+| Botão VEL1 | Entrada | A definir |
+| Botão VEL2 | Entrada | A definir |
+| Botão VEL3 | Entrada | A definir |
+| Botão EMERGÊNCIA (trava) | Entrada | A definir |
+| Botão REARME | Entrada | A definir |
+| Fim de curso | Entrada | A definir |
+| Relé + LED DIREÇÃO A | Saída | A definir |
+| Relé + LED DIREÇÃO B | Saída | A definir |
+| Relé + LED VEL1 | Saída | A definir |
+| Relé + LED VEL2 | Saída | A definir |
+| Relé + LED VEL3 | Saída | A definir |
+| Relé + LED FREIO | Saída | A definir |
+| LED LINK REMOTE | Saída | A definir |
+| **Total** | | **8 entradas + 7 saídas = 15 GPIOs** |
+
+### 5.2 Módulo Remote
+
+| Função | Tipo | GPIO |
+|---|---|---|
+| Botão SUBIR | Entrada | A definir |
+| Botão DESCER | Entrada | A definir |
+| Botão VEL1 | Entrada | A definir |
+| Botão VEL2 | Entrada | A definir |
+| Botão VEL3 | Entrada | A definir |
+| Botão EMERGÊNCIA (trava) | Entrada | A definir |
+| LED LINK | Saída | A definir |
+| LED MOTOR | Saída | A definir |
+| LED VEL1 | Saída | A definir |
+| LED VEL2 | Saída | A definir |
+| LED VEL3 | Saída | A definir |
+| LED EMERGÊNCIA | Saída | A definir |
+| LED ALARME | Saída | A definir |
+| **Total** | | **6 entradas + 7 saídas = 13 GPIOs** |
+
+> Os valores de GPIO serão definidos na Fase 1 do plano de implementação, respeitando as restrições de boot do ESP32 (evitar GPIOs 0, 2, 12 e 15 para entradas críticas).
+
+---
+
+## 6. Regras de Negócio
+
+### 6.1 Controle de Velocidade
+
+- O sistema possui **3 níveis de velocidade**, selecionados por botões de **pulso**.
+- A velocidade selecionada é armazenada em memória de estado no firmware do Principal.
+- Cada nível aciona um relé correspondente (e seu LED em paralelo), que comuta a tensão para um potenciômetro físico externo pré-ajustado.
+- Apenas **um** relé de velocidade pode estar ativo por vez. Ao selecionar um novo nível, o relé anterior é desacionado antes de acionar o novo.
+- **Sincronização de LEDs:** o campo `velocidade` do `PacoteStatus` permite ao Remote atualizar seus próprios LEDs de velocidade, espelhando o estado do Painel.
+
+### 6.2 Acionamento do Motor — Regra "Homem-Morto"
+
+- O motor **só permanece em operação enquanto SUBIR ou DESCER estiver mantido pressionado.**
+- Ao soltar: corte do motor (relés de direção) → acionamento do freio (relé de freio).
+- Aplica-se ao Painel Central e ao Remote.
+- O Remote transmite o estado do botão continuamente; o Principal executa a lógica.
+
+### 6.3 Trava Lógica de Software
+
+- Quando a trava lógica está ativa no firmware (emergência ou falha de comunicação), os comandos de movimentação do Remote são ignorados.
+- A microchave do freio atua em paralelo como camada de segurança de hardware, independente da trava lógica.
+
+---
+
+## 7. Protocolos de Segurança e Emergência (Fail-Safe)
+
+### 7.1 Condições de Acionamento do Freio
+
+| # | Condição | Camada | Estado resultante |
+|---|---|---|---|
+| 1 | Microchave do freio (circuito direto) | **Hardware** | Freio acionado independente do firmware |
+| 2 | Perda de heartbeat do Remote (watchdog) | Firmware | `FALHA_COMUNICACAO` |
+| 3 | Queda de energia / desligamento do Remote | Firmware | `FALHA_COMUNICACAO` |
+| 4 | Botão EMERGÊNCIA no Painel Central | Firmware | `EMERGENCIA_ATIVA` |
+| 5 | Botão EMERGÊNCIA no Remote | Firmware | `EMERGENCIA_ATIVA` |
+| 6 | Soltura do botão de acionamento (Homem-Morto) | Firmware | `PARADO` |
+| 7 | Fim de curso do estacionamento | Firmware | `PARADO` |
+
+### 7.2 Botão de Emergência com Trava Mecânica
+
+Botões de emergência são do tipo **com trava**: sinal permanece ativo até destravar manualmente. O firmware lê o nível contínuo do pino.
+
+**Saída de `EMERGENCIA_ATIVA` requer:**
+1. Botão de emergência fisicamente solto (sinal inativo); **e**
+2. Operador pressionar REARME no Painel Central.
+
+**Rearme com botão Remote ainda travado:** o Principal aceita o rearme, limpa `EMERGENCIA_ATIVA` e seta `rearme_ativo = 1` no `PacoteStatus`. O Remote acende o LED ALARME ao receber esse flag com botão local ainda ativo.
+
+```
+Botão Remote travado + Painel pressiona REARME:
+  → Principal: EMERGENCIA_ATIVA = false, rearme_ativo = 1
+  → Remote recebe status: LED ALARME pisca (2 Hz)
+  → Operador solta botão no Remote: LED ALARME apaga
+```
+
+### 7.3 Prioridade da Emergência
+
+Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do relé de freio → `EMERGENCIA_ATIVA = true`. Com flag ativa, todos os comandos de movimentação do Remote são ignorados.
+
+### 7.4 Desativação de Emergência (Rearme)
+
+Exclusivamente manual via botão REARME no Painel Central. O sistema **jamais** rearma automaticamente. Após rearme: estado `PARADO`.
+
+### 7.5 Watchdog de Comunicação
+
+- Timeout: **500 ms** (configurável).
+- Sem pacote no timeout: freio acionado, motor cortado, `FALHA_COMUNICACAO`.
+- Remote envia heartbeat a cada **200 ms**.
+- `FALHA_COMUNICACAO` exige rearme manual.
+
+---
+
+## 8. Máquina de Estados do Sistema (Módulo Principal)
+
+```
+                    ┌──────────────────────────────────────────┐
+                    │           EMERGENCIA_ATIVA               │◄─── Emergência (Painel ou Remote)
+                    │  Relés direção: OFF                      │
+                    │  Relé freio: ON                          │
+                    │  Remote: ignorado                        │
+                    └────────────────┬─────────────────────────┘
+                                     │ Rearme MANUAL (Painel Central)
+                                     ▼
+                    ┌──────────────────────────────────────────┐
+                    │           FALHA_COMUNICACAO              │◄─── Watchdog timeout
+                    │  Relés direção: OFF                      │
+                    │  Relé freio: ON                          │
+                    └────────────────┬─────────────────────────┘
+                                     │ Rearme MANUAL (Painel Central)
+                                     ▼
+          ┌──────────┐  hold SUBIR  ┌───────────┐  hold DESCER  ┌──────────┐
+          │  SUBINDO │◄─────────── │  PARADO   │──────────────►│ DESCENDO │
+          │ Dir A:ON │             │ Dir:OFF   │               │ Dir B:ON │
+          │ Freio:OFF│────────────►│ Freio:ON  │◄──────────────│ Freio:OFF│
+          └──────────┘  solto      └─────▲─────┘  solto        └──────────┘
+                                         │
+                              Fim de curso → PARADO (sem rearme)
+
+* Microchave do freio: camada de hardware paralela, independente dos estados acima.
+```
+
+### Tabela de Condições de Acionamento do Motor (camada firmware)
+
+| Emergência Ativa | Falha Comun. | Fim de Curso | Botão Hold | Resultado |
+|---|---|---|---|---|
+| Não | Não | Não acionado | Pressionado | Motor ON |
+| Não | Não | Não acionado | Solto | Motor OFF → Freio ON → PARADO |
+| Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → PARADO |
+| Não | Sim | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
+| Sim | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
+
+> A microchave do freio não aparece nesta tabela por atuar em nível de hardware, fora do controle do firmware.
+
+---
+
+## 9. Protocolo de Comunicação (ESP-NOW)
+
+### 9.1 Emparelhamento
+
+MAC do Principal fixado em firmware no Remote.
+
+### 9.2 Pacote Remote → Principal
+
+```c
+typedef struct {
+    uint8_t  comando;       // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
+                            // 3=VEL1, 4=VEL2, 5=VEL3
+    uint8_t  botao_hold;    // 1=SUBIR ou DESCER pressionado
+    uint8_t  emergencia;    // 1=botão com trava ativo no Remote
+    uint32_t timestamp;     // millis() do Remote
+    uint8_t  checksum;      // XOR de todos os bytes anteriores
+} PacoteRemote;
+```
+
+### 9.3 Pacote Principal → Remote (Status)
+
+```c
+typedef struct {
+    uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
+                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO
+    uint8_t  velocidade;     // 1, 2 ou 3 — sincroniza LEDs de velocidade no Remote
+    uint8_t  trava_logica;   // 1=trava ativa
+    uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão Remote ainda travado
+    uint8_t  checksum;
+} PacoteStatus;
+```
+
+> O campo `estado_freio` foi removido do `PacoteStatus` em relação à versão anterior, pois o firmware do Principal não lê mais a microchave.
+
+### 9.4 Frequência de Envio
+
+| Direção | Condição | Frequência |
+|---|---|---|
+| Remote → Principal | Heartbeat | A cada 200 ms |
+| Remote → Principal | Mudança de estado | Imediato + repetir a cada 200 ms |
+| Principal → Remote | Status | A cada 200 ms ou imediato em mudança de estado |
+
+---
+
+## 10. Indicadores Visuais (LEDs)
+
+Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor definida fisicamente. O firmware controla apenas o estado lógico do GPIO.
+
+### 10.1 LEDs no Módulo Principal (compartilhados com relés)
+
+| LED | GPIO compartilhado com | Aceso quando |
+|---|---|---|
+| DIREÇÃO A | Relé DIREÇÃO A | Motor ativo no sentido subida |
+| DIREÇÃO B | Relé DIREÇÃO B | Motor ativo no sentido descida |
+| VEL1 | Relé VEL1 | Velocidade 1 selecionada |
+| VEL2 | Relé VEL2 | Velocidade 2 selecionada |
+| VEL3 | Relé VEL3 | Velocidade 3 selecionada |
+| FREIO | Relé FREIO | Relé de freio acionado pelo firmware |
+| LINK REMOTE | — (GPIO exclusivo) | Comunicação ativa com o Remote |
+
+### 10.2 LEDs no Módulo Remote (GPIOs dedicados)
+
+| LED | Comportamento | Condição |
+|---|---|---|
+| LINK | Piscando 1 Hz | Sem status recebido há > 1000 ms |
+| LINK | Ligado fixo | Comunicação ativa |
+| MOTOR | Ligado fixo | `estado_sistema == SUBINDO` ou `DESCENDO` |
+| VEL1 | Ligado fixo | `velocidade == 1` |
+| VEL2 | Ligado fixo | `velocidade == 2` |
+| VEL3 | Ligado fixo | `velocidade == 3` |
+| EMERGÊNCIA | Piscando 4 Hz | `estado_sistema == EMERGENCIA_ATIVA` |
+| EMERGÊNCIA | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` |
+| ALARME | Piscando 2 Hz | `rearme_ativo == 1` e botão emergência local travado |
+
+---
+
+## 11. Requisitos Não-Funcionais
+
+- **Latência:** < 100 ms entre botão e resposta do motor.
+- **Watchdog:** Timeout padrão 500 ms, configurável.
+- **Alcance:** Mínimo 50 metros em linha de visada.
+- **Robustez:** Enclosure Remote mínimo IP54.
+- **Segurança elétrica:** Relés com fator de segurança 2x sobre corrente de partida do motor. Isolação galvânica entre rede elétrica e GPIOs. Usar driver (transistor/ULN2003) entre GPIO e bobina do relé.
+- **Anti-colisão de direção:** Dead-time mínimo de 100 ms ao inverter sentido.
+- **Rearme:** Jamais automático.
+- **Fim de curso:** Debounce mínimo 20 ms.
+
+---
+
+## 12. Fora de Escopo (v1.0)
+
+- Fim de curso na posição inferior (margem do rio).
+- Display LCD/OLED.
+- Controle por aplicativo mobile.
+- Registro de logs de operação.
+- Múltiplos remotes simultâneos.
+
+---
+
+## 13. Glossário
+
+| Termo | Definição |
 |---|---|
-| Quantidade | 2 unidades |
-| Valor unitário | R$ 19,00 |
-| **Valor total** | **R$ 38,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/regulador-de-tensao-lm2596-conversor-dcdc-step-down-arduino/up/MLBU1172024220) |
-
-> Controle de tensão para as placas controladoras. Conversor DC-DC Step Down.
-
----
-
-### 4. Botão de Emergência (Cogumelo com Trava)
-| Campo | Detalhe |
-|---|---|
-| Quantidade | 2 unidades |
-| Valor unitário | R$ 30,00 |
-| **Valor total** | **R$ 60,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/kit-botao-de-emergencia-cogumelo-c-trava-1nf--placa/up/MLBU2231609916) |
-
-> 2 botões para controle de emergência e segurança do sistema — um no carrinho e um no painel central.
-
----
-
-### 5. Botoeira de Pulso 22mm (Verde)
-| Campo | Detalhe |
-|---|---|
-| Quantidade | 10 unidades |
-| Valor unitário | R$ 25,00 |
-| **Valor total** | **R$ 250,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/botao-verde-c-contato-no--liga-motor-botoeira-pulso-22mm/up/MLBU2956673619) |
-
-**Distribuição das botoeiras (5 por painel × 2 painéis):**
-
-| Função | Qtd por painel | Total |
-|---|:---:|:---:|
-| Controle de velocidade | 3 | 6 |
-| Ir para frente | 1 | 2 |
-| Ir para trás | 1 | 2 |
-| **Total** | **5** | **10** |
-
----
-
-### 6. Micro Fim de Curso com Rolete
-| Campo | Detalhe |
-|---|---|
-| Quantidade | 1 unidade |
-| Valor unitário | R$ 19,00 |
-| **Valor total** | **R$ 19,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/chave-fim-de-curso-nanf-me-8108-regulagem-alavanca-rolete/p/MLB2074706650) |
-
-> Sensor para reconhecer quando o carrinho está chegando à central e acionar a parada no local correto de estacionamento.
-
----
-
-### 7. Micro Fim de Curso Switch (Haste 27mm)
-| Campo | Detalhe |
-|---|---|
-| Quantidade | 1 unidade |
-| Valor unitário | R$ 11,00 |
-| **Valor total** | **R$ 11,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/micro-switch-chave-fim-de-curso-alavanca-c-haste-27mm/up/MLBU1744692688) |
-
-> Sensor na frente do carrinho para detecção de obstáculos e prevenção de colisões.
-
----
-
-### 8. Placa ESP32 WROOM-32U (Wi-Fi + Antena Externa)
-| Campo | Detalhe |
-|---|---|
-| Quantidade | 2 unidades |
-| Valor unitário | R$ 100,00 |
-| **Valor total** | **R$ 200,00** |
-| Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/placa-modulo-esp32-wroom-32u-cabo-antena-wifi/p/MLB62742338) |
-
-> Placa controladora do sistema responsável pelo processamento e pela comunicação sem fio entre o carrinho e o painel central.
-
----
-
-## Tabela Consolidada
-
-| # | Item | Qtd | Valor Unit. | Valor Total |
-|---|---|:---:|---:|---:|
-| 1 | Painel de Controle | 2 | R$ 100,00 | R$ 200,00 |
-| 2 | Módulo Relé 8 Canais | 1 | R$ 40,00 | R$ 40,00 |
-| 3 | Step Down LM2596 | 2 | R$ 19,00 | R$ 38,00 |
-| 4 | Botão de Emergência | 2 | R$ 30,00 | R$ 60,00 |
-| 5 | Botoeira de Pulso 22mm | 10 | R$ 25,00 | R$ 250,00 |
-| 6 | Micro Fim de Curso Rolete | 1 | R$ 19,00 | R$ 19,00 |
-| 7 | Micro Fim de Curso Switch | 1 | R$ 11,00 | R$ 11,00 |
-| 8 | ESP32 Wi-Fi + Antena | 2 | R$ 100,00 | R$ 200,00 |
-| | | | **TOTAL** | **R$ 818,00** |
-
----
-
-*Levantamento gerado em: março/2026*
+| ESP-NOW | Protocolo de comunicação sem fio da Espressif, direto entre dispositivos, sem roteador |
+| Microchave do Freio | Chave mecânica que atua diretamente no circuito do freio, sem passar pelo ESP32 |
+| Fim de Curso | Sensor de posição conectado ao ESP32 que detecta a chegada do carrinho ao estacionamento |
+| Watchdog | Timer de supervisão que aciona segurança se comunicação é perdida |
+| Dead-time | Intervalo obrigatório entre desligar um relé de direção e ligar o oposto |
+| Homem-Morto | Regra que exige botão mantido pressionado para o motor permanecer ativo |
+| Fail-Safe | Qualquer falha leva ao estado seguro (freio aplicado) |
+| Rearme | Ato manual de desativar emergência e retornar à operação |
+| Trava Lógica | Flag de software que bloqueia movimentação independente de entradas físicas |
+| Botão com Trava | Botão que mantém sinal ativo após pressionado, até ser destrancado manualmente |
+| LED ALARME | Indicador no Remote: Painel fez rearme mas botão local ainda travado |
+| GPIO Compartilhado | GPIO que aciona relé e LED simultaneamente via ligação física em paralelo |
