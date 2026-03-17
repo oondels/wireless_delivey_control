@@ -28,15 +28,35 @@ EstadoSistema MaquinaEstados::atualizar(
     const EstadoBotoes& botoesLocal,
     const volatile PacoteRemote& pacoteRemote
 ) {
+    const bool tentativaRemotaSubir = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_SUBIR);
+    const bool tentativaRemotaDescer = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_DESCER);
+
     // Prioridade 1: emergência (botão local OU flag já ativa OU Remote)
     if (emergencia.verificar(pacoteRemote.emergencia)) {
         if (_estado != ESTADO_EMERGENCIA) {
             LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — emergencia ativa");
         }
+
+        if (tentativaRemotaSubir && !_logBloqueioRemotoSubir) {
+            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - emergencia ativa/freio acionado");
+            _logBloqueioRemotoSubir = true;
+        }
+        if (tentativaRemotaDescer && !_logBloqueioRemotoDescer) {
+            LOG_WARN("REMOTO", "Comando DESCER bloqueado - emergencia ativa/freio acionado");
+            _logBloqueioRemotoDescer = true;
+        }
+
         motor.desligar();
         freio.acionar();
         _estado = ESTADO_EMERGENCIA;
         return _estado;
+    }
+
+    if (!tentativaRemotaSubir) {
+        _logBloqueioRemotoSubir = false;
+    }
+    if (!tentativaRemotaDescer) {
+        _logBloqueioRemotoDescer = false;
     }
 
     // Prioridade 2: watchdog de comunicação
@@ -52,6 +72,10 @@ EstadoSistema MaquinaEstados::atualizar(
 
     // Prioridade 3: fim de curso (apenas bloqueia SUBIR)
     if (sensores.fimDeCursoAcionado()) {
+        if (tentativaRemotaSubir && !_logBloqueioRemotoSubir) {
+            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - freio acionado (fim de curso)");
+            _logBloqueioRemotoSubir = true;
+        }
         motor.desligar();
         freio.acionar();
         _estado = ESTADO_PARADO;

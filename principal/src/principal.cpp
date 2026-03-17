@@ -54,6 +54,7 @@ EstadoSistema  estadoAnterior      = ESTADO_PARADO;
 bool           watchdogAnteriorExpirado = false;
 bool           subirAnterior            = false;
 bool           descerAnterior           = false;
+bool           emergenciaRemotaAnterior = false;
 uint8_t        velocidadeAnteriorLog    = 1;
 
 void setup() {
@@ -138,13 +139,45 @@ void loop() {
 
     // Processar velocidade do Remote (se novo pacote com comando de velocidade)
     if (comunicacao.novoPacoteRecebido()) {
-        uint8_t cmd = comunicacao.ultimoPacote().comando;
+        const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
+        uint8_t cmd = pkt.comando;
         if (cmd == CMD_VEL1 || cmd == CMD_VEL2 || cmd == CMD_VEL3) {
             LOG_INFO_VAL("REMOTO", "Comando de velocidade recebido do Remote: ", comandoParaString(cmd));
         }
+
         if (cmd == CMD_VEL1) velocidade.selecionar(1);
         if (cmd == CMD_VEL2) velocidade.selecionar(2);
         if (cmd == CMD_VEL3) velocidade.selecionar(3);
+
+        if (cmd == CMD_SUBIR || cmd == CMD_DESCER) {
+            bool emergenciaPrincipalAtiva = emergencia.isAtiva();
+            bool emergenciaRemoteAtiva = (pkt.emergencia == 1);
+
+            if (emergenciaPrincipalAtiva || emergenciaRemoteAtiva) {
+                String origemBloqueio = "principal";
+                if (emergenciaPrincipalAtiva && emergenciaRemoteAtiva) {
+                    origemBloqueio = "principal+remote";
+                } else if (emergenciaRemoteAtiva) {
+                    origemBloqueio = "remote";
+                }
+
+                LOG_WARN_VAL(
+                    "REMOTO",
+                    "Comando de movimentacao bloqueado por emergencia (origem: ",
+                    origemBloqueio + "): " + comandoParaString(cmd)
+                );
+            } else {
+                LOG_INFO_VAL("REMOTO", "Comando de movimentacao recebido do Remote: ", comandoParaString(cmd));
+            }
+        }
+
+        if (pkt.emergencia == 1 && !emergenciaRemotaAnterior) {
+            LOG_WARN("REMOTO", "Comando de EMERGENCIA recebido do Remote");
+        } else if (pkt.emergencia == 0 && emergenciaRemotaAnterior) {
+            LOG_INFO("REMOTO", "Sinal de EMERGENCIA liberado no Remote");
+        }
+        emergenciaRemotaAnterior = (pkt.emergencia == 1);
+
         comunicacao.limparNovoPacote();
     }
 

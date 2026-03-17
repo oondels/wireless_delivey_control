@@ -43,6 +43,8 @@ EstadoBotoes btnAnterior = {};
 // Controle de logging de transições
 uint8_t estadoAnteriorLog  = ESTADO_PARADO;
 bool    linkAnteriorOk     = false;
+bool    logBloqueioLocalSubir = false;
+bool    logBloqueioLocalDescer = false;
 
 void setup() {
     Serial.begin(115200);
@@ -76,6 +78,25 @@ void loop() {
         LOG_WARN("BOTAO", "Botao EMERGENCIA ativado (trava)");
     } else if (!btn.emergencia && btnAnterior.emergencia) {
         LOG_INFO("BOTAO", "Botao EMERGENCIA liberado");
+    }
+
+    // Log de bloqueio local por emergencia ativa (anti-spam)
+    bool tentativaLocalSubir = btn.subir_hold;
+    bool tentativaLocalDescer = btn.descer_hold;
+
+    if (btn.emergencia && tentativaLocalSubir && !logBloqueioLocalSubir) {
+        LOG_WARN("REMOTO", "Comando SUBIR bloqueado - emergencia ativa");
+        logBloqueioLocalSubir = true;
+    }
+    if (btn.emergencia && tentativaLocalDescer && !logBloqueioLocalDescer) {
+        LOG_WARN("REMOTO", "Comando DESCER bloqueado - emergencia ativa");
+        logBloqueioLocalDescer = true;
+    }
+    if (!tentativaLocalSubir || !btn.emergencia) {
+        logBloqueioLocalSubir = false;
+    }
+    if (!tentativaLocalDescer || !btn.emergencia) {
+        logBloqueioLocalDescer = false;
     }
 
     // 2. Montar PacoteRemote

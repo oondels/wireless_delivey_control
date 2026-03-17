@@ -43,6 +43,8 @@ public:
 
 private:
     EstadoSistema _estado = ESTADO_PARADO;
+    bool _logBloqueioRemotoSubir = false;
+    bool _logBloqueioRemotoDescer = false;
 };
 
 #endif // MAQUINA_ESTADOS_H
