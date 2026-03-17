@@ -19,7 +19,7 @@ Referência: `docs/IMPLEMENTATION_PLAN.md` v3.2
 
 ## Fase 2 — Firmware: Protocolo Compartilhado
 
-- [ ] T-005: Criar `protocolo.h` com structs `PacoteRemote` (8 bytes) e `PacoteStatus` (5 bytes), enums `Comando` (0–5) e `EstadoSistema` (0–4), e função `calcular_checksum()` (XOR). Copiar arquivo idêntico em `principal/` e `remote/`. Ref: `comunicacao/SPEC.md` §4–6
+- [x] T-005: Criar `protocolo.h` com structs `PacoteRemote` (8 bytes) e `PacoteStatus` (5 bytes), enums `Comando` (0–5) e `EstadoSistema` (0–4), e função `calcular_checksum()` (XOR). Copiar arquivo idêntico em `principal/` e `remote/`. Ref: `comunicacao/SPEC.md` §4–6
 
 ## Fase 2 — Firmware: Principal — Segurança (implementar primeiro)
 

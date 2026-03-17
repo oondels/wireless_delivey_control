@@ -31,3 +31,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: README.md §5.2, hardware_io/SPEC.md §6-7, DESIGN_SPEC.md §9.1.
 - Notes for next task: T-005 cria protocolo.h compartilhado com structs PacoteRemote/PacoteStatus, enums Comando/EstadoSistema e função calcular_checksum(). Arquivo idêntico em principal/ e remote/. Ref: comunicacao/SPEC.md §4-6.
+
+## 2026-03-16 - T-005 - Criar protocolo.h compartilhado
+
+- Outcome: protocolo.h criado com structs PacoteRemote (8 bytes, packed) e PacoteStatus (5 bytes, packed), enums Comando (0-5) e EstadoSistema (0-4), função inline calcular_checksum() (XOR), e constantes de timing (HEARTBEAT 200ms, WATCHDOG 500ms, STATUS 200ms). Arquivo idêntico em ambos os módulos.
+- Files changed: `principal/include/protocolo.h`, `remote/include/protocolo.h`
+- Validations: `platformio run` em ambos — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-006 implementa freio.h/freio.cpp no Principal — funções acionar_freio() e liberar_freio() usando PIN_RELE_FREIO (GPIO 19). Ref: motor/SPEC.md §4.
