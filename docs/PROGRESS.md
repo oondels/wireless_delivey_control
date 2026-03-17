@@ -151,3 +151,11 @@
 - Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-020 implementa Botoes do Remote — debounce 50ms, SUBIR/DESCER (hold), VEL1/2/3 (pulso), EMERGÊNCIA (nível contínuo). Método ler() retorna EstadoBotoes. Ref: hardware_io/SPEC.md §6.
+
+## 2026-03-17 - T-020 - Implementar Botoes do Remote
+
+- Outcome: Classe Botoes com 6 entradas (vs 5 do Principal). EstadoBotoes inclui campo emergencia (nível contínuo, LOW=ativo). Debounce 50ms genérico via millis(). Mesma lógica de hold/pulso do Principal.
+- Files changed: `remote/include/botoes.h`, `remote/src/botoes.cpp`
+- Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-021 implementa atualizarLeds() do Remote — recebe PacoteStatus, atualiza 7 LEDs conforme spec. LINK (fixo/piscar 1Hz por timeout 1000ms), MOTOR (SUBINDO/DESCENDO), VEL1-3 (velocidade), EMERGÊNCIA (piscar 4Hz / fixo), ALARME (piscar 2Hz se rearme_ativo + botão travado). Ref: leds/SPEC.md §3.2.
