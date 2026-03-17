@@ -39,3 +39,11 @@
 - Validations: `platformio run` em ambos — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-006 implementa freio.h/freio.cpp no Principal — funções acionar_freio() e liberar_freio() usando PIN_RELE_FREIO (GPIO 19). Ref: motor/SPEC.md §4.
+
+## 2026-03-16 - T-006 - Implementar freio.h / freio.cpp
+
+- Outcome: Módulo de freio criado com freio_init() (configura GPIO + aciona freio como estado padrão), acionar_freio() (HIGH) e liberar_freio() (LOW). Sem leitura de sensor conforme spec.
+- Files changed: `principal/include/freio.h`, `principal/src/freio.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-007 implementa sensores.h/sensores.cpp — leitura do fim de curso com debounce 20ms via millis(). Ref: motor/SPEC.md §5.
