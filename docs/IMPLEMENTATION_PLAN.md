@@ -1,8 +1,8 @@
 # Plano de Implementação — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 2.0  
+**Versão:** 3.1  
 **Data:** 2026-03-16  
-**Referência:** design_spec.md v2.0
+**Referência:** design_spec.md v3.1
 
 ---
 
@@ -11,10 +11,10 @@
 ```
 Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5
 Ambiente  Firmware  Integração  Testes    Deploy
-  (3h)     (12h)     (4h)        (6h)      (2h)
+  (3h)     (14h)     (4h)        (7h)      (2h)
 ```
 
-Estimativa total: **~27 horas** de trabalho técnico.
+Estimativa total: **~30 horas** de trabalho técnico.
 
 ---
 
@@ -34,45 +34,56 @@ Estimativa total: **~27 horas** de trabalho técnico.
 - **Critério de aceite:** latência < 20 ms em 100 envios consecutivos
 
 **1.3 — Definição e documentação do pinout**
-- Módulo Principal: pinos para 6 botões do painel, 5 LEDs, 6 relés (2 direção + 3 velocidade + 1 freio), 1 entrada microchave
-- Módulo Remote: pinos para 6 botões, 3 LEDs
-- Criar arquivo `pinout.h` para cada módulo
+
+Módulo Principal — GPIOs necessários:
+- 7 entradas: SUBIR, DESCER, VEL1, VEL2, VEL3, EMERGÊNCIA (trava), REARME
+- 2 entradas de sensores: microchave do freio, fim de curso do estacionamento
+- 6 saídas para relés: direção A, direção B, VEL1, VEL2, VEL3, freio
+- 5 saídas para LEDs: VEL1, VEL2, VEL3, EMERGÊNCIA, LINK REMOTE
+- **Total: 9 entradas + 11 saídas = 20 GPIOs**
+
+Módulo Remote — GPIOs necessários:
+- 6 entradas: SUBIR, DESCER, VEL1, VEL2, VEL3, EMERGÊNCIA (trava)
+- 7 saídas para LEDs: LINK, MOTOR, VEL1, VEL2, VEL3, EMERGÊNCIA, ALARME
+- **Total: 6 entradas + 7 saídas = 13 GPIOs**
+
+> Verificar a disponibilidade de GPIOs no modelo de ESP32 escolhido. O ESP32 DevKit padrão expõe 30+ GPIOs, mas alguns têm restrições de boot e uso. Evitar GPIOs 0, 2, 12 e 15 para entradas críticas.
+
+Criar arquivo `pinout.h` para cada módulo com todas as constantes nomeadas.
 
 **1.4 — Montagem dos protótipos em protoboard**
-- Montar Remote em protoboard (botões + LEDs + bateria)
-- Montar Principal em protoboard (botões + LEDs + relés de teste + microchave simulada com táctil)
+- Montar Remote em protoboard: 6 botões (táctil normal para simular trava), 7 LEDs com resistores de 220Ω, bateria
+- Montar Principal em protoboard: 7 botões, 2 chaves tácteis para microchave e fim de curso, 6 relés de teste, 5 LEDs com resistores de 220Ω
 
 ---
 
 ## Fase 2 — Desenvolvimento do Firmware
 
-**Objetivo:** Implementar toda a lógica de negócio conforme design_spec.md v2.0, priorizando as camadas de segurança antes das funcionalidades de operação.
+**Objetivo:** Implementar toda a lógica de negócio conforme design_spec.md v3.1, priorizando segurança antes de funcionalidades de operação.
 
 ### 2.1 — Estrutura de Arquivos dos Projetos
 
 ```
 principal/
-├── principal.ino       (ou main.cpp)
-├── pinout.h
-├── protocolo.h         (structs compartilhadas)
-├── maquina_estados.h   (enum EstadoSistema + transições)
-├── motor.h             (abstração dos relés de direção + velocidade)
-├── freio.h             (abstração do relé de freio + leitura microchave)
-└── leds.h
+├── principal.ino         (ou main.cpp)
+├── pinout.h              (todos os GPIOs nomeados)
+├── protocolo.h           (structs e enums compartilhados)
+├── maquina_estados.h     (enum EstadoSistema + função de transição)
+├── motor.h               (relés de direção + velocidade)
+├── freio.h               (relé de freio + leitura microchave)
+├── sensores.h            (fim de curso com debounce)
+└── leds.h                (controle de GPIO + lógica de piscar por timer)
 
 remote/
-├── remote.ino          (ou main.cpp)
+├── remote.ino            (ou main.cpp)
 ├── pinout.h
-├── protocolo.h         (cópia idêntica)
+├── protocolo.h           (cópia idêntica)
 └── leds.h
 ```
 
 ### 2.2 — Módulo de Protocolo Compartilhado (`protocolo.h`)
 
-Implementar as structs exatas definidas no design_spec seções 7.2 e 7.3:
-
 ```c
-// Enum de comandos
 typedef enum {
     CMD_HEARTBEAT = 0,
     CMD_SUBIR     = 1,
@@ -82,136 +93,185 @@ typedef enum {
     CMD_VEL3      = 5
 } Comando;
 
-// Enum de estados do sistema
 typedef enum {
-    ESTADO_PARADO           = 0,
-    ESTADO_SUBINDO          = 1,
-    ESTADO_DESCENDO         = 2,
-    ESTADO_EMERGENCIA       = 3,
+    ESTADO_PARADO            = 0,
+    ESTADO_SUBINDO           = 1,
+    ESTADO_DESCENDO          = 2,
+    ESTADO_EMERGENCIA        = 3,
     ESTADO_FALHA_COMUNICACAO = 4
 } EstadoSistema;
 
 typedef struct {
-    uint8_t  comando;
-    uint8_t  botao_hold;
-    uint8_t  emergencia;
-    uint32_t timestamp;
-    uint8_t  checksum;
+    uint8_t  comando;       // Comando ativo ou HEARTBEAT
+    uint8_t  botao_hold;    // 1=SUBIR ou DESCER pressionado
+    uint8_t  emergencia;    // 1=botão com trava ativo no Remote
+    uint32_t timestamp;     // millis() do Remote
+    uint8_t  checksum;      // XOR de todos os bytes anteriores
 } PacoteRemote;
 
 typedef struct {
-    uint8_t  estado_sistema;
-    uint8_t  estado_freio;
-    uint8_t  velocidade;
-    uint8_t  trava_logica;
+    uint8_t  estado_sistema; // EstadoSistema
+    uint8_t  estado_freio;   // 0=engatado, 1=liberado
+    uint8_t  velocidade;     // 1, 2 ou 3
+    uint8_t  trava_logica;   // 1=trava ativa
+    uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão Remote ainda travado
     uint8_t  checksum;
 } PacoteStatus;
 
-// Cálculo de checksum: XOR de todos os bytes exceto o próprio checksum
 uint8_t calcular_checksum(uint8_t* data, size_t len);
 ```
 
-### 2.3 — Firmware do Módulo Remote
+### 2.3 — Módulo de LEDs (`leds.h`)
 
-**Ordem de implementação (segurança primeiro):**
+Implementar uma abstração de LED que suporte dois modos de operação: ligado fixo e piscando em frequência configurável. A lógica de piscar deve ser **não-bloqueante** (baseada em `millis()`, nunca em `delay()`).
+
+```c
+typedef struct {
+    uint8_t  gpio;
+    bool     piscando;
+    uint16_t intervalo_ms;   // período de cada semi-ciclo (ex: 125ms para 4Hz)
+    uint32_t ultimo_toggle;
+    bool     estado_atual;
+} Led;
+
+void led_ligar(Led* led);
+void led_desligar(Led* led);
+void led_piscar(Led* led, uint16_t intervalo_ms);
+void led_atualizar(Led* led);  // chamar no loop principal
+```
+
+Frequências utilizadas no projeto:
+- 1 Hz → intervalo 500 ms (LED LINK sem conexão)
+- 2 Hz → intervalo 250 ms (LED ALARME)
+- 4 Hz → intervalo 125 ms (LED EMERGÊNCIA ativo)
+
+### 2.4 — Firmware do Módulo Remote
 
 **Etapa A — Comunicação base**
 - Inicialização do ESP-NOW com MAC do Principal fixado
-- Callback `OnDataSent`: registrar confirmação de entrega
-- Callback `OnDataRecv`: receber e processar `PacoteStatus`; atualizar estado local
+- Callback `OnDataSent`: registrar flag de entrega confirmada
+- Callback `OnDataRecv`: receber `PacoteStatus`; atualizar variáveis locais (`estado_sistema`, `velocidade`, `rearme_ativo`)
 
 **Etapa B — Lógica dos botões**
 - Leitura dos 6 botões com debounce por software (mínimo 50 ms)
-- Botões SUBIR/DESCER: detectar hold (pressionado contínuo)
-- Botões VEL1/VEL2/VEL3: detectar pulso (borda de descida)
-- Botão EMERGÊNCIA: detectar pulso, sem debounce longo (resposta imediata)
+- SUBIR/DESCER: ler nível contínuo (hold)
+- VEL1/VEL2/VEL3: detectar borda de descida (pulso)
+- EMERGÊNCIA (com trava): `digitalRead(PIN_EMERGENCIA)` — a trava mecânica mantém o sinal; sem latch por software
 
 **Etapa C — Transmissão**
-- Heartbeat a cada 200 ms quando nenhum botão ativo
-- Ao pressionar/soltar botão: enviar pacote imediatamente + continuar enviando a cada 200 ms enquanto estado ativo
-- Campo `botao_hold`: 1 se SUBIR ou DESCER pressionado, 0 caso contrário
-- Campo `emergencia`: 1 imediatamente ao pressionar EMERGÊNCIA
+- Heartbeat a cada 200 ms sem botão ativo
+- Envio imediato em qualquer mudança de estado + continuar a cada 200 ms enquanto ativo
+- `botao_hold` = nível de SUBIR ou DESCER
+- `emergencia` = leitura direta do pino do botão com trava
 
-**Etapa D — LEDs**
-- LINK: piscar 1 Hz se sem status recebido nos últimos 1000 ms; fixo se link ativo
-- MOTOR: aceso se `estado_sistema == SUBINDO || DESCENDO`
-- EMERGÊNCIA: piscar 4 Hz se `estado_sistema == EMERGENCIA`; fixo se `FALHA_COMUNICACAO`
+**Etapa D — Atualização de LEDs**
+
+Todos os LEDs do Remote são controlados pelo status recebido do Principal:
+
+| LED | Lógica de controle |
+|---|---|
+| LINK | Piscar 1 Hz se `millis() - ultimo_status > 1000`; ligado fixo caso contrário |
+| MOTOR | Ligado se `estado_sistema == SUBINDO \|\| DESCENDO` |
+| VEL1 | Ligado se `velocidade == 1` |
+| VEL2 | Ligado se `velocidade == 2` |
+| VEL3 | Ligado se `velocidade == 3` |
+| EMERGÊNCIA | Piscar 4 Hz se `estado_sistema == EMERGENCIA`; ligado fixo se `FALHA_COMUNICACAO` |
+| ALARME | Piscar 2 Hz se `rearme_ativo == 1 && digitalRead(PIN_EMERGENCIA) == HIGH`; desligado caso contrário |
 
 **Pseudo-código do loop principal do Remote:**
 ```
 loop():
   ler_botoes_com_debounce()
-  
-  if emergencia_pressionada:
-    pacote.emergencia = 1
-    enviar_pacote_imediato()
-  
-  if botao_direcao_mudou OR botao_velocidade_pulsado:
-    enviar_pacote_imediato()
-  
+  emergencia_local = digitalRead(PIN_EMERGENCIA)
+
+  if emergencia_local != emergencia_anterior
+     OR direcao_mudou
+     OR velocidade_pulsada:
+    montar_pacote(comando, botao_hold, emergencia_local)
+    enviar_imediato()
+
   if millis() - ultimo_envio > 200:
-    enviar_pacote_heartbeat_ou_estado_atual()
-  
-  atualizar_leds(status_recebido_do_principal)
+    montar_pacote(CMD_HEARTBEAT_ou_atual, botao_hold, emergencia_local)
+    enviar()
+
+  atualizar_todos_os_leds(status_recebido)
 ```
 
-### 2.4 — Firmware do Módulo Principal
-
-**Ordem de implementação (segurança primeiro):**
+### 2.5 — Firmware do Módulo Principal
 
 **Etapa A — Camada de segurança (implementar e testar ANTES de qualquer movimentação)**
 - Leitura da microchave com debounce de 20 ms
-- Relé do freio: função `acionar_freio()` e `liberar_freio()` com proteção contra duplo acionamento
-- Watchdog: timer baseado em `millis()`, timeout 500 ms
-- Flag `emergencia_ativa`: quando `true`, bloqueia toda movimentação e ignora Remote
-- Botão REARME local: único mecanismo de limpeza de `emergencia_ativa` e `falha_comunicacao`
+- Leitura do fim de curso com debounce de 20 ms
+- Relé do freio: `acionar_freio()` e `liberar_freio()` com proteção contra duplo acionamento
+- Watchdog: `millis()` baseado, timeout `WATCHDOG_TIMEOUT_MS = 500`
+- Flag `emergencia_ativa`: só é limpa pelo botão REARME
+- Botão EMERGÊNCIA local (com trava): `digitalRead()` direto — nível alto ativa emergência imediatamente
+- Botão REARME: ao ser pressionado, limpar `emergencia_ativa` e `falha_comunicacao`; se `ultimo_pacote_remote.emergencia == 1`, setar `rearme_ativo = true` no próximo status
 
 **Etapa B — Comunicação**
 - Inicialização do ESP-NOW
-- Callback `OnDataRecv`: validar checksum; se válido, atualizar `ultimo_pacote` e resetar watchdog; se campo `emergencia == 1`, ativar emergência imediatamente
-- Envio de `PacoteStatus` a cada 200 ms ou imediato em mudança de estado
+- Callback `OnDataRecv`: validar checksum; se válido, resetar watchdog e processar; se `emergencia == 1`, ativar `emergencia_ativa` imediatamente
+- Envio de `PacoteStatus` a cada 200 ms; envio imediato em mudança de estado
 
-**Etapa C — Lógica de movimentação**
-- Implementar máquina de estados conforme seção 6 do design_spec
-- Aplicar tabela de condições (seção 6, Tabela Completa) antes de qualquer acionamento de relé
-- Anti-colisão: nunca acionar dois relés de direção simultaneamente; dead-time de 100 ms ao inverter
+**Etapa C — Lógica de fim de curso**
+- Ao detectar fim de curso (com debounce):
+  - `desligar_motor()`
+  - `acionar_freio()`
+  - `estado = ESTADO_PARADO`
+  - **Não** ativar `emergencia_ativa`
 
-**Etapa D — Controle de velocidade**
-- Ao receber CMD_VEL1/2/3 (Remote ou botão local): desacionar relé de velocidade atual → acionar novo relé → atualizar LED correspondente
-- Armazenar `velocidade_atual` em variável de estado
-- Velocidade não é alterada durante emergência ou falha de comunicação
+**Etapa D — Lógica de movimentação**
+- Máquina de estados conforme seção 7 do design_spec
+- Anti-colisão: dead-time de 100 ms ao inverter sentido
+- Botão local do Painel tem prioridade sobre Remote se ambos forem ativos simultaneamente
+
+**Etapa E — Controle de velocidade**
+- Ao receber VEL1/2/3 (Remote ou local): desacionar relé atual → acionar novo → atualizar `velocidade_atual` → incluir no próximo `PacoteStatus`
+- Remote sincroniza seus LEDs ao receber o campo `velocidade` no status
 
 **Máquina de estados — implementação sugerida:**
 ```c
 void atualizar_maquina_estados() {
-  // Prioridade máxima: emergência
-  if (emergencia_ativa) {
+  // Prioridade 1: emergência
+  if (digitalRead(PIN_EMERGENCIA_PAINEL) || emergencia_ativa) {
+    emergencia_ativa = true;
     acionar_freio();
     desligar_motor();
     estado = ESTADO_EMERGENCIA;
     return;
   }
-  
-  // Segunda prioridade: watchdog
+
+  // Prioridade 2: watchdog
   if (millis() - ultimo_pacote_remote > WATCHDOG_TIMEOUT_MS) {
     acionar_freio();
     desligar_motor();
     estado = ESTADO_FALHA_COMUNICACAO;
     return;
   }
-  
-  // Condições físicas
+
+  // Prioridade 3: fim de curso
+  if (fim_de_curso_acionado()) {
+    desligar_motor();
+    acionar_freio();
+    estado = ESTADO_PARADO;
+    return;
+  }
+
+  // Prioridade 4: microchave do freio
   if (!freio_liberado()) {
     desligar_motor();
     estado = ESTADO_PARADO;
     return;
   }
-  
-  // Lógica de movimentação
-  if (botao_hold_ativo && comando_direcao_valido) {
+
+  // Prioridade 5: movimentação
+  bool hold = botao_hold_local || pacote_remote.botao_hold;
+  Direcao dir = obter_direcao_ativa();  // local tem prioridade
+
+  if (hold && dir != NENHUMA) {
     liberar_freio();
-    acionar_motor(direcao);
-    estado = (direcao == SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
+    acionar_motor(dir);
+    estado = (dir == SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
   } else {
     desligar_motor();
     acionar_freio();
@@ -224,76 +284,79 @@ void atualizar_maquina_estados() {
 
 ## Fase 3 — Integração e Montagem
 
-**Objetivo:** Integrar os dois módulos e validar o sistema completo em bancada antes do contato com o motor real.
-
 **3.1 — Testes de bancada integrada (sem motor)**
 - Conectar relés do Principal a cargas de teste (lâmpadas)
-- Executar todos os fluxos de emergência com os dois módulos ativos
-- Verificar dead-time com medição via serial (`Serial.println(millis())` antes e depois)
+- Executar todos os fluxos de emergência e rearme com os dois módulos ativos
+- Testar fluxo de LED ALARME: rearme pelo Painel com botão Remote travado
 - Verificar que `emergencia_ativa` nunca é limpa automaticamente
+- Simular fim de curso: verificar que motor para, freio aciona e sistema permanece operacional sem rearme
+- Verificar sincronização dos LEDs de velocidade nos dois módulos
+- Verificar que todos os LEDs piscam nas frequências corretas sem uso de `delay()`
 
 **3.2 — Integração com o motor real (ambiente controlado)**
-- Medir corrente de partida do motor antes de selecionar relés definitivos
+- Medir corrente de partida do motor; selecionar relés com fator de segurança 2x
 - Substituir cargas de teste pelos cabos do motor
-- Testar partida, parada, inversão e emergência com o carrinho em posição segura
+- Testar partida, parada, inversão, emergência e fim de curso com carrinho em posição segura
 
 **3.3 — Fabricação dos enclosures**
-- Remote: enclosure IP54 com botões com capas de borracha; bateria acessível para recarga
-- Principal: caixa elétrica fixada no painel, com isolação da rede elétrica e terminais rotulados
+- Remote: enclosure IP54; LEDs visíveis pelo painel frontal; botão de emergência (trava) em posição de destaque; bateria acessível
+- Principal: caixa elétrica com isolação da rede; terminais rotulados; botão de emergência (trava) em posição de destaque; botão REARME identificado
 
 **3.4 — Instalação no local**
 - Fixar Principal próximo ao quadro elétrico do guincho
 - Conectar microchave do freio ao Principal
-- Conectar saída dos relés ao circuito do motor (em paralelo ou substituindo o painel fixo existente)
+- Instalar e conectar sensor de fim de curso na posição final de subida do estacionamento
+- Conectar saída dos relés ao circuito do motor
 
 ---
 
 ## Fase 4 — Testes e Validação
-
-**Objetivo:** Validar o sistema completo contra todos os requisitos do design_spec v2.0 antes da operação regular.
 
 ### Plano de Testes
 
 | ID | Caso de Teste | Procedimento | Critério de Aceite |
 |---|---|---|---|
 | T01 | Latência de resposta | Medir tempo entre botão hold e acionamento do relé | < 100 ms |
-| T02 | Regra Homem-Morto | Pressionar e soltar SUBIR rapidamente | Motor corta e freio aciona imediatamente ao soltar |
-| T03 | Bloqueio por microchave | Tentar acionar motor com freio engatado (microchave LOW) | Motor não aciona |
+| T02 | Regra Homem-Morto | Pressionar e soltar SUBIR | Motor corta e freio aciona imediatamente ao soltar |
+| T03 | Bloqueio por microchave | Tentar acionar motor com freio engatado | Motor não aciona |
 | T04 | Watchdog — perda de sinal | Desligar Remote com motor ativo | Freio aciona em < 600 ms; estado FALHA_COMUNICACAO |
-| T05 | Emergência pelo Remote | Pressionar EMERGÊNCIA no Remote | Freio aciona imediato; EMERGENCIA_ATIVA no Principal |
-| T06 | Emergência pelo Painel | Pressionar EMERGÊNCIA no Painel Central | Freio aciona imediato; Remote ignorado |
-| T07 | Sem rearme automático | Após emergência, ligar Remote novamente | Sistema permanece em EMERGENCIA_ATIVA sem rearmar |
-| T08 | Rearme manual | Pressionar REARME no Painel após emergência resolvida | Sistema retorna a PARADO; operação liberada |
-| T09 | Rearme de emergência do Remote pelo Painel | Remote aciona emergência; Painel ativa REARME | Estado de emergência desativado |
-| T10 | Anti-colisão de direção | Inverter SUBIR → DESCER rapidamente | Sem acionamento simultâneo dos dois relés de direção |
-| T11 | Seleção de velocidade | Pulsar VEL1, VEL2, VEL3 em sequência | Apenas um relé de velocidade ativo por vez; LEDs corretos |
-| T12 | Alcance de comunicação | Operar em linha de visada a 50 m | Sem timeout de watchdog; operação normal |
-| T13 | Teste de campo completo | Ciclo completo: subir + parar + descer + emergência na margem | Todos os comportamentos conforme especificação |
+| T05 | Emergência pelo Remote (trava) | Travar botão EMERGÊNCIA no Remote | Freio aciona imediato; EMERGENCIA_ATIVA |
+| T06 | Emergência pelo Painel (trava) | Travar botão EMERGÊNCIA no Painel | Freio aciona imediato; Remote ignorado |
+| T07 | Sem rearme automático | Após emergência, reconectar Remote | Sistema permanece EMERGENCIA_ATIVA |
+| T08 | Rearme normal (botão Remote solto) | Soltar botão Remote + REARME no Painel | Sistema retorna a PARADO; LED ALARME apagado |
+| T09 | Rearme com botão Remote ainda travado | REARME no Painel sem soltar botão Remote | Sistema rearma; LED ALARME pisca no Remote |
+| T10 | Apagamento do LED ALARME | Após T09, soltar botão emergência no Remote | LED ALARME apaga |
+| T11 | Anti-colisão de direção | Inverter SUBIR → DESCER rapidamente | Sem acionamento simultâneo dos dois relés |
+| T12 | Seleção de velocidade — sincronização | VEL1 no Remote → VEL2 no Painel → VEL3 no Remote | LED correto aceso em ambos os módulos a cada mudança |
+| T13 | Fim de curso | Acionar sensor com motor ativo (SUBINDO) | Motor para, freio aciona, estado PARADO sem rearme |
+| T14 | Operação após fim de curso | Após T13, pressionar DESCER hold | Motor aciona normalmente |
+| T15 | LEDs não-bloqueantes | Observar LEDs piscando durante operação simultânea | Nenhum LED congela; operação não é afetada |
+| T16 | Alcance de comunicação | Operar em linha de visada a 50 m | Sem timeout de watchdog |
+| T17 | Teste de campo completo | Subir até fim de curso + descer + emergência na margem + rearme | Todos os comportamentos conforme especificação |
 
 ### Critérios de Aprovação para Deploy
 
-- T01–T12 aprovados em bancada.
-- T13 aprovado em pelo menos **3 ciclos consecutivos** no local real.
-- Nenhuma falha de segurança do tipo: motor aciona com freio engatado, emergência rearma automaticamente, dois relés de direção ativos simultaneamente.
+- T01–T16 aprovados em bancada.
+- T17 aprovado em pelo menos **3 ciclos consecutivos** no local real.
+- Nenhuma falha de segurança: motor com freio engatado; rearme automático; dois relés de direção simultâneos; fim de curso exigindo rearme.
 
 ---
 
 ## Fase 5 — Deploy e Documentação Final
 
-**Objetivo:** Colocar o sistema em operação e registrar toda a informação necessária para manutenção futura.
-
 **5.1 — Deploy final**
 - Gravar firmwares com versão tagueada (`v1.0.0`) em ambos os ESP32
-- Registrar endereços MAC dos dois módulos no documento técnico
+- Registrar endereços MAC dos dois módulos
 
 **5.2 — Documentação operacional (1 página)**
 - Procedimento de ligar, operar e desligar
 - Procedimento de acionamento e rearme de emergência
-- Guia de troubleshooting: LED piscando = sem link; LED vermelho fixo = falha; como rearmar
+- Explicação do fim de curso e do LED ALARME
+- Troubleshooting: LED LINK piscando = sem conexão; LED EMERGÊNCIA fixo = falha de comunicação; LED ALARME piscando = soltar botão de emergência no carrinho
 
 **5.3 — Documentação técnica**
-- Atualizar design_spec.md com desvios ocorridos durante a implementação
-- Registrar pinout final, versão de firmware, endereços MAC e esquema elétrico simplificado
+- Atualizar design_spec.md com desvios ocorridos
+- Registrar pinout final, versão de firmware, MACs, posição do fim de curso e esquema elétrico simplificado
 
 ---
 
@@ -301,27 +364,33 @@ void atualizar_maquina_estados() {
 
 | Risco | Probabilidade | Mitigação |
 |---|---|---|
-| Relés subdimensionados para corrente de partida do motor | Média | Medir corrente de partida antes da compra; fator de segurança 2x |
-| Rearme acidental de emergência por bug de software | Baixa | Revisão de código focada na flag `emergencia_ativa`; teste T07 obrigatório |
-| Falso acionamento da microchave por vibração | Baixa | Debounce por software mínimo 20 ms no Principal |
-| Interferência de RF no ambiente (estruturas metálicas, rio) | Baixa | Testar alcance no local; antena externa se necessário |
+| Relés subdimensionados para corrente de partida | Média | Medir corrente antes da compra; fator 2x |
+| Rearme acidental por bug de software | Baixa | Flag `emergencia_ativa` limpa apenas por REARME explícito; teste T07 obrigatório |
+| Falso acionamento do fim de curso por vibração | Média | Debounce 20 ms; verificar fixação mecânica do sensor |
+| Posicionamento incorreto do fim de curso | Média | Calibrar com carrinho real antes de fixar |
+| Falso acionamento da microchave por vibração | Baixa | Debounce 20 ms |
+| LEDs bloqueando o loop por uso de `delay()` | Média | Toda lógica de piscar via `millis()`; teste T15 valida isso |
+| Interferência de RF (estruturas metálicas, rio) | Baixa | Testar alcance no local; antena externa se necessário |
 | Umidade danificando o Remote | Média | Enclosure IP54; borracha de vedação nos botões |
-| Bateria do Remote descarregando durante operação | Média | LED de bateria fraca (se possível); procedimento de carga antes de cada uso |
+| Bateria do Remote descarregando durante operação | Média | Watchdog garante freio se Remote desligar; carga antes de cada uso |
 
 ---
 
 ## Ferramentas e Materiais
 
 **Hardware necessário:**
-- 2x ESP32 (DevKit ou equivalente)
-- 1x Módulo relé de 6 canais (ou 2x de 3 canais) para o Principal
-- 1x Bateria Li-Ion 18650 + TP4056 + regulador 3.3V para o Remote
-- 6x Botões para o Painel Central (com capas e fixação em painel)
-- 6x Botões para o Remote (com capas de borracha IP54)
-- LEDs e resistores (conforme seção 8 do design_spec)
+- 2x ESP32 DevKit (verificar disponibilidade de GPIOs: mínimo 20 no Principal, 13 no Remote)
+- 1x Módulo relé de 6 canais para o Principal (ou 2x de 3 canais)
+- 1x Bateria Li-Ion 18650 + módulo TP4056 + regulador 3.3V para o Remote
+- 2x Botões com trava (emergência — Painel e Remote)
+- 6x Botões tácteis para o Painel Central (SUBIR, DESCER, VEL1, VEL2, VEL3, REARME)
+- 5x Botões tácteis com capas de borracha para o Remote (SUBIR, DESCER, VEL1, VEL2, VEL3)
+- 1x Sensor fim de curso (microswitch ou chave de limite) para o estacionamento
+- 12x LEDs 3V (padrão Arduino) — cor a definir no momento da montagem (7 Remote + 5 Principal)
+- 12x Resistores 220Ω (um por LED)
 - Cabos, conectores, terminais, enclosures
 
 **Software:**
-- PlatformIO (VS Code) — recomendado para gerenciamento de múltiplos projetos
+- PlatformIO (VS Code) — recomendado para múltiplos projetos
 - ESP32 Arduino Core (Espressif)
 - Monitor serial para debug em tempo real
