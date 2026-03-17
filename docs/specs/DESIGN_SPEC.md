@@ -284,15 +284,15 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 
 | LED | GPIO | Comportamento | Condição |
 |---|---|---|---|
-| LINK | 1 | Piscando 1 Hz | Sem comunicação com o Principal (> 1000 ms sem status) |
-| LINK | 1 | Ligado fixo | Comunicação ativa |
-| MOTOR | 1 | Ligado fixo | `estado_sistema == SUBINDO` ou `DESCENDO` |
-| VEL1 | 1 | Ligado fixo | `velocidade == 1` (recebido no PacoteStatus) |
-| VEL2 | 1 | Ligado fixo | `velocidade == 2` (recebido no PacoteStatus) |
-| VEL3 | 1 | Ligado fixo | `velocidade == 3` (recebido no PacoteStatus) |
-| EMERGÊNCIA | 1 | Piscando 4 Hz | `estado_sistema == EMERGENCIA_ATIVA` |
-| EMERGÊNCIA | 1 | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` |
-| ALARME | 1 | Piscando 2 Hz | `rearme_ativo == 1` E botão emergência local ainda travado |
+| LINK | 4 | Piscando 1 Hz | Sem comunicação com o Principal (> 1000 ms sem status) |
+| LINK | 4 | Ligado fixo | Comunicação ativa |
+| MOTOR | 16 | Ligado fixo | `estado_sistema == SUBINDO` ou `DESCENDO` |
+| VEL1 | 17 | Ligado fixo | `velocidade == 1` (recebido no PacoteStatus) |
+| VEL2 | 5 | Ligado fixo | `velocidade == 2` (recebido no PacoteStatus) |
+| VEL3 | 18 | Ligado fixo | `velocidade == 3` (recebido no PacoteStatus) |
+| EMERGÊNCIA | 19 | Piscando 4 Hz | `estado_sistema == EMERGENCIA_ATIVA` |
+| EMERGÊNCIA | 19 | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` |
+| ALARME | 21 | Piscando 2 Hz | `rearme_ativo == 1` E botão emergência local ainda travado |
 
 **Total: 7 GPIOs de saída** (LINK, MOTOR, VEL1, VEL2, VEL3, EMERGÊNCIA, ALARME)
 

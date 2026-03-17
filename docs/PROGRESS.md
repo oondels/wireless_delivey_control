@@ -23,3 +23,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-004 define pinout.h do Remote — 13 GPIOs (6 entradas + 7 saídas). Mesmas restrições de strapping pins. Evitar conflito com pinos já usados no Principal (módulos separados, mas manter consistência).
+
+## 2026-03-16 - T-004 - Definir pinout.h do Módulo Remote
+
+- Outcome: Mapeamento de 13 GPIOs definido em `pinout.h`. Entradas consistentes com Principal: SUBIR(36), DESCER(39), VEL1(34), VEL2(35), VEL3(32), EMERGÊNCIA(33). Saídas (LEDs dedicados): LINK(4), MOTOR(16), VEL1(17), VEL2(5), VEL3(18), EMERGÊNCIA(19), ALARME(21). Documentação atualizada em README.md §5.2, hardware_io/SPEC.md §6-7 e DESIGN_SPEC.md §9.1.
+- Files changed: `remote/include/pinout.h`, `remote/src/remote.cpp`, `README.md`, `docs/specs/hardware_io/SPEC.md`, `docs/specs/DESIGN_SPEC.md`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: README.md §5.2, hardware_io/SPEC.md §6-7, DESIGN_SPEC.md §9.1.
+- Notes for next task: T-005 cria protocolo.h compartilhado com structs PacoteRemote/PacoteStatus, enums Comando/EstadoSistema e função calcular_checksum(). Arquivo idêntico em principal/ e remote/. Ref: comunicacao/SPEC.md §4-6.

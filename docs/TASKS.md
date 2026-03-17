@@ -15,7 +15,7 @@ Referência: `docs/IMPLEMENTATION_PLAN.md` v3.2
 - [x] T-001: Criar projeto PlatformIO para o Módulo Principal (`principal/`) — `platformio.ini` configurado para ESP32, estrutura de diretórios conforme IMPLEMENTATION_PLAN §2.1
 - [x] T-002: Criar projeto PlatformIO para o Módulo Remote (`remote/`) — `platformio.ini` configurado para ESP32, estrutura de diretórios conforme IMPLEMENTATION_PLAN §2.1
 - [x] T-003: Definir `pinout.h` do Módulo Principal — mapear 15 GPIOs (8 entradas + 7 saídas), respeitando restrições de strapping pins (evitar GPIO 0, 2, 12, 15 para entradas críticas). Ref: `hardware_io/SPEC.md` §8
-- [ ] T-004: Definir `pinout.h` do Módulo Remote — mapear 13 GPIOs (6 entradas + 7 saídas), mesmas restrições de strapping pins. Ref: `hardware_io/SPEC.md` §8
+- [x] T-004: Definir `pinout.h` do Módulo Remote — mapear 13 GPIOs (6 entradas + 7 saídas), mesmas restrições de strapping pins. Ref: `hardware_io/SPEC.md` §8
 
 ## Fase 2 — Firmware: Protocolo Compartilhado
 

@@ -105,14 +105,16 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 ### 6.1 Botões
 
-| Botão | Tipo | Debounce | Leitura | Descrição |
-|---|---|---|---|---|
-| SUBIR | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
-| DESCER | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
-| VEL1 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
-| VEL2 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
-| VEL3 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
-| EMERGÊNCIA | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+| Botão | GPIO | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|---|
+| SUBIR | 36 | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
+| DESCER | 39 | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
+| VEL1 | 34 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
+| VEL2 | 35 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
+| VEL3 | 32 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
+| EMERGÊNCIA | 33 | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+
+> GPIOs de entrada consistentes com o Módulo Principal. GPIOs 34, 35, 36, 39 são input-only — usar pull-up externo 10kΩ.
 
 **Total de entradas no Remote: 6 GPIOs**
 
@@ -120,15 +122,15 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 ## 7. Saídas — Módulo Remote
 
-| LED | Função |
-|---|---|
-| LINK | Status de comunicação |
-| MOTOR | Motor em operação |
-| VEL1 | Velocidade 1 ativa |
-| VEL2 | Velocidade 2 ativa |
-| VEL3 | Velocidade 3 ativa |
-| EMERGÊNCIA | Emergência ou falha de comunicação |
-| ALARME | Rearme com botão local ainda travado |
+| LED | GPIO | Função |
+|---|---|---|
+| LINK | 4 | Status de comunicação |
+| MOTOR | 16 | Motor em operação |
+| VEL1 | 17 | Velocidade 1 ativa |
+| VEL2 | 5 | Velocidade 2 ativa |
+| VEL3 | 18 | Velocidade 3 ativa |
+| EMERGÊNCIA | 19 | Emergência ou falha de comunicação |
+| ALARME | 21 | Rearme com botão local ainda travado |
 
 **Total de saídas no Remote: 7 GPIOs**
 

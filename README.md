@@ -161,24 +161,24 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 
 ### 5.2 Módulo Remote
 
-| Função | Tipo | GPIO |
-|---|---|---|
-| Botão SUBIR | Entrada | A definir |
-| Botão DESCER | Entrada | A definir |
-| Botão VEL1 | Entrada | A definir |
-| Botão VEL2 | Entrada | A definir |
-| Botão VEL3 | Entrada | A definir |
-| Botão EMERGÊNCIA (trava) | Entrada | A definir |
-| LED LINK | Saída | A definir |
-| LED MOTOR | Saída | A definir |
-| LED VEL1 | Saída | A definir |
-| LED VEL2 | Saída | A definir |
-| LED VEL3 | Saída | A definir |
-| LED EMERGÊNCIA | Saída | A definir |
-| LED ALARME | Saída | A definir |
-| **Total** | | **6 entradas + 7 saídas = 13 GPIOs** |
+| Função | Tipo | GPIO | Observação |
+|---|---|---|---|
+| Botão SUBIR | Entrada | 36 | Input-only, pull-up externo |
+| Botão DESCER | Entrada | 39 | Input-only, pull-up externo |
+| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo |
+| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo |
+| Botão VEL3 | Entrada | 32 | Pull-up externo |
+| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up externo — não usa strapping pin |
+| LED LINK | Saída | 4 | Comunicação com Principal |
+| LED MOTOR | Saída | 16 | Motor em operação |
+| LED VEL1 | Saída | 17 | Velocidade 1 ativa |
+| LED VEL2 | Saída | 5 | Velocidade 2 ativa |
+| LED VEL3 | Saída | 18 | Velocidade 3 ativa |
+| LED EMERGÊNCIA | Saída | 19 | Emergência ou falha de comunicação |
+| LED ALARME | Saída | 21 | Rearme com botão local ainda travado |
+| **Total** | | **13** | **6 entradas + 7 saídas** |
 
-> GPIOs do Módulo Principal definidos. GPIOs do Módulo Remote serão definidos na próxima tarefa da Fase 1. Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas. Pinos input-only (34, 35, 36, 39) usados apenas como entrada com pull-up externo.
+> GPIOs de ambos os módulos definidos. Mapeamento de entradas consistente entre Principal e Remote (mesmos GPIOs para botões com funções idênticas). Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas. Pinos input-only (34, 35, 36, 39) usados apenas como entrada com pull-up externo.
 
 ---
 
