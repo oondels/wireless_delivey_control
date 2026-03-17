@@ -63,3 +63,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-009 implementa rearme — botão REARME (pulso) limpa emergencia_ativa e FALHA_COMUNICACAO. Caso especial: se pacote_remote.emergencia == 1, seta rearme_ativo = 1. Ref: seguranca/SPEC.md §3.4-3.5.
+
+## 2026-03-16 - T-009 - Implementar lógica de rearme
+
+- Outcome: Módulo rearme.h/cpp com detecção de borda de descida (pulso, debounce 50ms). Rearme bloqueado se botão EMERGÊNCIA local ativo. Limpa emergencia_ativa, retorna PARADO. Caso especial: seta rearme_ativo se emergência Remote ainda travada.
+- Files changed: `principal/include/rearme.h`, `principal/src/rearme.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-010 implementa watchdog — verificação millis() - ultimo_pacote_remote > 500ms, transição para FALHA_COMUNICACAO. Ref: seguranca/SPEC.md §4.
