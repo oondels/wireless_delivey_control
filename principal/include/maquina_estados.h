@@ -23,6 +23,13 @@ class MaquinaEstados {
 public:
     void init();
 
+    // Habilita operacao local no Principal mesmo com watchdog expirado,
+    // exigindo rearme manual previo em FALHA_COMUNICACAO.
+    void habilitarControleLocalSemRemote() { _controleLocalSemRemote = true; }
+    void desabilitarControleLocalSemRemote() { _controleLocalSemRemote = false; }
+    bool controleLocalSemRemoteAtivo() const { return _controleLocalSemRemote; }
+    void definirEstado(EstadoSistema novoEstado) { _estado = novoEstado; }
+
     /**
      * Avalia a máquina de estados com prioridade sequencial.
      * Recebe estado dos botões locais e o último pacote do Remote.
@@ -46,6 +53,7 @@ private:
     EstadoSistema _estado = ESTADO_PARADO;
     bool _logBloqueioRemotoSubir = false;
     bool _logBloqueioRemotoDescer = false;
+    bool _controleLocalSemRemote = false;
 };
 
 #endif // MAQUINA_ESTADOS_H

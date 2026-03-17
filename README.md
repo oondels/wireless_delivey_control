@@ -278,6 +278,8 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 - Sem pacote no timeout: freio acionado, motor cortado, `FALHA_COMUNICACAO`.
 - Remote envia heartbeat a cada **200 ms**.
 - `FALHA_COMUNICACAO` exige rearme manual.
+- Após REARME em `FALHA_COMUNICACAO`, o Principal entra em **modo degradado local**: comandos locais (Painel Central) são permitidos mesmo sem link com Remote.
+- Durante modo degradado, comandos do Remote permanecem bloqueados até a comunicação ser restabelecida.
 
 ---
 
@@ -299,6 +301,7 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
                     │  Relé freio: ON                          │
                     └────────────────┬─────────────────────────┘
                                      │ Rearme MANUAL (Painel Central)
+                                     │ habilita modo degradado local
                                      ▼
           ┌──────────┐  hold SUBIR  ┌───────────┐  hold DESCER  ┌──────────┐
           │  SUBINDO │◄─────────── │  PARADO   │──────────────►│ DESCENDO │
@@ -319,6 +322,7 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 | Não | Não | Não acionado | Solto | Motor OFF → Freio ON → PARADO |
 | Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → PARADO |
 | Não | Sim | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
+| Não | Sim | Qualquer | Pressionado (Painel local, após REARME) | Motor ON (modo degradado local) |
 | Sim | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
 
 > A microchave do freio não aparece nesta tabela por atuar em nível de hardware, fora do controle do firmware.
@@ -427,7 +431,7 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 | `MAQEST` | Bloqueio de movimentação (emergência/falha comunicação) |
 | `ESTADO` | Transição de estado (ex: PARADO → SUBINDO) |
 | `WDOG` | Watchdog expirado/recuperado |
-| `REMOTO` | Comando de velocidade recebido do Remote |
+| `REMOTO` | Comandos recebidos do Remote (velocidade, movimentação, emergência) e bloqueios associados |
 
 ### 11.3 Módulos Monitorados — Remote
 

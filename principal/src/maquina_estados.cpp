@@ -31,6 +31,7 @@ EstadoSistema MaquinaEstados::atualizar(
 ) {
     const bool tentativaRemotaSubir = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_SUBIR);
     const bool tentativaRemotaDescer = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_DESCER);
+    const bool watchdogExpirado = watchdog.expirado();
 
     // Leitura da microchave do freio (NA + pull-up interno: HIGH = freio engatado)
     const bool freio_engatado = (digitalRead(PIN_MICROCHAVE_FREIO) == HIGH);
@@ -66,7 +67,7 @@ EstadoSistema MaquinaEstados::atualizar(
     }
 
     // Prioridade 2: watchdog de comunicação
-    if (watchdog.expirado()) {
+    if (watchdogExpirado && !_controleLocalSemRemote) {
         if (_estado != ESTADO_FALHA_COMUNICACAO) {
             LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — falha de comunicacao");
         }
@@ -74,6 +75,11 @@ EstadoSistema MaquinaEstados::atualizar(
         freio.acionar();
         _estado = ESTADO_FALHA_COMUNICACAO;
         return _estado;
+    }
+
+    if (!watchdogExpirado && _controleLocalSemRemote) {
+        _controleLocalSemRemote = false;
+        LOG_INFO("MAQEST", "Comunicacao restabelecida — modo degradado local desativado");
     }
 
     // Prioridade 3: fim de curso (apenas bloqueia SUBIR)
@@ -92,7 +98,7 @@ EstadoSistema MaquinaEstados::atualizar(
     // Determinar direção: botão local tem prioridade sobre Remote
     Direcao dir = DIR_NENHUMA;
     bool holdLocal  = botoesLocal.subir_hold || botoesLocal.descer_hold;
-    bool holdRemote = (pacoteRemote.botao_hold == 1);
+    bool holdRemote = (pacoteRemote.botao_hold == 1) && !watchdogExpirado;
 
     if (holdLocal) {
         // Prioridade do Painel Central

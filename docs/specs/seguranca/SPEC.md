@@ -133,7 +133,16 @@ Emergência Remote ativa (botão travado)
 
 - `FALHA_COMUNICACAO` **exige rearme manual** pelo Painel Central (via `rearme.verificar()`).
 - A reconexão do Remote **não** limpa o estado automaticamente.
-- Após rearme: sistema retorna a `PARADO`.
+- Após rearme: sistema retorna a `PARADO` e habilita **modo degradado local**.
+
+### 4.5 Modo Degradado Local (após REARME)
+
+Quando o operador executa REARME em `FALHA_COMUNICACAO`:
+
+1. O fail-safe imediato da perda de link continua válido (motor OFF + freio ON no evento de timeout).
+2. O Painel Central passa a poder comandar `SUBIR`/`DESCER` localmente, mesmo com watchdog expirado.
+3. Comandos do Remote permanecem bloqueados enquanto o watchdog estiver expirado.
+4. Quando a comunicação retorna (watchdog recuperado), o modo degradado local é desativado automaticamente.
 
 ---
 
@@ -194,8 +203,8 @@ Sequência executada imediatamente:
 
 | # | Condição | Origem | Estado Resultante | Requer Rearme |
 |---|---|---|---|---|
-| 1 | Perda de heartbeat (watchdog timeout) | Comunicação | `FALHA_COMUNICACAO` | Sim |
-| 2 | Queda de energia / desligamento do Remote | Hardware | `FALHA_COMUNICACAO` | Sim |
+| 1 | Perda de heartbeat (watchdog timeout) | Comunicação | `FALHA_COMUNICACAO` | Sim (para liberar controle local em modo degradado) |
+| 2 | Queda de energia / desligamento do Remote | Hardware | `FALHA_COMUNICACAO` | Sim (para liberar controle local em modo degradado) |
 | 3 | Botão EMERGÊNCIA no Painel Central | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar |
 | 4 | Botão EMERGÊNCIA no Remote | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar; REARME apenas se remote travado |
 | 5 | Soltura do botão de acionamento (Homem-Morto) | Operador | `PARADO` | Não |
@@ -209,7 +218,7 @@ Sequência executada imediatamente:
 Estas condições devem ser **sempre verdadeiras** no firmware, independentemente do estado:
 
 1. `emergencia.isAtiva() == true` → motor **sempre** OFF e freio **sempre** ON.
-2. `FALHA_COMUNICACAO` → motor **sempre** OFF e freio **sempre** ON.
+2. Ao detectar `FALHA_COMUNICACAO` (timeout), motor **sempre** OFF e freio **sempre** ON imediatamente.
 3. `emergencia.ativa()` é limpa automaticamente quando **nenhuma** fonte está ativa (botão local solto + remote com `emergencia==0`). REARME manual é necessário apenas quando o remote mantém `emergencia==1` e não é possível acessá-lo.
 4. O rearme **nunca** liga o motor — apenas retorna a `PARADO`.
 5. Dois relés de direção **nunca** estão ativos simultaneamente.

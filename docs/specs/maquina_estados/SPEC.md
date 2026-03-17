@@ -30,7 +30,7 @@ typedef enum {
 | `SUBINDO` | ON (direção A) | OFF | Motor ativo no sentido SUBIR. Freio liberado. |
 | `DESCENDO` | ON (direção B) | OFF | Motor ativo no sentido DESCER. Freio liberado. |
 | `EMERGENCIA_ATIVA` | OFF | ON | Emergência. Motor desligado, freio acionado. Auto-libera ao soltar todos os botões; REARME apenas se remote travado. |
-| `FALHA_COMUNICACAO` | OFF | ON | Perda de link. Motor desligado, freio acionado. Requer rearme. |
+| `FALHA_COMUNICACAO` | OFF | ON | Perda de link detectada. Motor desligado e freio acionado imediatamente. Requer REARME para liberar controle local em modo degradado. |
 
 ---
 
@@ -71,7 +71,7 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 | Prioridade | Condição | Transição |
 |---|---|---|
 | 1 (máxima) | `emergencia.verificar()` retorna true (botão local OU flag ativa) | → `EMERGENCIA_ATIVA` |
-| 2 | `watchdog.expirado()` (> 500ms sem pacote) | → `FALHA_COMUNICACAO` |
+| 2 | `watchdog.expirado()` (> 500ms sem pacote) e modo degradado local inativo | → `FALHA_COMUNICACAO` |
 | 3 | Fim de curso acionado | → `PARADO` |
 | 4 | Botão hold ativo + direção válida | → `SUBINDO` ou `DESCENDO` |
 | 5 (padrão) | Nenhuma condição acima | → `PARADO` |
@@ -105,6 +105,7 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 |---|---|---|
 | `EMERGENCIA_ATIVA` | `PARADO` | Rearme manual no Painel Central |
 | `FALHA_COMUNICACAO` | `PARADO` | Rearme manual no Painel Central |
+| `PARADO` (modo degradado) | `SUBINDO`/`DESCENDO` | Botão hold local ativo mesmo com watchdog expirado |
 
 ---
 
@@ -124,8 +125,8 @@ void atualizar_maquina_estados() {
         return;
     }
 
-    // Prioridade 2: watchdog
-    if (watchdog.expirado()) {
+    // Prioridade 2: watchdog (bloqueio total enquanto nao houver rearme)
+    if (watchdog.expirado() && !controleLocalSemRemote) {
         freio.acionar();
         motor.desligar();
         estado = ESTADO_FALHA_COMUNICACAO;
@@ -141,7 +142,7 @@ void atualizar_maquina_estados() {
     }
 
     // Prioridade 4: movimentação
-    bool hold = botao_hold_local || pacoteRemote.botao_hold;
+    bool hold = botao_hold_local || (pacoteRemote.botao_hold && !watchdog.expirado());
     Direcao dir = obter_direcao_ativa();
 
     if (hold && dir != DIR_NENHUMA) {
@@ -182,13 +183,14 @@ Se `pacote_remote.emergencia == 1` no momento do rearme:
 - Motor permanece OFF.
 - Freio permanece ON.
 - Operador deve iniciar nova movimentação manualmente.
+- Se o estado anterior era `FALHA_COMUNICACAO`, o sistema habilita modo degradado local até o watchdog recuperar.
 
 ---
 
 ## 8. Invariantes da Máquina de Estados
 
 1. O estado `EMERGENCIA_ATIVA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`.
-2. O estado `FALHA_COMUNICACAO` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`.
+2. O estado `FALHA_COMUNICACAO` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
 3. Os estados `SUBINDO` e `DESCENDO` **nunca** coexistem (dois relés de direção simultâneos).
 4. Todo estado com Motor OFF implica Freio ON.
 5. Todo estado com Motor ON implica Freio OFF.

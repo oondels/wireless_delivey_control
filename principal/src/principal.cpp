@@ -86,12 +86,22 @@ void loop() {
     EstadoBotoes btn = botoes.ler();
 
     // 2. Verificar rearme (antes da máquina de estados)
-    EstadoSistema estadoAtual = maquinaEstados.estadoAtual();
+    EstadoSistema estadoAntesRearme = maquinaEstados.estadoAtual();
+    EstadoSistema estadoAtual = estadoAntesRearme;
     rearme.verificar(
         &estadoAtual,
         comunicacao.ultimoPacote().emergencia,
         emergencia
     );
+
+    if (estadoAtual != estadoAntesRearme) {
+        maquinaEstados.definirEstado(estadoAtual);
+
+        if (estadoAntesRearme == ESTADO_FALHA_COMUNICACAO && estadoAtual == ESTADO_PARADO) {
+            maquinaEstados.habilitarControleLocalSemRemote();
+            LOG_WARN("MAQEST", "Modo degradado ativo — controle local liberado sem Remote apos rearme");
+        }
+    }
 
     // Log de botões de direção (transições)
     if (btn.subir_hold && !subirAnterior) {
