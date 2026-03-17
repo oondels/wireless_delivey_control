@@ -135,3 +135,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings. RAM 13.3%, Flash 56.0%.
 - Docs updated: nenhum.
 - Notes for next task: T-018 implementa classe Led do Remote — mesma classe Led, instanciar 7 objetos (LINK, MOTOR, VEL1-3, EMERGÊNCIA, ALARME). Frequências: LINK 1Hz (500ms), ALARME 2Hz (250ms), EMERGÊNCIA 4Hz (125ms). Copiar leds.h/leds.cpp para remote/. Ref: leds/SPEC.md §3, §5-6.
+
+## 2026-03-17 - T-018 - Implementar classe Led do Remote
+
+- Outcome: Classe Led copiada identicamente de principal/ para remote/include/leds.h e remote/src/leds.cpp. Mesma API: ligar(), desligar(), piscar(intervalo_ms), atualizar(). As 7 instâncias (LINK, MOTOR, VEL1-3, EMERGÊNCIA, ALARME) serão criadas no remote.cpp (T-022).
+- Files changed: `remote/include/leds.h`, `remote/src/leds.cpp`
+- Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-019 implementa Comunicacao do Remote — WiFi + ESP-NOW init, peer MAC do Principal fixo, enviarPacote() (heartbeat 200ms + imediato), callback onDataRecv() para atualizar estado local com PacoteStatus. Ref: comunicacao/SPEC.md §7, §9.1.
