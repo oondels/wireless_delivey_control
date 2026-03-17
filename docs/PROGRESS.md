@@ -143,3 +143,11 @@
 - Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-019 implementa Comunicacao do Remote — WiFi + ESP-NOW init, peer MAC do Principal fixo, enviarPacote() (heartbeat 200ms + imediato), callback onDataRecv() para atualizar estado local com PacoteStatus. Ref: comunicacao/SPEC.md §7, §9.1.
+
+## 2026-03-17 - T-019 - Implementar Comunicacao do Remote
+
+- Outcome: Classe Comunicacao com init() (WiFi STA + ESP-NOW + peer MAC placeholder 0xFF), enviarPacote() (checksum XOR), callback onDataRecv() (valida checksum + copia PacoteStatus + registra timestamp). ultimoStatusRecebidoMs() expõe timestamp para timeout do LED LINK.
+- Files changed: `remote/include/comunicacao.h`, `remote/src/comunicacao.cpp`
+- Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-020 implementa Botoes do Remote — debounce 50ms, SUBIR/DESCER (hold), VEL1/2/3 (pulso), EMERGÊNCIA (nível contínuo). Método ler() retorna EstadoBotoes. Ref: hardware_io/SPEC.md §6.
