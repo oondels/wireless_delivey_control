@@ -3,67 +3,55 @@
  *
  * Debounce genérico via millis(). SUBIR/DESCER retornam nível (hold).
  * VEL1/2/3 retornam pulso (borda HIGH→LOW, consumido após leitura).
- * EMERGÊNCIA e REARME são tratados em seus módulos específicos.
+ * EMERGÊNCIA e REARME são tratados em classes dedicadas.
  *
  * Ref: hardware_io/SPEC.md §4
  */
 
-#include <Arduino.h>
-#include "pinout.h"
 #include "botoes.h"
 
-#define DEBOUNCE_MS 50
-#define NUM_BOTOES  5
-
-// Índices internos
-enum { IDX_SUBIR = 0, IDX_DESCER, IDX_VEL1, IDX_VEL2, IDX_VEL3 };
-
-static const uint8_t pinos[NUM_BOTOES] = {
+const uint8_t Botoes::_pinos[NUM_BOTOES] = {
     PIN_BTN_SUBIR, PIN_BTN_DESCER,
     PIN_BTN_VEL1, PIN_BTN_VEL2, PIN_BTN_VEL3
 };
 
-static bool     ultima_leitura[NUM_BOTOES];
-static bool     estado_filtrado[NUM_BOTOES];
-static uint32_t ultimo_cambio[NUM_BOTOES];
-
-void botoes_init() {
+void Botoes::init() {
     for (int i = 0; i < NUM_BOTOES; i++) {
-        pinMode(pinos[i], INPUT);
-        ultima_leitura[i]  = HIGH;
-        estado_filtrado[i] = HIGH;
-        ultimo_cambio[i]   = 0;
+        pinMode(_pinos[i], INPUT);
+        _ultimaLeitura[i]  = HIGH;
+        _estadoFiltrado[i] = HIGH;
+        _ultimoCambio[i]   = 0;
     }
 }
 
-EstadoBotoes botoes_ler() {
+EstadoBotoes Botoes::ler() {
     uint32_t agora = millis();
-    bool estado_anterior[NUM_BOTOES];
+    bool estadoAnterior[NUM_BOTOES];
 
     // Salvar estado anterior e atualizar debounce
     for (int i = 0; i < NUM_BOTOES; i++) {
-        estado_anterior[i] = estado_filtrado[i];
+        estadoAnterior[i] = _estadoFiltrado[i];
 
-        bool leitura = digitalRead(pinos[i]);
-        if (leitura != ultima_leitura[i]) {
-            ultimo_cambio[i] = agora;
-            ultima_leitura[i] = leitura;
+        bool leitura = digitalRead(_pinos[i]);
+        if (leitura != _ultimaLeitura[i]) {
+            _ultimoCambio[i] = agora;
+            _ultimaLeitura[i] = leitura;
         }
-        if ((agora - ultimo_cambio[i]) >= DEBOUNCE_MS) {
-            estado_filtrado[i] = ultima_leitura[i];
+        if ((agora - _ultimoCambio[i]) >= DEBOUNCE_MS) {
+            _estadoFiltrado[i] = _ultimaLeitura[i];
         }
     }
 
-    EstadoBotoes resultado = {0};
+    EstadoBotoes resultado = {};
 
     // SUBIR/DESCER: hold (LOW = pressionado)
-    resultado.subir_hold  = (estado_filtrado[IDX_SUBIR]  == LOW);
-    resultado.descer_hold = (estado_filtrado[IDX_DESCER] == LOW);
+    resultado.subir_hold  = (_estadoFiltrado[IDX_SUBIR]  == LOW);
+    resultado.descer_hold = (_estadoFiltrado[IDX_DESCER] == LOW);
 
     // VEL1/2/3: pulso — borda de descida (HIGH → LOW)
-    resultado.vel1_pulso = (estado_anterior[IDX_VEL1] == HIGH && estado_filtrado[IDX_VEL1] == LOW);
-    resultado.vel2_pulso = (estado_anterior[IDX_VEL2] == HIGH && estado_filtrado[IDX_VEL2] == LOW);
-    resultado.vel3_pulso = (estado_anterior[IDX_VEL3] == HIGH && estado_filtrado[IDX_VEL3] == LOW);
+    resultado.vel1_pulso = (estadoAnterior[IDX_VEL1] == HIGH && _estadoFiltrado[IDX_VEL1] == LOW);
+    resultado.vel2_pulso = (estadoAnterior[IDX_VEL2] == HIGH && _estadoFiltrado[IDX_VEL2] == LOW);
+    resultado.vel3_pulso = (estadoAnterior[IDX_VEL3] == HIGH && _estadoFiltrado[IDX_VEL3] == LOW);
 
     return resultado;
 }

@@ -1,8 +1,9 @@
 /**
  * emergencia.h — Lógica de emergência do Módulo Principal
  *
- * Gerencia a flag emergencia_ativa e a leitura do botão EMERGÊNCIA
+ * Gerencia a flag _ativa e a leitura do botão EMERGÊNCIA
  * (trava mecânica, nível contínuo).
+ * Flag _ativa NUNCA é limpa automaticamente — apenas por Rearme.
  *
  * Ref: seguranca/SPEC.md §3
  */
@@ -10,18 +11,26 @@
 #ifndef EMERGENCIA_H
 #define EMERGENCIA_H
 
-#include <stdbool.h>
+#include <Arduino.h>
+#include "pinout.h"
 
-// Flag global — true = emergência ativa, movimentação bloqueada
-extern volatile bool emergencia_ativa;
+class Emergencia {
+public:
+    void init();
 
-void emergencia_init();
+    // Verifica botão local e emergência do Remote. Se qualquer um ativo,
+    // seta _ativa = true. Retorna estado atual da flag.
+    bool verificar(bool emergenciaRemote);
 
-// Verifica botão local e emergência do Remote. Se qualquer um ativo,
-// seta emergencia_ativa = true. Retorna estado atual da flag.
-bool emergencia_verificar(bool emergencia_remote);
+    // Retorna true se o botão EMERGÊNCIA local está fisicamente pressionado (LOW)
+    bool botaoLocalAtivo() const;
 
-// Retorna true se o botão EMERGÊNCIA local está fisicamente pressionado (LOW)
-bool emergencia_botao_local_ativo();
+    // Acesso à flag — volatile pois é alterada no callback ESP-NOW
+    volatile bool& ativa() { return _ativa; }
+    bool isAtiva() const { return _ativa; }
+
+private:
+    volatile bool _ativa = false;
+};
 
 #endif // EMERGENCIA_H

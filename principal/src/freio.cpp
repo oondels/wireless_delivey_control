@@ -4,19 +4,17 @@
  * Ref: motor/SPEC.md §4
  */
 
-#include <Arduino.h>
-#include "pinout.h"
 #include "freio.h"
 
-void freio_init() {
+void Freio::init() {
     pinMode(PIN_RELE_FREIO, OUTPUT);
-    acionar_freio(); // Estado padrão: freio aplicado
+    acionar(); // Estado padrão: freio aplicado
 }
 
-void acionar_freio() {
+void Freio::acionar() {
     digitalWrite(PIN_RELE_FREIO, HIGH);
 }
 
-void liberar_freio() {
+void Freio::liberar() {
     digitalWrite(PIN_RELE_FREIO, LOW);
 }

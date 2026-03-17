@@ -10,11 +10,20 @@
 #ifndef SENSORES_H
 #define SENSORES_H
 
-#include <stdbool.h>
+#include <Arduino.h>
+#include "pinout.h"
 
-#define DEBOUNCE_FIM_CURSO_MS 20
+class Sensores {
+public:
+    static constexpr uint32_t DEBOUNCE_FIM_CURSO_MS = 20;
 
-void sensores_init();
-bool fim_de_curso_acionado();
+    void init();
+    bool fimDeCursoAcionado();
+
+private:
+    bool     _estadoFiltrado  = false;
+    bool     _ultimaLeitura   = HIGH;
+    uint32_t _ultimoCambioMs  = 0;
+};
 
 #endif // SENSORES_H

@@ -10,15 +10,24 @@
 #ifndef VELOCIDADE_H
 #define VELOCIDADE_H
 
-#include <stdint.h>
+#include <Arduino.h>
+#include "pinout.h"
 
-void velocidade_init();
+class Velocidade {
+public:
+    void init();
 
-// Seleciona nível de velocidade (1, 2 ou 3).
-// Desaciona relé anterior e aciona o novo.
-void velocidade_selecionar(uint8_t nivel);
+    // Seleciona nível de velocidade (1, 2 ou 3).
+    void selecionar(uint8_t nivel);
 
-// Retorna velocidade atual (1, 2 ou 3).
-uint8_t velocidade_atual();
+    uint8_t atual() const { return _nivel; }
+
+private:
+    uint8_t _nivel = 1;
+    static const uint8_t _pinos[3];
+
+    void desacionarTodos();
+    void acionarNivel(uint8_t nivel);
+};
 
 #endif // VELOCIDADE_H

@@ -10,30 +10,39 @@
 #ifndef MOTOR_H
 #define MOTOR_H
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <Arduino.h>
+#include "pinout.h"
 
-typedef enum {
+enum Direcao {
     DIR_NENHUMA = 0,
     DIR_SUBIR   = 1,
     DIR_DESCER  = 2
-} Direcao;
+};
 
-#define DEAD_TIME_MS 100
+class Motor {
+public:
+    static constexpr uint32_t DEAD_TIME_MS = 100;
 
-void motor_init();
+    void init();
 
-// Aciona motor na direção indicada. Gerencia dead-time internamente.
-// Retorna true se o motor foi efetivamente acionado (false se em dead-time).
-bool acionar_motor(Direcao dir);
+    // Aciona motor na direção indicada. Gerencia dead-time internamente.
+    // Retorna true se o motor foi efetivamente acionado (false se em dead-time).
+    bool acionar(Direcao dir);
 
-// Desliga ambos os relés de direção imediatamente.
-void desligar_motor();
+    // Desliga ambos os relés de direção imediatamente.
+    void desligar();
 
-// Retorna a direção atualmente ativa (DIR_NENHUMA se desligado ou em dead-time).
-Direcao motor_direcao_atual();
+    Direcao direcaoAtual() const { return _direcao; }
+    bool emDeadTime();
 
-// Retorna true se o motor está em período de dead-time.
-bool motor_em_dead_time();
+private:
+    void relesOff();
+    void ativarDirecao(Direcao dir);
+
+    Direcao  _direcao         = DIR_NENHUMA;
+    bool     _emDeadTime      = false;
+    uint32_t _deadTimeInicio  = 0;
+    Direcao  _direcaoPendente = DIR_NENHUMA;
+};
 
 #endif // MOTOR_H

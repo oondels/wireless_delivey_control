@@ -10,14 +10,17 @@
 #ifndef WATCHDOG_COMM_H
 #define WATCHDOG_COMM_H
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <Arduino.h>
+#include "protocolo.h"
 
-// Timestamp do último pacote válido recebido do Remote
-extern volatile uint32_t ultimo_pacote_remote_ms;
+class WatchdogComm {
+public:
+    void init();
+    void resetar();          // Chamar ao receber pacote válido
+    bool expirado() const;   // true se timeout excedido
 
-void watchdog_comm_init();
-void watchdog_comm_resetar();          // Chamar ao receber pacote válido
-bool watchdog_comm_expirado();         // true se timeout excedido
+private:
+    volatile uint32_t _ultimoPacoteMs = 0;
+};
 
 #endif // WATCHDOG_COMM_H

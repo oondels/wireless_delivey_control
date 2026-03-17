@@ -10,8 +10,14 @@
 #ifndef FREIO_H
 #define FREIO_H
 
-void freio_init();
-void acionar_freio();   // GPIO HIGH → relé ON → freio aplicado + LED aceso
-void liberar_freio();   // GPIO LOW  → relé OFF → freio liberado + LED apagado
+#include <Arduino.h>
+#include "pinout.h"
+
+class Freio {
+public:
+    void init();
+    void acionar();    // GPIO HIGH → relé ON → freio aplicado + LED aceso
+    void liberar();    // GPIO LOW  → relé OFF → freio liberado + LED apagado
+};
 
 #endif // FREIO_H
