@@ -64,6 +64,7 @@ void setup() {
     // Inicializar todos os módulos
     freio.init();            // Configura GPIO + aciona freio (estado seguro)
     sensores.init();
+    pinMode(PIN_MICROCHAVE_FREIO, INPUT_PULLUP);  // GPIO 27 — NA, HIGH = freio engatado
     emergencia.init();
     rearme.init();
     watchdog.init();

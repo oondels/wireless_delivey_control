@@ -1,7 +1,7 @@
 # Especificação de Hardware e I/O
 
-**Versão:** 1.0
-**Data:** 2026-03-16
+**Versão:** 1.1
+**Data:** 2026-03-17
 **Referência:** DESIGN_SPEC.md v3.1, IMPLEMENTATION_PLAN.md v3.2
 
 ---
@@ -64,11 +64,12 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 | Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
 |---|---|---|---|---|---|
-| Fim de curso | 26 | Microswitch | 20 ms | Nível | Posição final de subida (estacionamento) |
+| Fim de curso | 26 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de subida (estacionamento) |
+| Microchave freio | 27 | Microswitch NA | — | Nível (HIGH=engatado) | Estado mecânico do freio |
 
-**Total: 1 entrada digital**
+**Total: 2 entradas digitais**
 
-**Total de entradas no Principal: 8 GPIOs**
+**Total de entradas no Principal: 9 GPIOs**
 
 ---
 
@@ -97,7 +98,7 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 **Total de saídas no Principal: 7 GPIOs**
 
-**Total de GPIOs no Principal: 15** (8 entradas + 7 saídas)
+**Total de GPIOs no Principal: 16** (9 entradas + 7 saídas)
 
 ---
 
@@ -220,12 +221,17 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 
 | Parâmetro | Valor |
 |---|---|
-| Tipo | Microswitch |
+| Tipo | Microswitch NA (normalmente aberto) |
 | Localização | Acoplada ao freio mecânico |
-| Conexão | **Direta no circuito** — NÃO conectada ao ESP32 |
-| Função | Impedir mecanicamente o motor se o freio estiver engatado |
+| Conexão | Direta no circuito elétrico do freio **E** conectada ao GPIO 27 do ESP32 Principal (leitura) |
+| GPIO | 27 |
+| Pull-up | Interno (INPUT_PULLUP) |
+| Lógica | NA: HIGH = freio engatado, LOW = freio liberado |
+| Função | Duas camadas de segurança: hardware (corta circuito do freio) e firmware (bloqueia motor por software) |
 
-> A microchave é uma camada de segurança **independente** do firmware.
+> A microchave atua em duas camadas: (1) **hardware** — corta/permite alimentação do freio diretamente no circuito; (2) **firmware** — ESP32 lê GPIO 27 e bloqueia motor por software quando HIGH. O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor.
+>
+> Fail-safe: cabo partido lê HIGH → interpretado como freio engatado → motor bloqueado.
 
 ---
 

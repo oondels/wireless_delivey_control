@@ -117,11 +117,17 @@ GPIO ESP32
 
 ### 4.2 Microchave do Freio — Acionamento Direto por Hardware
 
-A microchave do freio **não está conectada ao ESP32**. Ela atua diretamente no circuito elétrico do freio mecânico, interrompendo ou permitindo a alimentação do freio de forma independente do firmware.
+A microchave do freio atua em **duas camadas independentes**:
 
-**Implicação para o firmware:** o ESP32 Principal não lê o estado do freio. A trava física é garantida pela microchave em hardware. O firmware controla o relé de freio (acionar/liberar), mas a microchave pode sobrepor esse estado diretamente no circuito elétrico, funcionando como uma camada de segurança adicional independente do software.
+1. **Hardware:** conectada diretamente ao circuito elétrico do freio — corta ou permite a alimentação do freio independentemente do firmware. O acionamento do freio é garantido mesmo em caso de falha total do software.
+2. **Firmware:** conectada ao GPIO 27 do ESP32 Principal. O firmware lê o estado e **bloqueia o motor por software** quando detecta o freio engatado (HIGH = engatado, NA com pull-up interno).
 
-Esta abordagem é mais segura pois garante o acionamento do freio mesmo em caso de falha total do firmware.
+**Comportamento elétrico (NA + pull-up interno):**
+- Freio LIBERADO → contato fechado → GPIO lê LOW
+- Freio ENGATADO → contato aberto → GPIO lê HIGH
+- Cabo partido → GPIO lê HIGH → interpretado como freio engatado (**fail-safe** ✅)
+
+O Remote **não recebe** o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor.
 
 ### 4.3 Fim de Curso do Estacionamento
 
@@ -150,6 +156,7 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
 | Botão REARME | Entrada | 25 | Pull-up interno (INPUT_PULLUP) |
 | Fim de curso | Entrada | 26 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
+| Microchave freio | Entrada | 27 | Pull-up interno (INPUT_PULLUP) — NA, HIGH = freio engatado |
 | Relé + LED DIREÇÃO A | Saída | 4 | HIGH = motor sentido SUBIR |
 | Relé + LED DIREÇÃO B | Saída | 16 | HIGH = motor sentido DESCER |
 | Relé + LED VEL1 | Saída | 17 | HIGH = velocidade 1 |
@@ -157,11 +164,12 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Relé + LED VEL3 | Saída | 18 | HIGH = velocidade 3 |
 | Relé + LED FREIO | Saída | 19 | HIGH = freio aplicado |
 | LED LINK REMOTE | Saída | 21 | Comunicação ativa com Remote |
-| **Total** | | **15** | **8 entradas + 7 saídas** |
+| **Total** | | **16** | **9 entradas + 7 saídas** |
 
 > GPIOs confirmados fisicamente na placa ESP32 WROOM-32U utilizada.
 > GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
-> GPIOs 32, 33, 25 e 26 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIOs 32, 33, 25, 26 e 27 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIO 27 (microchave freio): NA com pull-up interno — HIGH = freio engatado, LOW = freio liberado. Cabo partido lê HIGH e bloqueia motor (fail-safe).
 > GPIOs 0, 2, 12 e 15 evitados (strapping pins de boot).
 > Pinos de flash SPI interna (D0, D1, D2, D3, CLK, CMD) não utilizados.
 

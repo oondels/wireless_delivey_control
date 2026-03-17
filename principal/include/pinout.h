@@ -1,15 +1,16 @@
 /**
  * pinout.h — Mapeamento de GPIOs do Módulo Principal
  *
- * Total: 15 GPIOs (8 entradas + 7 saídas)
+ * Total: 16 GPIOs (9 entradas + 7 saídas)
  *
  * Restrições respeitadas (hardware_io/SPEC.md §8):
  * - GPIO 0, 2, 12, 15 evitados para entradas críticas (strapping pins)
  * - GPIO 34, 35, 36, 39 usados apenas como entrada (input-only, sem pull-up interno)
  * - GPIO 1 (TX) e GPIO 3 (RX) reservados para Serial
  * - GPIOs 34, 35, 36, 39: pull-up externo 10kΩ obrigatório (input-only, sem pull-up interno)
- * - GPIOs 32, 33, 25, 26: pull-up interno via INPUT_PULLUP (sem resistor externo)
+ * - GPIOs 27, 32, 33, 25, 26: pull-up interno via INPUT_PULLUP (sem resistor externo)
  * - Lógica de todos os botões: HIGH = solto, LOW = pressionado
+ * - Microchave freio (GPIO 27): NA, HIGH = freio engatado, LOW = freio liberado
  * - Saídas: HIGH = ativo (relé energizado / LED aceso)
  */
 
@@ -34,7 +35,8 @@
 // ENTRADAS — Sensores
 // ============================================================
 
-#define PIN_FIM_DE_CURSO    26  // Nível — debounce 20 ms, pull-up interno (INPUT_PULLUP)
+#define PIN_FIM_DE_CURSO      26  // Nível — debounce 20 ms, pull-up interno (INPUT_PULLUP)
+#define PIN_MICROCHAVE_FREIO  27  // NA — pull-up interno; HIGH = freio engatado (fail-safe)
 
 // ============================================================
 // SAÍDAS — Relés com LED compartilhado (HIGH = ativo)
