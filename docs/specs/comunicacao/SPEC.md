@@ -184,7 +184,7 @@ Ver detalhes completos em `docs/specs/seguranca/SPEC.md`, seção 4.
 
 | Callback | Função |
 |---|---|
-| `OnDataRecv` | Validar checksum; resetar watchdog (`ultimo_pacote_remote = millis()`); processar emergência imediatamente se `emergencia == 1` |
+| `OnDataRecv` | Validar checksum; resetar watchdog (`_pWatchdog->resetar()`); processar emergência imediatamente se `emergencia == 1` (`_pEmergencia->ativa() = true`) |
 
 ---
 

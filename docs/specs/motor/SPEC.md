@@ -86,11 +86,13 @@ A velocidade é controlada por **hardware externo**: potenciômetros físicos pr
 |---|---|---|---|
 | FREIO | Freio mecânico | 1 GPIO compartilhado (relé + LED) | HIGH = freio aplicado |
 
-### 4.2 Funções do Firmware
+### 4.2 API do Firmware (classe `Freio`)
 
-```c
-void acionar_freio();   // GPIO HIGH → relé energizado → freio aplicado + LED aceso
-void liberar_freio();   // GPIO LOW  → relé desenergizado → freio liberado + LED apagado
+```cpp
+Freio freio;
+freio.init();
+freio.acionar();   // GPIO HIGH → relé energizado → freio aplicado + LED aceso
+freio.liberar();   // GPIO LOW  → relé desenergizado → freio liberado + LED apagado
 ```
 
 ### 4.3 Regras de Operação

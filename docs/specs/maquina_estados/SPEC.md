@@ -69,8 +69,8 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 
 | Prioridade | Condição | Transição |
 |---|---|---|
-| 1 (máxima) | `emergencia_ativa == true` OU botão emergência Painel HIGH | → `EMERGENCIA_ATIVA` |
-| 2 | Watchdog expirado (`millis() - ultimo_pacote > 500ms`) | → `FALHA_COMUNICACAO` |
+| 1 (máxima) | `emergencia.verificar()` retorna true (botão local OU flag ativa) | → `EMERGENCIA_ATIVA` |
+| 2 | `watchdog.expirado()` (> 500ms sem pacote) | → `FALHA_COMUNICACAO` |
 | 3 | Fim de curso acionado | → `PARADO` |
 | 4 | Botão hold ativo + direção válida | → `SUBINDO` ou `DESCENDO` |
 | 5 (padrão) | Nenhuma condição acima | → `PARADO` |
@@ -109,44 +109,47 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 
 ## 6. Pseudocódigo da Máquina de Estados
 
-```c
+```cpp
+// Objetos instanciados no escopo global (principal.cpp):
+// Emergencia emergencia; Motor motor; Freio freio; Sensores sensores;
+// WatchdogComm watchdog; Botoes botoes; Velocidade velocidade;
+
 void atualizar_maquina_estados() {
     // Prioridade 1: emergência
-    if (digitalRead(PIN_EMERGENCIA_PAINEL) || emergencia_ativa) {
-        emergencia_ativa = true;
-        acionar_freio();
-        desligar_motor();
+    if (emergencia.verificar(pacoteRemote.emergencia)) {
+        freio.acionar();
+        motor.desligar();
         estado = ESTADO_EMERGENCIA;
         return;
     }
 
     // Prioridade 2: watchdog
-    if (millis() - ultimo_pacote_remote > WATCHDOG_TIMEOUT_MS) {
-        acionar_freio();
-        desligar_motor();
+    if (watchdog.expirado()) {
+        freio.acionar();
+        motor.desligar();
         estado = ESTADO_FALHA_COMUNICACAO;
         return;
     }
 
     // Prioridade 3: fim de curso
-    if (fim_de_curso_acionado()) {
-        desligar_motor();
-        acionar_freio();
+    if (sensores.fimDeCursoAcionado()) {
+        motor.desligar();
+        freio.acionar();
         estado = ESTADO_PARADO;
         return;
     }
 
     // Prioridade 4: movimentação
-    bool hold = botao_hold_local || pacote_remote.botao_hold;
+    bool hold = botao_hold_local || pacoteRemote.botao_hold;
     Direcao dir = obter_direcao_ativa();
 
-    if (hold && dir != NENHUMA) {
-        liberar_freio();
-        acionar_motor(dir);
-        estado = (dir == SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
+    if (hold && dir != DIR_NENHUMA) {
+        freio.liberar();
+        motor.acionar(dir);
+        estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
     } else {
-        desligar_motor();
-        acionar_freio();
+        motor.desligar();
+        freio.acionar();
         estado = ESTADO_PARADO;
     }
 }
@@ -158,7 +161,7 @@ void atualizar_maquina_estados() {
 
 ### 7.1 Condições para Rearme
 
-O botão REARME no Painel Central limpa os estados de erro quando:
+O botão REARME no Painel Central (`rearme.verificar()`) limpa os estados de erro quando:
 
 1. O botão de emergência que originou o estado está fisicamente solto; **ou**
 2. O Painel Central aceita o rearme mesmo com botão Remote travado (caso especial — ver seção 7.2).
@@ -167,8 +170,8 @@ O botão REARME no Painel Central limpa os estados de erro quando:
 
 Se `pacote_remote.emergencia == 1` no momento do rearme:
 
-1. Principal limpa `emergencia_ativa`.
-2. Principal seta `rearme_ativo = 1` no `PacoteStatus`.
+1. Principal limpa `emergencia.ativa()`.
+2. Principal seta `rearme_ativo = 1` no `PacoteStatus` (via `rearme.isRearmeAtivo()`).
 3. Remote acende LED ALARME (pisca 2 Hz).
 4. `rearme_ativo` é limpo quando `pacote_remote.emergencia` voltar a 0.
 

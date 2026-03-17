@@ -69,39 +69,48 @@ Estes LEDs são controlados pelo módulo `leds.h` e suportam piscar não-bloquea
 
 Todos os LEDs do Remote são atualizados com base no `PacoteStatus` recebido do Principal:
 
-```
-atualizar_leds(status):
+```cpp
+// Objetos Led instanciados no escopo global (remote.cpp):
+// Led ledLink(PIN_LED_LINK), ledMotor(PIN_LED_MOTOR), ...
+
+void atualizarLeds(const PacoteStatus& status) {
     // LINK
-    if (millis() - ultimo_status_recebido > 1000):
-        led_piscar(LED_LINK, 500)    // 1 Hz
-    else:
-        led_ligar(LED_LINK)
+    if (millis() - ultimoStatusRecebido > 1000)
+        ledLink.piscar(500);       // 1 Hz
+    else
+        ledLink.ligar();
 
     // MOTOR
-    if (status.estado_sistema == SUBINDO || status.estado_sistema == DESCENDO):
-        led_ligar(LED_MOTOR)
-    else:
-        led_desligar(LED_MOTOR)
+    if (status.estado_sistema == ESTADO_SUBINDO || status.estado_sistema == ESTADO_DESCENDO)
+        ledMotor.ligar();
+    else
+        ledMotor.desligar();
 
     // VELOCIDADE
-    led_desligar(LED_VEL1, LED_VEL2, LED_VEL3)
-    if (status.velocidade == 1): led_ligar(LED_VEL1)
-    if (status.velocidade == 2): led_ligar(LED_VEL2)
-    if (status.velocidade == 3): led_ligar(LED_VEL3)
+    ledVel1.desligar(); ledVel2.desligar(); ledVel3.desligar();
+    if (status.velocidade == 1) ledVel1.ligar();
+    if (status.velocidade == 2) ledVel2.ligar();
+    if (status.velocidade == 3) ledVel3.ligar();
 
     // EMERGÊNCIA
-    if (status.estado_sistema == EMERGENCIA):
-        led_piscar(LED_EMERGENCIA, 125)   // 4 Hz
-    elif (status.estado_sistema == FALHA_COMUNICACAO):
-        led_ligar(LED_EMERGENCIA)
-    else:
-        led_desligar(LED_EMERGENCIA)
+    if (status.estado_sistema == ESTADO_EMERGENCIA)
+        ledEmergencia.piscar(125);   // 4 Hz
+    else if (status.estado_sistema == ESTADO_FALHA_COMUNICACAO)
+        ledEmergencia.ligar();
+    else
+        ledEmergencia.desligar();
 
     // ALARME
-    if (status.rearme_ativo == 1 && digitalRead(PIN_EMERGENCIA) == HIGH):
-        led_piscar(LED_ALARME, 250)   // 2 Hz
-    else:
-        led_desligar(LED_ALARME)
+    if (status.rearme_ativo == 1 && digitalRead(PIN_BTN_EMERGENCIA) == HIGH)
+        ledAlarme.piscar(250);       // 2 Hz
+    else
+        ledAlarme.desligar();
+
+    // Atualizar todos os LEDs (processar piscar não-bloqueante)
+    ledLink.atualizar(); ledMotor.atualizar();
+    ledVel1.atualizar(); ledVel2.atualizar(); ledVel3.atualizar();
+    ledEmergencia.atualizar(); ledAlarme.atualizar();
+}
 ```
 
 ---
@@ -134,32 +143,40 @@ Controlados diretamente pelo acionamento dos relés — sem lógica de LED separ
 
 ## 5. Abstração de Software (`leds.h`)
 
-### 5.1 Estrutura de Dados
+### 5.1 Estrutura de Dados (classe `Led`)
 
-```c
-typedef struct {
-    uint8_t  gpio;
-    bool     piscando;
-    uint16_t intervalo_ms;
-    uint32_t ultimo_toggle;
-    bool     estado_atual;
-} Led;
+```cpp
+class Led {
+public:
+    Led(uint8_t gpio);
+    void ligar();                          // GPIO HIGH, piscando = false
+    void desligar();                       // GPIO LOW, piscando = false
+    void piscar(uint16_t intervalo_ms);    // Inicia piscar não-bloqueante
+    void atualizar();                      // Chamar no loop principal
+private:
+    uint8_t  _gpio;
+    bool     _piscando;
+    uint16_t _intervaloMs;
+    uint32_t _ultimoToggle;
+    bool     _estadoAtual;
+};
 ```
 
 ### 5.2 API
 
-```c
-void led_ligar(Led* led);       // GPIO HIGH, piscando = false
-void led_desligar(Led* led);    // GPIO LOW, piscando = false
-void led_piscar(Led* led, uint16_t intervalo_ms);  // Inicia piscar
-void led_atualizar(Led* led);   // Chamar no loop principal
+```cpp
+Led ledLink(PIN_LED_LINK);
+ledLink.ligar();                   // GPIO HIGH, piscando = false
+ledLink.desligar();                // GPIO LOW, piscando = false
+ledLink.piscar(500);               // Inicia piscar 1 Hz
+ledLink.atualizar();               // Chamar no loop principal
 ```
 
 ### 5.3 Regras de Implementação
 
 - **Nunca** usar `delay()` — toda lógica de temporização via `millis()`.
-- `led_atualizar()` deve ser chamada a cada ciclo do loop principal para **todos** os LEDs.
-- A função verifica se `millis() - ultimo_toggle >= intervalo_ms` e inverte o GPIO se necessário.
+- `led.atualizar()` deve ser chamada a cada ciclo do loop principal para **todos** os LEDs.
+- O método verifica se `millis() - _ultimoToggle >= _intervaloMs` e inverte o GPIO se necessário.
 - LEDs compartilhados com relés no Principal **não** usam esta abstração.
 
 ---

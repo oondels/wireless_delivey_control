@@ -99,20 +99,33 @@ Remote:
 
 ```
 principal/
-├── principal.ino
-├── pinout.h            (todos os GPIOs nomeados)
-├── protocolo.h         (structs e enums compartilhados)
-├── maquina_estados.h   (enum EstadoSistema + função de transição)
-├── motor.h             (relés DIREÇÃO A/B + velocidade; sem leitura de microchave)
-├── freio.h             (apenas relé de freio — microchave é hardware externo)
-├── sensores.h          (fim de curso com debounce)
-└── leds.h              (piscar não-bloqueante via millis())
+├── include/
+│   ├── pinout.h            (todos os GPIOs nomeados)
+│   ├── protocolo.h         (structs e enums compartilhados)
+│   ├── maquina_estados.h   (classe MaquinaEstados — transições + prioridade)
+│   ├── motor.h             (classe Motor — relés DIREÇÃO A/B + dead-time)
+│   ├── velocidade.h        (classe Velocidade — relés VEL1/2/3)
+│   ├── freio.h             (classe Freio — apenas relé de freio)
+│   ├── sensores.h          (classe Sensores — fim de curso com debounce)
+│   ├── emergencia.h        (classe Emergencia — botão + flag)
+│   ├── rearme.h            (classe Rearme — lógica de rearme)
+│   ├── watchdog_comm.h     (classe WatchdogComm — timeout de comunicação)
+│   ├── botoes.h            (classe Botoes — debounce + hold/pulso)
+│   ├── comunicacao.h       (classe Comunicacao — ESP-NOW)
+│   └── leds.h              (classe Led — piscar não-bloqueante via millis())
+├── src/
+│   ├── principal.cpp       (setup/loop principal)
+│   └── *.cpp               (implementações das classes)
+└── platformio.ini
 
 remote/
-├── remote.ino
-├── pinout.h
-├── protocolo.h         (cópia idêntica)
-└── leds.h
+├── include/
+│   ├── pinout.h
+│   ├── protocolo.h         (cópia idêntica)
+│   └── leds.h
+├── src/
+│   └── remote.cpp
+└── platformio.ini
 ```
 
 ### 2.2 — Módulo de Protocolo Compartilhado (`protocolo.h`)
@@ -156,34 +169,40 @@ uint8_t calcular_checksum(uint8_t* data, size_t len);
 
 > Comparando com a versão anterior: `estado_freio` foi **removido** do `PacoteStatus` pois o Principal não lê mais a microchave.
 
-### 2.3 — Módulo `freio.h` (Principal)
+### 2.3 — Classe `Freio` (Principal)
 
 O módulo de freio **não possui leitura de sensor**. Ele apenas controla o GPIO do relé de freio:
 
-```c
-void acionar_freio();   // GPIO HIGH → relé energizado → freio aplicado + LED aceso
-void liberar_freio();   // GPIO LOW  → relé desenergizado → freio liberado + LED apagado
+```cpp
+class Freio {
+public:
+    void init();
+    void acionar();   // GPIO HIGH → relé energizado → freio aplicado + LED aceso
+    void liberar();   // GPIO LOW  → relé desenergizado → freio liberado + LED apagado
+};
 ```
 
 A microchave do freio é hardware externo, atuando diretamente no circuito. O firmware não tem visibilidade sobre seu estado.
 
-### 2.4 — Módulo `leds.h`
+### 2.4 — Classe `Led`
 
 Abstração de LED não-bloqueante baseada em `millis()`:
 
-```c
-typedef struct {
-    uint8_t  gpio;
-    bool     piscando;
-    uint16_t intervalo_ms;
-    uint32_t ultimo_toggle;
-    bool     estado_atual;
-} Led;
-
-void led_ligar(Led* led);
-void led_desligar(Led* led);
-void led_piscar(Led* led, uint16_t intervalo_ms);
-void led_atualizar(Led* led);  // chamar no loop principal — nunca usar delay()
+```cpp
+class Led {
+public:
+    Led(uint8_t gpio);
+    void ligar();                          // GPIO HIGH, piscando = false
+    void desligar();                       // GPIO LOW, piscando = false
+    void piscar(uint16_t intervalo_ms);    // Inicia piscar não-bloqueante
+    void atualizar();                      // Chamar no loop principal — nunca usar delay()
+private:
+    uint8_t  _gpio;
+    bool     _piscando;
+    uint16_t _intervaloMs;
+    uint32_t _ultimoToggle;
+    bool     _estadoAtual;
+};
 ```
 
 Frequências do projeto:
@@ -238,19 +257,19 @@ loop():
 ### 2.6 — Firmware do Módulo Principal
 
 **Etapa A — Segurança (implementar e testar primeiro)**
-- Leitura do fim de curso com debounce 20 ms
-- `acionar_freio()` e `liberar_freio()` sem leitura de sensor
-- Watchdog: timeout `WATCHDOG_TIMEOUT_MS = 500`
-- Flag `emergencia_ativa`: limpa apenas por REARME explícito
-- Botão EMERGÊNCIA local (trava): `digitalRead()` — nível HIGH ativa imediatamente
-- Botão REARME: limpa `emergencia_ativa` e `falha_comunicacao`; seta `rearme_ativo` se `pacote_remote.emergencia == 1`
+- Leitura do fim de curso com debounce 20 ms (`sensores.fimDeCursoAcionado()`)
+- `freio.acionar()` e `freio.liberar()` sem leitura de sensor
+- Watchdog: timeout `WATCHDOG_TIMEOUT_MS = 500` (`watchdog.expirado()`)
+- Flag `emergencia.ativa()`: limpa apenas por REARME explícito
+- Botão EMERGÊNCIA local (trava): `emergencia.verificar()` — nível LOW ativa imediatamente
+- Botão REARME: `rearme.verificar()` limpa emergência e falha_comunicacao; seta `rearme_ativo` se `pacote_remote.emergencia == 1`
 
 **Etapa B — Comunicação**
-- `OnDataRecv`: validar checksum; resetar watchdog; se `emergencia == 1`, ativar imediatamente
+- `Comunicacao::onDataRecv()`: validar checksum; `_pWatchdog->resetar()`; se `emergencia == 1`, `_pEmergencia->ativa() = true`
 - Enviar `PacoteStatus` a cada 200 ms ou imediato em mudança
 
 **Etapa C — Fim de curso**
-- Ao detectar: `desligar_motor()` → `acionar_freio()` → `estado = PARADO`
+- Ao detectar: `motor.desligar()` → `freio.acionar()` → `estado = PARADO`
 - **Não** ativar `emergencia_ativa`
 
 **Etapa D — Movimentação**
@@ -262,44 +281,47 @@ loop():
 - Os relés de velocidade têm LED em paralelo — o LED acende/apaga automaticamente com o relé
 
 **Máquina de estados:**
-```c
+```cpp
+// Objetos instanciados no escopo global (principal.cpp):
+// Emergencia emergencia; Motor motor; Freio freio; Sensores sensores;
+// WatchdogComm watchdog; Botoes botoes; Velocidade velocidade;
+
 void atualizar_maquina_estados() {
   // Prioridade 1: emergência
-  if (digitalRead(PIN_EMERGENCIA_PAINEL) || emergencia_ativa) {
-    emergencia_ativa = true;
-    acionar_freio();     // GPIO HIGH → relé freio ON + LED freio ON
-    desligar_motor();    // GPIOs direção LOW → relés OFF + LEDs direção OFF
+  if (emergencia.verificar(pacoteRemote.emergencia)) {
+    freio.acionar();     // GPIO HIGH → relé freio ON + LED freio ON
+    motor.desligar();    // GPIOs direção LOW → relés OFF + LEDs direção OFF
     estado = ESTADO_EMERGENCIA;
     return;
   }
 
   // Prioridade 2: watchdog
-  if (millis() - ultimo_pacote_remote > WATCHDOG_TIMEOUT_MS) {
-    acionar_freio();
-    desligar_motor();
+  if (watchdog.expirado()) {
+    freio.acionar();
+    motor.desligar();
     estado = ESTADO_FALHA_COMUNICACAO;
     return;
   }
 
   // Prioridade 3: fim de curso
-  if (fim_de_curso_acionado()) {
-    desligar_motor();
-    acionar_freio();
+  if (sensores.fimDeCursoAcionado()) {
+    motor.desligar();
+    freio.acionar();
     estado = ESTADO_PARADO;
     return;
   }
 
   // Prioridade 4: movimentação
-  bool hold = botao_hold_local || pacote_remote.botao_hold;
+  bool hold = botao_hold_local || pacoteRemote.botao_hold;
   Direcao dir = obter_direcao_ativa();
 
-  if (hold && dir != NENHUMA) {
-    liberar_freio();     // GPIO LOW → relé freio OFF + LED freio OFF
-    acionar_motor(dir);  // GPIO HIGH → relé direção ON + LED direção ON
-    estado = (dir == SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
+  if (hold && dir != DIR_NENHUMA) {
+    freio.liberar();     // GPIO LOW → relé freio OFF + LED freio OFF
+    motor.acionar(dir);  // GPIO HIGH → relé direção ON + LED direção ON
+    estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
   } else {
-    desligar_motor();
-    acionar_freio();
+    motor.desligar();
+    freio.acionar();
     estado = ESTADO_PARADO;
   }
 }

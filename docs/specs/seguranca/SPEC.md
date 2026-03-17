@@ -42,13 +42,13 @@ Ambos os módulos (Painel Central e Remote) possuem botões de emergência do ti
 
 | Origem | Ação no Firmware |
 |---|---|
-| Botão EMERGÊNCIA no Painel Central | `emergencia_ativa = true` imediatamente; motor OFF; freio ON |
-| Botão EMERGÊNCIA no Remote (via pacote) | Campo `emergencia == 1` no `PacoteRemote`; Principal processa e ativa `emergencia_ativa = true` |
+| Botão EMERGÊNCIA no Painel Central | `emergencia.ativa() = true` imediatamente; motor OFF; freio ON |
+| Botão EMERGÊNCIA no Remote (via pacote) | Campo `emergencia == 1` no `PacoteRemote`; Principal processa e ativa `emergencia.ativa() = true` |
 
 **Ao entrar em emergência, a sequência é:**
-1. Cortar alimentação do motor (desacionar relés de direção)
-2. Acionar freio mecânico (acionar relé de freio)
-3. Setar flag `emergencia_ativa = true`
+1. Cortar alimentação do motor (`motor.desligar()`)
+2. Acionar freio mecânico (`freio.acionar()`)
+3. Setar flag `emergencia.ativa() = true`
 
 ### 3.3 Comportamento Durante Emergência
 
@@ -65,7 +65,7 @@ Ambos os módulos (Painel Central e Remote) possuem botões de emergência do ti
 2. O operador do Painel Central deve pressionar o botão **REARME**.
 
 **Após rearme bem-sucedido:**
-- `emergencia_ativa = false`
+- `emergencia.ativa() = false`
 - Estado retorna a `PARADO`
 - Freio permanece acionado
 - Motor permanece desligado
@@ -75,7 +75,7 @@ Ambos os módulos (Painel Central e Remote) possuem botões de emergência do ti
 
 Se o operador do Painel Central pressionar REARME enquanto o botão de emergência do Remote ainda estiver travado:
 
-1. O Principal **aceita** o rearme e limpa `emergencia_ativa`.
+1. O Principal **aceita** o rearme e limpa `emergencia.ativa()`.
 2. O campo `rearme_ativo = 1` é incluído no `PacoteStatus` enviado ao Remote.
 3. O Remote acende o **LED ALARME** (piscando 2 Hz) ao receber esse sinal com o botão local ainda ativo.
 4. O operador no carrinho é alertado visualmente para soltar o botão de emergência local.
@@ -88,8 +88,8 @@ Emergência Remote ativa (botão travado)
         │
         └─ Operador Painel pressiona REARME (botão Remote ainda travado)
                    │
-                   ├─ Principal limpa EMERGENCIA_ATIVA
-                   ├─ Principal seta rearme_ativo = 1 no PacoteStatus
+                   ├─ Principal limpa emergencia.ativa()
+                   ├─ Principal seta rearme_ativo = 1 no PacoteStatus (rearme.isRearmeAtivo())
                    └─ Remote recebe → acende LED ALARME (pisca 2 Hz)
                       Operador deve soltar botão de emergência local
 ```
@@ -108,8 +108,8 @@ Emergência Remote ativa (botão travado)
 ### 4.2 Funcionamento
 
 - O Remote envia heartbeat a cada **200 ms**, mesmo sem nenhum botão pressionado.
-- O Principal mantém um timestamp do último pacote recebido (`ultimo_pacote_remote`).
-- A cada ciclo do loop principal, verifica: `millis() - ultimo_pacote_remote > WATCHDOG_TIMEOUT_MS`.
+- O Principal mantém um timestamp do último pacote recebido (internamente na classe `WatchdogComm`).
+- A cada ciclo do loop principal, verifica: `watchdog.expirado()` (equivale a `millis() - _ultimoPacoteMs > WATCHDOG_TIMEOUT_MS`).
 - Se o timeout for excedido: motor OFF → freio ON → estado `FALHA_COMUNICACAO`.
 
 ### 4.3 Causas de Timeout
@@ -121,7 +121,7 @@ Emergência Remote ativa (botão travado)
 
 ### 4.4 Recuperação de Falha de Comunicação
 
-- `FALHA_COMUNICACAO` **exige rearme manual** pelo Painel Central (mesmo procedimento da emergência).
+- `FALHA_COMUNICACAO` **exige rearme manual** pelo Painel Central (via `rearme.verificar()`).
 - A reconexão do Remote **não** limpa o estado automaticamente.
 - Após rearme: sistema retorna a `PARADO`.
 
@@ -198,9 +198,9 @@ Sequência executada imediatamente:
 
 Estas condições devem ser **sempre verdadeiras** no firmware, independentemente do estado:
 
-1. `emergencia_ativa == true` → motor **sempre** OFF e freio **sempre** ON.
+1. `emergencia.isAtiva() == true` → motor **sempre** OFF e freio **sempre** ON.
 2. `FALHA_COMUNICACAO` → motor **sempre** OFF e freio **sempre** ON.
-3. `emergencia_ativa` **nunca** é limpa automaticamente — apenas por REARME manual.
+3. `emergencia.ativa()` **nunca** é limpa automaticamente — apenas por REARME manual (`rearme.verificar()`).
 4. O rearme **nunca** liga o motor — apenas retorna a `PARADO`.
 5. Dois relés de direção **nunca** estão ativos simultaneamente.
 6. O motor **nunca** é ligado sem botão hold ativo (Homem-Morto).
