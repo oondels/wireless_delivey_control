@@ -103,3 +103,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-014 implementa leitura de botões do Principal — debounce 50ms, SUBIR/DESCER hold (nível), VEL1/2/3/REARME pulso (borda descida), EMERGÊNCIA nível contínuo. Ref: hardware_io/SPEC.md §4.
+
+## 2026-03-16 - T-014 - Implementar leitura de botões do Principal
+
+- Outcome: Módulo botoes.h/cpp com struct EstadoBotoes e botoes_ler(). Debounce 50ms genérico para 5 botões. SUBIR/DESCER retornam hold (nível LOW=pressionado). VEL1/2/3 retornam pulso (borda HIGH→LOW). EMERGÊNCIA e REARME tratados em módulos dedicados.
+- Files changed: `principal/include/botoes.h`, `principal/src/botoes.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-015 implementa máquina de estados — atualizar_maquina_estados() com prioridade: emergência > watchdog > fim de curso > movimentação > PARADO. Ref: maquina_estados/SPEC.md §4-6.
