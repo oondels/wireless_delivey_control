@@ -71,3 +71,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-010 implementa watchdog — verificação millis() - ultimo_pacote_remote > 500ms, transição para FALHA_COMUNICACAO. Ref: seguranca/SPEC.md §4.
+
+## 2026-03-16 - T-010 - Implementar watchdog de comunicação
+
+- Outcome: Módulo watchdog_comm.h/cpp com timestamp volatile ultimo_pacote_remote_ms, watchdog_comm_resetar() e watchdog_comm_expirado() usando WATCHDOG_TIMEOUT_MS (500ms de protocolo.h).
+- Files changed: `principal/include/watchdog_comm.h`, `principal/src/watchdog_comm.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-011 implementa comunicação ESP-NOW no Principal — WiFi + esp_now init, peer register, OnDataRecv (checksum + watchdog reset + emergência), envio de PacoteStatus. Ref: comunicacao/SPEC.md §7-9.
