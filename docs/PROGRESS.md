@@ -167,3 +167,11 @@
 - Validations: `platformio run` (remote) — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-022 implementa remote.cpp — loop principal integrando Botoes, Comunicacao, 7x Led e atualizarLeds(). setup() inicializa GPIOs/ESP-NOW/LEDs. loop() executa: botoes.ler() → montar PacoteRemote → enviar (200ms + imediato) → atualizarLeds(). Ref: IMPLEMENTATION_PLAN §2.5.
+
+## 2026-03-17 - T-022 - Implementar remote.cpp
+
+- Outcome: Loop principal completo do Remote integrando Botoes, Comunicacao, 7 LEDs e atualizarLeds(). setup() inicializa botões e ESP-NOW. loop() executa: 1) ler botões, 2) montar PacoteRemote (comando por prioridade: hold > pulso > heartbeat), 3) enviar (200ms periódico + imediato em mudança de hold/emergência/pulso), 4) atualizarLeds() com último PacoteStatus. Detecta mudança de estado comparando com btnAnterior.
+- Files changed: `remote/src/remote.cpp`
+- Validations: `platformio run` (remote e principal) — build com sucesso, 0 erros, 0 warnings. Remote: RAM 13.3%, Flash 55.9%. Principal: RAM 13.3%, Flash 56.0%.
+- Docs updated: nenhum.
+- Notes for next task: Todas as 22 tarefas completas. Firmware de ambos os módulos compila com sucesso.
