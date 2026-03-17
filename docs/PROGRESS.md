@@ -127,3 +127,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-017 implementa principal.cpp — loop principal integrando todas as classes. Instanciar todos os objetos, setup() chama init() de cada módulo, loop() executa: ler botões → atualizar máquina de estados → processar velocidade → enviar status → atualizar LEDs. Estado inicial PARADO, freio acionado. Ref: IMPLEMENTATION_PLAN §2.6.
+
+## 2026-03-17 - T-017 - Implementar principal.cpp
+
+- Outcome: Loop principal completo integrando 11 módulos. setup() inicializa todos na ordem correta (freio primeiro para estado seguro). loop() executa: 1) botoes.ler(), 2) rearme.verificar(), 3) maquinaEstados.atualizar(), 4) processar velocidade (local + Remote), 5) montar/enviar PacoteStatus (200ms periódico + imediato em mudança), 6) atualizar LED LINK. Também limpa rearme_ativo quando Remote solta emergência.
+- Files changed: `principal/src/principal.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings. RAM 13.3%, Flash 56.0%.
+- Docs updated: nenhum.
+- Notes for next task: T-018 implementa classe Led do Remote — mesma classe Led, instanciar 7 objetos (LINK, MOTOR, VEL1-3, EMERGÊNCIA, ALARME). Frequências: LINK 1Hz (500ms), ALARME 2Hz (250ms), EMERGÊNCIA 4Hz (125ms). Copiar leds.h/leds.cpp para remote/. Ref: leds/SPEC.md §3, §5-6.
