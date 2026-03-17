@@ -26,13 +26,16 @@ EstadoSistema MaquinaEstados::atualizar(
     Motor&             motor,
     Freio&             freio,
     const EstadoBotoes& botoesLocal,
-    const volatile PacoteRemote& pacoteRemote
+    const volatile PacoteRemote& pacoteRemote,
+    bool               rearmeAtivo
 ) {
     const bool tentativaRemotaSubir = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_SUBIR);
     const bool tentativaRemotaDescer = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_DESCER);
 
     // Prioridade 1: emergência (botão local OU flag já ativa OU Remote)
-    if (emergencia.verificar(pacoteRemote.emergencia)) {
+    // Se rearmeAtivo=true, sinal de emergência do remote é ignorado (sobreposto pelo REARME)
+    const bool emRemote = (pacoteRemote.emergencia == 1) && !rearmeAtivo;
+    if (emergencia.verificar(emRemote)) {
         if (_estado != ESTADO_EMERGENCIA) {
             LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — emergencia ativa");
         }

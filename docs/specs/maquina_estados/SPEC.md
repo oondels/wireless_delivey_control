@@ -1,7 +1,7 @@
 # Especificação da Máquina de Estados
 
-**Versão:** 1.0
-**Data:** 2026-03-16
+**Versão:** 1.1
+**Data:** 2026-03-17
 **Referência:** DESIGN_SPEC.md v3.1
 
 ---
@@ -29,7 +29,7 @@ typedef enum {
 | `PARADO` | OFF | ON | Estado seguro padrão. Motor desligado, freio acionado. |
 | `SUBINDO` | ON (direção A) | OFF | Motor ativo no sentido SUBIR. Freio liberado. |
 | `DESCENDO` | ON (direção B) | OFF | Motor ativo no sentido DESCER. Freio liberado. |
-| `EMERGENCIA_ATIVA` | OFF | ON | Emergência. Motor desligado, freio acionado. Requer rearme. |
+| `EMERGENCIA_ATIVA` | OFF | ON | Emergência. Motor desligado, freio acionado. Auto-libera ao soltar todos os botões; REARME apenas se remote travado. |
 | `FALHA_COMUNICACAO` | OFF | ON | Perda de link. Motor desligado, freio acionado. Requer rearme. |
 
 ---
@@ -42,7 +42,8 @@ typedef enum {
                     │  Motor: OFF | Freio: ON                  │     (de qualquer estado)
                     │  Remote: ignorado                        │
                     └────────────────┬─────────────────────────┘
-                                     │ Rearme MANUAL (Painel Central)
+                                     │ Auto-libera (fontes inativas) OU
+                                     │ Rearme MANUAL (se remote travado)
                                      ▼
                     ┌──────────────────────────────────────────┐
                     │           FALHA_COMUNICACAO              │◄─── Watchdog timeout / Remote off

@@ -115,7 +115,8 @@ void loop() {
         motor,
         freio,
         btn,
-        comunicacao.ultimoPacote()
+        comunicacao.ultimoPacote(),
+        rearme.isRearmeAtivo()
     );
 
     // Log de transição de estado

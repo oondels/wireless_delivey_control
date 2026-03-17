@@ -3,7 +3,10 @@
  *
  * Gerencia a flag _ativa e a leitura do botão EMERGÊNCIA
  * (trava mecânica, nível contínuo).
- * Flag _ativa NUNCA é limpa automaticamente — apenas por Rearme.
+ *
+ * Auto-liberação: quando botão local é solto E remote não sinaliza emergência,
+ * _ativa é limpa automaticamente. REARME é necessário apenas quando o remote
+ * mantém emergência ativa e não é possível acessá-lo.
  *
  * Ref: seguranca/SPEC.md §3
  */
@@ -30,7 +33,8 @@ public:
     bool isAtiva() const { return _ativa; }
 
 private:
-    volatile bool _ativa = false;
+    volatile bool _ativa              = false;
+    bool          _botaoLocalAnterior = false;  // false = não estava ativo
 };
 
 #endif // EMERGENCIA_H

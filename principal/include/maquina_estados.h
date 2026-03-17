@@ -36,7 +36,8 @@ public:
         Motor&             motor,
         Freio&             freio,
         const EstadoBotoes& botoesLocal,
-        const volatile PacoteRemote& pacoteRemote
+        const volatile PacoteRemote& pacoteRemote,
+        bool               rearmeAtivo = false
     );
 
     EstadoSistema estadoAtual() const { return _estado; }

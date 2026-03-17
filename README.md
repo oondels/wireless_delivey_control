@@ -48,8 +48,8 @@ O sistema adota uma arquitetura **Mestre-Escravo** com dois ESP32 comunicando-se
 O Módulo Principal possui **autoridade máxima** sobre o sistema:
 
 - Comandos de direção e velocidade do Painel Central têm prioridade sobre os do Remote.
-- O Painel Central pode ativar **e desativar** o estado de emergência, incluindo emergências originadas no Remote.
-- O Remote **nunca** pode desativar uma emergência por conta própria; apenas solicitar seu acionamento.
+- O Painel Central pode ativar emergência e executar o REARME quando o Remote estiver com botão travado.
+- Quando o Remote solta seu botão de emergência, o Principal auto-libera o estado sem necessidade de REARME.
 
 ---
 
@@ -169,8 +169,8 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 
 | Função | Tipo | GPIO | Observação |
 |---|---|---|---|
-| Botão SUBIR | Entrada | 36 | Input-only, pull-up externo obrigatório |
-| Botão DESCER | Entrada | 39 | Input-only, pull-up externo obrigatório |
+| Botão SUBIR | Entrada | 36 (VP) | Input-only, pull-up externo obrigatório |
+| Botão DESCER | Entrada | 39 (VN) | Input-only, pull-up externo obrigatório |
 | Botão VEL1 | Entrada | 34 | Input-only, pull-up externo obrigatório |
 | Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
 | Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
@@ -233,26 +233,36 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 
 Botões de emergência são do tipo **com trava**: sinal permanece ativo até destravar manualmente. O firmware lê o nível contínuo do pino.
 
-**Saída de `EMERGENCIA_ATIVA` requer:**
-1. Botão de emergência fisicamente solto (sinal inativo); **e**
-2. Operador pressionar REARME no Painel Central.
+**Auto-liberação (caso normal):**
 
-**Rearme com botão Remote ainda travado:** o Principal aceita o rearme, limpa `EMERGENCIA_ATIVA` e seta `rearme_ativo = 1` no `PacoteStatus`. O Remote acende o LED ALARME ao receber esse flag com botão local ainda ativo.
+A emergência é limpa automaticamente quando **todas** as fontes ficam inativas:
+- Botão local do Painel Central está **solto/destravado**; **E**
+- Remote envia `emergencia == 0`.
+
+**Rearme manual (remote travado):**
+
+Quando o botão do Remote está **mecanicamente travado** ou o Remote está inacessível:
+1. Botão local do Painel Central deve estar solto; **e**
+2. Operador pressiona **REARME** no Painel Central.
+
+O sinal de emergência do Remote é ignorado enquanto `rearme_ativo == 1`.
 
 ```
 Botão Remote travado + Painel pressiona REARME:
   → Principal: EMERGENCIA_ATIVA = false, rearme_ativo = 1
   → Remote recebe status: LED ALARME pisca (2 Hz)
-  → Operador solta botão no Remote: LED ALARME apaga
+  → Operador solta botão no Remote: rearme_ativo = 0, LED ALARME apaga
 ```
 
 ### 7.3 Prioridade da Emergência
 
 Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do relé de freio → `EMERGENCIA_ATIVA = true`. Com flag ativa, todos os comandos de movimentação do Remote são ignorados.
 
-### 7.4 Desativação de Emergência (Rearme)
+### 7.4 Desativação de Emergência
 
-Exclusivamente manual via botão REARME no Painel Central. O sistema **jamais** rearma automaticamente. Após rearme: estado `PARADO`.
+**Auto-liberação:** quando todas as fontes ficam inativas (botão local solto + remote sem emergência), `EMERGENCIA_ATIVA` é limpa automaticamente e o estado retorna a `PARADO`.
+
+**REARME manual:** necessário somente quando o Remote mantém `emergencia == 1` e não é possível acessá-lo. O REARME no Painel Central sobrepõe o sinal do Remote. Após rearme: estado `PARADO`.
 
 ### 7.5 Watchdog de Comunicação
 
@@ -272,7 +282,8 @@ Exclusivamente manual via botão REARME no Painel Central. O sistema **jamais** 
                     │  Relé freio: ON                          │
                     │  Remote: ignorado                        │
                     └────────────────┬─────────────────────────┘
-                                     │ Rearme MANUAL (Painel Central)
+                                     │ Auto-libera (fontes inativas) OU
+                                     │ Rearme MANUAL (se remote travado)
                                      ▼
                     ┌──────────────────────────────────────────┐
                     │           FALHA_COMUNICACAO              │◄─── Watchdog timeout

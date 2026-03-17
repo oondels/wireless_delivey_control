@@ -1,7 +1,7 @@
 # Especificação de Segurança e Emergência (Fail-Safe)
 
-**Versão:** 1.0
-**Data:** 2026-03-16
+**Versão:** 1.1
+**Data:** 2026-03-17
 **Referência:** DESIGN_SPEC.md v3.1
 
 ---
@@ -54,22 +54,32 @@ Ambos os módulos (Painel Central e Remote) possuem botões de emergência do ti
 
 - **Todos** os comandos de movimentação do Remote são ignorados.
 - **Todos** os comandos de movimentação do Painel Central são ignorados.
-- O sistema permanece neste estado indefinidamente até rearme manual.
-- O sistema **jamais** rearma automaticamente, sob nenhuma circunstância.
+- O sistema permanece neste estado até que **todas as fontes de emergência sejam inativas** (auto-liberação) ou até rearme manual pelo REARME.
 
-### 3.4 Rearme (Desativação de Emergência)
+### 3.4 Liberação de Emergência
 
-**Requisitos para rearme:**
+**Auto-liberação (caso normal):**
 
-1. O botão de emergência que originou o estado deve estar **fisicamente solto** (sinal inativo); **e**
-2. O operador do Painel Central deve pressionar o botão **REARME**.
+A emergência é limpa automaticamente quando **todas** as fontes ficam inativas simultaneamente:
+- Botão local do Painel Central está **fisicamente solto** (destravado); **E**
+- Remote **não** está sinalizando emergência (`emergencia == 0` no pacote).
 
-**Após rearme bem-sucedido:**
+Não é necessário pressionar REARME neste caso.
+
+**Após auto-liberação:**
 - `emergencia.ativa() = false`
-- Estado retorna a `PARADO`
-- Freio permanece acionado
-- Motor permanece desligado
+- Estado retorna a `PARADO` no próximo ciclo
+- Freio permanece acionado; motor permanece desligado
 - O operador deve iniciar nova movimentação manualmente
+
+**Rearme manual (caso especial — remote travado):**
+
+Usado quando o botão de emergência do Remote está **travado mecanicamente** (ou o Remote está inacessível) e o operador precisa retomar a operação pelo Painel Central:
+
+1. O botão de emergência **local** (Painel Central) deve estar **fisicamente solto**; **e**
+2. O operador pressiona **REARME** no Painel Central.
+
+O sinal de emergência do Remote é **ignorado** enquanto `rearme_ativo == 1`.
 
 ### 3.5 Rearme com Botão Remote Ainda Travado (Caso Especial)
 
@@ -186,8 +196,8 @@ Sequência executada imediatamente:
 |---|---|---|---|---|
 | 1 | Perda de heartbeat (watchdog timeout) | Comunicação | `FALHA_COMUNICACAO` | Sim |
 | 2 | Queda de energia / desligamento do Remote | Hardware | `FALHA_COMUNICACAO` | Sim |
-| 3 | Botão EMERGÊNCIA no Painel Central | Operador | `EMERGENCIA_ATIVA` | Sim |
-| 4 | Botão EMERGÊNCIA no Remote | Operador | `EMERGENCIA_ATIVA` | Sim |
+| 3 | Botão EMERGÊNCIA no Painel Central | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar |
+| 4 | Botão EMERGÊNCIA no Remote | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar; REARME apenas se remote travado |
 | 5 | Soltura do botão de acionamento (Homem-Morto) | Operador | `PARADO` | Não |
 | 6 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
 | 7 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
@@ -200,7 +210,7 @@ Estas condições devem ser **sempre verdadeiras** no firmware, independentement
 
 1. `emergencia.isAtiva() == true` → motor **sempre** OFF e freio **sempre** ON.
 2. `FALHA_COMUNICACAO` → motor **sempre** OFF e freio **sempre** ON.
-3. `emergencia.ativa()` **nunca** é limpa automaticamente — apenas por REARME manual (`rearme.verificar()`).
+3. `emergencia.ativa()` é limpa automaticamente quando **nenhuma** fonte está ativa (botão local solto + remote com `emergencia==0`). REARME manual é necessário apenas quando o remote mantém `emergencia==1` e não é possível acessá-lo.
 4. O rearme **nunca** liga o motor — apenas retorna a `PARADO`.
 5. Dois relés de direção **nunca** estão ativos simultaneamente.
 6. O motor **nunca** é ligado sem botão hold ativo (Homem-Morto).
