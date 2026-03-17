@@ -111,3 +111,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-015 implementa máquina de estados — atualizar_maquina_estados() com prioridade: emergência > watchdog > fim de curso > movimentação > PARADO. Ref: maquina_estados/SPEC.md §4-6.
+
+## 2026-03-16 - T-015 - Implementar classe MaquinaEstados
+
+- Outcome: Classe MaquinaEstados com método atualizar() que recebe referências de todas as dependências (Emergencia, WatchdogComm, Sensores, Motor, Freio) e EstadoBotoes/PacoteRemote. Avaliação sequencial por prioridade: 1) emergencia.verificar(), 2) watchdog.expirado(), 3) sensores.fimDeCursoAcionado(), 4) movimentação com hold local (prioridade) ou Remote, 5) PARADO. Fim de curso bloqueia apenas SUBIR. Invariantes §8 respeitadas (Motor OFF → Freio ON, Motor ON → Freio OFF).
+- Files changed: `principal/include/maquina_estados.h`, `principal/src/maquina_estados.cpp`
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-016 implementa classe Led para o Principal — construtor com GPIO, métodos ligar/desligar/piscar/atualizar, piscar não-bloqueante via millis(). Apenas LED LINK REMOTE no Principal. Ref: leds/SPEC.md §4.2, §5.

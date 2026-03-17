@@ -1,0 +1,93 @@
+/**
+ * maquina_estados.cpp — Implementação da máquina de estados do Principal
+ *
+ * Avaliação sequencial por prioridade. A primeira condição verdadeira
+ * determina o estado e a função retorna imediatamente.
+ *
+ * Invariantes (SPEC §8):
+ * - Motor OFF implica Freio ON
+ * - Motor ON implica Freio OFF
+ * - EMERGENCIA/FALHA nunca transiciona direto para SUBINDO/DESCENDO
+ *
+ * Ref: maquina_estados/SPEC.md §4–6
+ */
+
+#include "maquina_estados.h"
+
+void MaquinaEstados::init() {
+    _estado = ESTADO_PARADO;
+}
+
+EstadoSistema MaquinaEstados::atualizar(
+    Emergencia&        emergencia,
+    WatchdogComm&      watchdog,
+    Sensores&          sensores,
+    Motor&             motor,
+    Freio&             freio,
+    const EstadoBotoes& botoesLocal,
+    const volatile PacoteRemote& pacoteRemote
+) {
+    // Prioridade 1: emergência (botão local OU flag já ativa OU Remote)
+    if (emergencia.verificar(pacoteRemote.emergencia)) {
+        motor.desligar();
+        freio.acionar();
+        _estado = ESTADO_EMERGENCIA;
+        return _estado;
+    }
+
+    // Prioridade 2: watchdog de comunicação
+    if (watchdog.expirado()) {
+        motor.desligar();
+        freio.acionar();
+        _estado = ESTADO_FALHA_COMUNICACAO;
+        return _estado;
+    }
+
+    // Prioridade 3: fim de curso (apenas bloqueia SUBIR)
+    if (sensores.fimDeCursoAcionado()) {
+        motor.desligar();
+        freio.acionar();
+        _estado = ESTADO_PARADO;
+        return _estado;
+    }
+
+    // Prioridade 4: movimentação (Homem-Morto)
+    // Determinar direção: botão local tem prioridade sobre Remote
+    Direcao dir = DIR_NENHUMA;
+    bool holdLocal  = botoesLocal.subir_hold || botoesLocal.descer_hold;
+    bool holdRemote = (pacoteRemote.botao_hold == 1);
+
+    if (holdLocal) {
+        // Prioridade do Painel Central
+        if (botoesLocal.subir_hold) {
+            dir = DIR_SUBIR;
+        } else if (botoesLocal.descer_hold) {
+            dir = DIR_DESCER;
+        }
+    } else if (holdRemote) {
+        // Comando do Remote
+        if (pacoteRemote.comando == CMD_SUBIR) {
+            dir = DIR_SUBIR;
+        } else if (pacoteRemote.comando == CMD_DESCER) {
+            dir = DIR_DESCER;
+        }
+    }
+
+    // Fim de curso bloqueia apenas SUBIR — DESCER continua permitido
+    if (dir == DIR_SUBIR && sensores.fimDeCursoAcionado()) {
+        dir = DIR_NENHUMA;
+    }
+
+    if (dir != DIR_NENHUMA) {
+        freio.liberar();
+        motor.acionar(dir);
+        _estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
+        return _estado;
+    }
+
+    // Prioridade 5: padrão — PARADO
+    motor.desligar();
+    freio.acionar();
+    _estado = ESTADO_PARADO;
+    return _estado;
+}
