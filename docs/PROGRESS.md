@@ -15,3 +15,11 @@
 - Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
 - Docs updated: nenhum.
 - Notes for next task: T-003 define pinout.h do Principal — 15 GPIOs (8 entradas + 7 saídas). Consultar `hardware_io/SPEC.md` §8 para restrições de strapping pins.
+
+## 2026-03-16 - T-003 - Definir pinout.h do Módulo Principal
+
+- Outcome: Mapeamento de 15 GPIOs definido em `pinout.h`. Entradas: SUBIR(36), DESCER(39), VEL1(34), VEL2(35), VEL3(32), EMERGÊNCIA(33), REARME(25), FIM_DE_CURSO(26). Saídas: DIR_A(4), DIR_B(16), VEL1(17), VEL2(5), VEL3(18), FREIO(19), LED_LINK(21). Strapping pins evitados para entradas críticas. Pinos input-only (34-39) usados apenas para botões.
+- Files changed: `principal/include/pinout.h`, `principal/src/principal.cpp` (include adicionado)
+- Validations: `platformio run` — build com sucesso, 0 erros, 0 warnings.
+- Docs updated: nenhum.
+- Notes for next task: T-004 define pinout.h do Remote — 13 GPIOs (6 entradas + 7 saídas). Mesmas restrições de strapping pins. Evitar conflito com pinos já usados no Principal (módulos separados, mas manter consistência).
