@@ -1,0 +1,246 @@
+# Especificação de Hardware e I/O
+
+**Versão:** 1.0
+**Data:** 2026-03-16
+**Referência:** DESIGN_SPEC.md v3.1, IMPLEMENTATION_PLAN.md v3.2
+
+---
+
+## 1. Visão Geral
+
+O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para botões, relés e LEDs. Este documento detalha todos os componentes de hardware, pinout e especificações elétricas.
+
+---
+
+## 2. Microcontroladores
+
+| Módulo | Microcontrolador | Localização |
+|---|---|---|
+| Principal | ESP32 WROOM-32U (DevKit) | Painel fixo no depósito |
+| Remote | ESP32 WROOM-32U (DevKit) | Embarcado no carrinho |
+
+---
+
+## 3. Alimentação
+
+### 3.1 Módulo Principal
+
+| Parâmetro | Valor |
+|---|---|
+| Fonte | Rede elétrica 110/220V |
+| Conversão | Fonte chaveada → 5V → regulador 3.3V do ESP32 |
+| Isolação | Galvânica obrigatória entre rede e GPIOs |
+
+### 3.2 Módulo Remote
+
+| Parâmetro | Valor |
+|---|---|
+| Bateria | Li-Ion 18650 recarregável |
+| Carregador | Módulo TP4056 |
+| Regulador | LM2596 step-down → 3.3V para ESP32 |
+| Proteção | Enclosure mínimo IP54 (respingos e umidade) |
+
+---
+
+## 4. Entradas — Módulo Principal
+
+### 4.1 Botões
+
+| Botão | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|
+| SUBIR | Táctil | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
+| DESCER | Táctil | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
+| VEL1 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
+| VEL2 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
+| VEL3 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
+| EMERGÊNCIA | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+| REARME | Táctil | 50 ms | Pulso (borda) | Desativar emergência |
+
+**Total: 7 entradas digitais**
+
+### 4.2 Sensores
+
+| Sensor | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|
+| Fim de curso | Microswitch | 20 ms | Nível | Posição final de subida (estacionamento) |
+
+**Total: 1 entrada digital**
+
+**Total de entradas no Principal: 8 GPIOs**
+
+---
+
+## 5. Saídas — Módulo Principal
+
+### 5.1 Relés (com LED Compartilhado)
+
+| Relé | Função | LED Associado | Acionamento |
+|---|---|---|---|
+| DIREÇÃO A | Motor sentido SUBIR | LED SUBIR | GPIO HIGH = ativo |
+| DIREÇÃO B | Motor sentido DESCER | LED DESCER | GPIO HIGH = ativo |
+| VEL1 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO HIGH = ativo |
+| VEL2 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO HIGH = ativo |
+| VEL3 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO HIGH = ativo |
+| FREIO | Freio mecânico | LED FREIO | GPIO HIGH = freio aplicado |
+
+**Total: 6 GPIOs de saída (compartilhados relé + LED)**
+
+### 5.2 LEDs Exclusivos
+
+| LED | Função |
+|---|---|
+| LINK REMOTE | Indica comunicação ativa com Remote |
+
+**Total: 1 GPIO de saída exclusivo**
+
+**Total de saídas no Principal: 7 GPIOs**
+
+**Total de GPIOs no Principal: 15** (8 entradas + 7 saídas)
+
+---
+
+## 6. Entradas — Módulo Remote
+
+### 6.1 Botões
+
+| Botão | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|
+| SUBIR | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
+| DESCER | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
+| VEL1 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
+| VEL2 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
+| VEL3 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
+| EMERGÊNCIA | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+
+**Total de entradas no Remote: 6 GPIOs**
+
+---
+
+## 7. Saídas — Módulo Remote
+
+| LED | Função |
+|---|---|
+| LINK | Status de comunicação |
+| MOTOR | Motor em operação |
+| VEL1 | Velocidade 1 ativa |
+| VEL2 | Velocidade 2 ativa |
+| VEL3 | Velocidade 3 ativa |
+| EMERGÊNCIA | Emergência ou falha de comunicação |
+| ALARME | Rearme com botão local ainda travado |
+
+**Total de saídas no Remote: 7 GPIOs**
+
+**Total de GPIOs no Remote: 13** (6 entradas + 7 saídas)
+
+---
+
+## 8. Restrições de Pinout do ESP32
+
+### 8.1 Pinos a Evitar para Entradas Críticas
+
+| Pino | Motivo |
+|---|---|
+| GPIO 0 | Modo boot (strapping pin) |
+| GPIO 2 | Modo boot (strapping pin) |
+| GPIO 12 | Modo boot — afeta tensão do flash (strapping pin) |
+| GPIO 15 | Modo boot — afeta log de inicialização |
+
+### 8.2 Pinos Somente Entrada (sem pull-up interno)
+
+| Pinos | Motivo |
+|---|---|
+| GPIO 34, 35, 36, 39 | Somente entrada; sem pull-up/pull-down interno |
+
+### 8.3 Recomendação
+
+- Registrar o mapa final de GPIOs no arquivo `pinout.h` de cada módulo.
+- Botões de emergência e fim de curso **não** devem usar pinos strapping.
+- Preferir resistores de pull-up **externos** para entradas críticas.
+
+---
+
+## 9. Configuração de Pull-Up
+
+| Componente | Pull-Up |
+|---|---|
+| Botões tácteis | Resistor pull-up externo (10kΩ recomendado) |
+| Botão emergência (trava) | Resistor pull-up externo |
+| Fim de curso | Resistor pull-up externo |
+
+Lógica: botão **não** pressionado = HIGH; botão pressionado = LOW.
+
+> **Nota:** O firmware deve ser configurado para ler o nível correto de acordo com a lógica do circuito. Botões com trava mantêm nível LOW enquanto travados.
+
+---
+
+## 10. Especificações Elétricas dos LEDs
+
+| Parâmetro | Valor |
+|---|---|
+| Tensão do LED | 3V (padrão Arduino) |
+| Resistor limitador | 220Ω por LED |
+| Corrente máxima por GPIO | 12 mA |
+| Cor | Definida pelo componente físico |
+
+### 10.1 LEDs Compartilhados com Relés (Principal)
+
+Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
+- Medir corrente total na protoboard durante a Fase 1.
+- Se corrente > 12 mA: usar transistor NPN (ex: BC547) ou buffer (ULN2003) para isolar.
+
+---
+
+## 11. Módulo de Relés
+
+| Parâmetro | Valor |
+|---|---|
+| Tensão de operação | 5V |
+| Número de canais (Principal) | 6 (direção A, direção B, VEL1, VEL2, VEL3, freio) |
+| Acionamento | Ativo HIGH (via GPIO do ESP32) |
+| Dimensionamento | Corrente de partida do motor × fator 2x |
+
+---
+
+## 12. Sensor de Fim de Curso
+
+| Parâmetro | Valor |
+|---|---|
+| Tipo | Microswitch (chave de limite) |
+| Localização | Posição final de subida (estacionamento/depósito) |
+| Debounce | 20 ms (firmware) |
+| Conexão | Entrada digital do ESP32 Principal |
+
+---
+
+## 13. Microchave do Freio
+
+| Parâmetro | Valor |
+|---|---|
+| Tipo | Microswitch |
+| Localização | Acoplada ao freio mecânico |
+| Conexão | **Direta no circuito** — NÃO conectada ao ESP32 |
+| Função | Impedir mecanicamente o motor se o freio estiver engatado |
+
+> A microchave é uma camada de segurança **independente** do firmware.
+
+---
+
+## 14. Lista de Materiais
+
+| Qtd | Componente | Uso |
+|---|---|---|
+| 2 | ESP32 DevKit (WROOM-32U) | Principal + Remote |
+| 1 | Módulo relé 6 canais (5V) | Principal |
+| 1 | Bateria Li-Ion 18650 | Remote |
+| 1 | Módulo TP4056 | Carregador de bateria Remote |
+| 1 | LM2596 step-down | Regulador de tensão Remote |
+| 2 | Botões com trava (emergência) | Painel + Remote |
+| 6 | Botões tácteis | Painel (SUBIR, DESCER, VEL1, VEL2, VEL3, REARME) |
+| 5 | Botões tácteis com capa borracha | Remote (SUBIR, DESCER, VEL1, VEL2, VEL3) |
+| 1 | Sensor fim de curso (microswitch) | Estacionamento |
+| 13 | LEDs 3V (cor a definir) | 7 no Principal + 7 no Remote (nota: LED EMERGÊNCIA do Principal usa LED exclusivo e 6 compartilhados c/ relés) |
+| 13 | Resistores 220Ω | 1 por LED |
+| ~15 | Resistores 10kΩ | Pull-ups de botões e sensores |
+| — | Transistores NPN (BC547) / ULN2003 | Se necessário para driver dos relés |
+| 2 | Enclosures | Painel (caixa elétrica) + Remote (IP54) |
+| — | Cabos, conectores, terminais | Montagem geral |
