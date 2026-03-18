@@ -37,7 +37,7 @@ Before writing or modifying any code, read the following files **in this exact o
 2. `docs/specs/README.md` — specs index; use this as a lookup to find which specific SPEC.md is relevant to the current task
 3. `docs/specs/DESIGN_SPEC.md` — earlier version of the design spec with additional context (refer to README.md as the authoritative source when they diverge)
 
-Then, depending on the task domain, read the relevant spec before touching code:
+Then, depending on the task domain, just read the relevant spec before touching code just if the task requires it. For example, if the task is about motor control, read `docs/specs/motor/SPEC.md` to understand the required logic and constraints for that domain. Dont read unrelated specs for the current task, as that can lead to confusion and scope creep. Focus on the specific domain relevant to the task at hand.:
 
 | Domain | Spec file |
 |---|---|
@@ -54,7 +54,7 @@ Do not skip or partially read the required files. The safety requirements in `do
 
 ## Ralph Loop Operating Rules
 
-This project uses the **Ralph Loop** methodology: Claude works autonomously through a task list, implementing one task per iteration, verifying it, committing, and looping until all tasks are complete.
+This project uses the **Ralph Loop** methodology: Claude works autonomously through a task list, implementing one task per iteration, verifying it, committing, and looping until all tasks are complete. Jus use the loop methodology if the user explicity tells you to do a tasks or act in tasks.md.
 
 ### Loop Behavior
 
