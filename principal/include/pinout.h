@@ -9,7 +9,8 @@
  * - GPIO 1 (TX) e GPIO 3 (RX) reservados para Serial
  * - GPIOs 34, 35, 36, 39: pull-up externo 10kΩ obrigatório (input-only, sem pull-up interno)
  * - GPIOs 27, 32, 33, 25, 26: pull-up interno via INPUT_PULLUP (sem resistor externo)
- * - Lógica de todos os botões: HIGH = solto, LOW = pressionado
+ * - Lógica botões NO (normalmente aberto): HIGH = solto, LOW = pressionado
+ * - Lógica botão NC (emergência, GPIO 33): LOW = repouso, HIGH = pressionado (contato aberto)
  * - Microchave freio (GPIO 27): NA, HIGH = freio engatado, LOW = freio liberado
  * - Saídas: HIGH = ativo (relé energizado / LED aceso)
  */
@@ -18,9 +19,11 @@
 #define PINOUT_H
 
 // ============================================================
-// ENTRADAS — Botões (LOW = pressionado)
+// ENTRADAS — Botões
 // GPIOs 34-39: pull-up externo obrigatório (input-only)
 // GPIOs 25, 26, 32, 33: pull-up interno (INPUT_PULLUP)
+// NO (normalmente aberto): LOW = pressionado
+// NC (normalmente fechado, emergência): HIGH = pressionado (contato aberto)
 // ============================================================
 
 #define PIN_BTN_SUBIR       36  // Hold (nível) — input-only, pull-up externo obrigatório
@@ -28,7 +31,7 @@
 #define PIN_BTN_VEL1        34  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL2        35  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL3        32  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
-#define PIN_BTN_EMERGENCIA  33  // Nível contínuo (trava mecânica) — pull-up interno (INPUT_PULLUP)
+#define PIN_BTN_EMERGENCIA  33  // NC: repouso LOW, pressionado HIGH — pull-up interno (INPUT_PULLUP)
 #define PIN_BTN_REARME      25  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
 
 // ============================================================

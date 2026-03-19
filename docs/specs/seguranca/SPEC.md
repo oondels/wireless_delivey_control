@@ -1,6 +1,6 @@
 # Especificação de Segurança e Emergência (Fail-Safe)
 
-**Versão:** 1.2
+**Versão:** 1.3
 **Data:** 2026-03-19
 **Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
 
@@ -33,11 +33,13 @@ As condições de segurança são avaliadas em ordem estrita de prioridade no lo
 
 ### 3.1 Botões de Emergência
 
-Ambos os módulos (Painel Central e Remote) possuem botões de emergência do tipo **com trava mecânica**:
+Ambos os módulos (Painel Central e Remote) possuem botões de emergência do tipo **NC (normalmente fechado) com trava mecânica**:
 
-- Uma vez pressionado, o sinal permanece ativo continuamente (nível HIGH) até o botão ser **manualmente destrancado**.
+- Em repouso: contato fechado → pino drenado para GND → lê **LOW** (sem emergência).
+- Ao pressionar: contato abre → pull-up puxa para **HIGH** → lê **HIGH** (emergência ativa).
+- Com trava acionada, o pino permanece HIGH continuamente até o botão ser **manualmente destrancado**.
 - O firmware lê o estado do pino como **nível contínuo** (não como borda).
-- A trava mecânica garante que o sinal de emergência persiste mesmo em caso de falha de software.
+- **Fail-safe por projeto:** cabo partido ou desconexão → pino flutua HIGH → emergência ativada automaticamente.
 
 ### 3.2 Acionamento de Emergência
 

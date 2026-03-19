@@ -58,8 +58,8 @@ void atualizarLeds(
         ledEmergencia.desligar();
     }
 
-    // ALARME — piscar 2Hz se rearme_ativo E botão emergência local ainda travado (LOW)
-    if (status.rearme_ativo == 1 && digitalRead(PIN_BTN_EMERGENCIA) == LOW) {
+    // ALARME — piscar 2Hz se rearme_ativo E botão emergência local ainda pressionado (NC: HIGH)
+    if (status.rearme_ativo == 1 && digitalRead(PIN_BTN_EMERGENCIA) == HIGH) {
         ledAlarme.piscar(250);       // 2 Hz
     } else {
         ledAlarme.desligar();

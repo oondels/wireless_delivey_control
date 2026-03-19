@@ -3,7 +3,7 @@
  *
  * Debounce genérico via millis(). SUBIR/DESCER retornam nível (hold).
  * VEL1/2/3 retornam pulso (borda HIGH→LOW, consumido após leitura).
- * EMERGÊNCIA retorna nível contínuo (trava mecânica, LOW = ativo).
+ * EMERGÊNCIA retorna nível contínuo (NC: HIGH = ativo, contato aberto).
  *
  * Ref: hardware_io/SPEC.md §6
  */
@@ -24,8 +24,9 @@ void Botoes::init() {
         } else {
             pinMode(_pinos[i], INPUT);
         }
-        _ultimaLeitura[i]  = HIGH;
-        _estadoFiltrado[i] = HIGH;
+        // Botão NC (emergência) em repouso: contato fechado → LOW; demais botões: HIGH
+        _ultimaLeitura[i]  = (i == IDX_EMERGENCIA) ? LOW : HIGH;
+        _estadoFiltrado[i] = (i == IDX_EMERGENCIA) ? LOW : HIGH;
         _ultimoCambio[i]   = 0;
     }
 }
@@ -59,8 +60,8 @@ EstadoBotoes Botoes::ler() {
     resultado.vel2_pulso = (estadoAnterior[IDX_VEL2] == HIGH && _estadoFiltrado[IDX_VEL2] == LOW);
     resultado.vel3_pulso = (estadoAnterior[IDX_VEL3] == HIGH && _estadoFiltrado[IDX_VEL3] == LOW);
 
-    // EMERGÊNCIA: nível contínuo (LOW = trava ativa)
-    resultado.emergencia = (_estadoFiltrado[IDX_EMERGENCIA] == LOW);
+    // EMERGÊNCIA: nível contínuo (NC: HIGH = botão pressionado, contato aberto)
+    resultado.emergencia = (_estadoFiltrado[IDX_EMERGENCIA] == HIGH);
 
     return resultado;
 }
