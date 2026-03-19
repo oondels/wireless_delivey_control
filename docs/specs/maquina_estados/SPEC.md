@@ -1,8 +1,8 @@
 # Especificação da Máquina de Estados
 
-**Versão:** 1.1
-**Data:** 2026-03-17
-**Referência:** DESIGN_SPEC.md v3.1
+**Versão:** 1.2
+**Data:** 2026-03-19
+**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
 
 ---
 
@@ -20,7 +20,8 @@ typedef enum {
     ESTADO_SUBINDO           = 1,
     ESTADO_DESCENDO          = 2,
     ESTADO_EMERGENCIA        = 3,
-    ESTADO_FALHA_COMUNICACAO = 4
+    ESTADO_FALHA_COMUNICACAO = 4,
+    ESTADO_FALHA_ENERGIA     = 5   // queda de energia da rede elétrica (GPIO 13)
 } EstadoSistema;
 ```
 
@@ -31,6 +32,7 @@ typedef enum {
 | `DESCENDO` | ON (direção B) | OFF | Motor ativo no sentido DESCER. Freio liberado. |
 | `EMERGENCIA_ATIVA` | OFF | ON | Emergência. Motor desligado, freio acionado. Auto-libera ao soltar todos os botões; REARME apenas se remote travado. |
 | `FALHA_COMUNICACAO` | OFF | ON | Perda de link detectada. Motor desligado e freio acionado imediatamente. Requer REARME para liberar controle local em modo degradado. |
+| `FALHA_ENERGIA` | OFF | ON | Queda de energia da rede elétrica (GPIO 13 LOW). Motor desligado e freio acionado imediatamente. Requer REARME manual. |
 
 ---
 
@@ -44,6 +46,13 @@ typedef enum {
                     └────────────────┬─────────────────────────┘
                                      │ Auto-libera (fontes inativas) OU
                                      │ Rearme MANUAL (se remote travado)
+                                     ▼
+                    ┌──────────────────────────────────────────┐
+                    │           FALHA_ENERGIA                  │◄─── GPIO 13 LOW + debounce 50 ms
+                    │  Motor: OFF | Freio: ON                  │     (de qualquer estado)
+                    │  Remote: ignorado                        │
+                    └────────────────┬─────────────────────────┘
+                                     │ Rearme MANUAL (Painel Central)
                                      ▼
                     ┌──────────────────────────────────────────┐
                     │           FALHA_COMUNICACAO              │◄─── Watchdog timeout / Remote off
@@ -71,10 +80,11 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 | Prioridade | Condição | Transição |
 |---|---|---|
 | 1 (máxima) | `emergencia.verificar()` retorna true (botão local OU flag ativa) | → `EMERGENCIA_ATIVA` |
-| 2 | `watchdog.expirado()` (> 500ms sem pacote) e modo degradado local inativo | → `FALHA_COMUNICACAO` |
-| 3 | Fim de curso acionado | → `PARADO` |
-| 4 | Botão hold ativo + direção válida | → `SUBINDO` ou `DESCENDO` |
-| 5 (padrão) | Nenhuma condição acima | → `PARADO` |
+| 2 | `!monitorRede.redePresente()` (GPIO 13 LOW com debounce 50 ms) | → `FALHA_ENERGIA` |
+| 3 | `watchdog.expirado()` (> 500ms sem pacote) e modo degradado local inativo | → `FALHA_COMUNICACAO` |
+| 4 | Fim de curso local acionado (bloqueia SUBIR e DESCER) | → `PARADO` |
+| 5 | Botão hold ativo + direção válida (DESCER bloqueado se `fim_curso_descida == 1`) | → `SUBINDO` ou `DESCENDO` |
+| 6 (padrão) | Nenhuma condição acima | → `PARADO` |
 
 ---
 
@@ -85,6 +95,7 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 | De | Para | Gatilho |
 |---|---|---|
 | Qualquer | `EMERGENCIA_ATIVA` | Botão emergência Painel ativo OU `emergencia == 1` no pacote Remote |
+| Qualquer | `FALHA_ENERGIA` | GPIO 13 LOW com debounce 50 ms (rede elétrica ausente) |
 | Qualquer (operacional) | `FALHA_COMUNICACAO` | Watchdog timeout (500 ms sem pacote) |
 
 ### 5.2 Transições Operacionais
@@ -104,6 +115,7 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 | De | Para | Gatilho |
 |---|---|---|
 | `EMERGENCIA_ATIVA` | `PARADO` | Rearme manual no Painel Central |
+| `FALHA_ENERGIA` | `PARADO` | Rearme manual no Painel Central (rede deve ter sido restabelecida) |
 | `FALHA_COMUNICACAO` | `PARADO` | Rearme manual no Painel Central |
 | `PARADO` (modo degradado) | `SUBINDO`/`DESCENDO` | Botão hold local ativo mesmo com watchdog expirado |
 
@@ -125,7 +137,15 @@ void atualizar_maquina_estados() {
         return;
     }
 
-    // Prioridade 2: watchdog (bloqueio total enquanto nao houver rearme)
+    // Prioridade 2: falha de energia da rede
+    if (!monitorRede.redePresente()) {
+        freio.acionar();
+        motor.desligar();
+        estado = ESTADO_FALHA_ENERGIA;
+        return;
+    }
+
+    // Prioridade 3: watchdog (bloqueio total enquanto nao houver rearme)
     if (watchdog.expirado() && !controleLocalSemRemote) {
         freio.acionar();
         motor.desligar();
@@ -133,7 +153,7 @@ void atualizar_maquina_estados() {
         return;
     }
 
-    // Prioridade 3: fim de curso
+    // Prioridade 4: fim de curso local (bloqueia SUBIR e DESCER)
     if (sensores.fimDeCursoAcionado()) {
         motor.desligar();
         freio.acionar();
@@ -141,9 +161,14 @@ void atualizar_maquina_estados() {
         return;
     }
 
-    // Prioridade 4: movimentação
+    // Prioridade 5: movimentação
     bool hold = botao_hold_local || (pacoteRemote.botao_hold && !watchdog.expirado());
     Direcao dir = obter_direcao_ativa();
+
+    // Fim de curso de descida do Remote — bloqueia apenas DESCER, SUBIR permitido
+    if (dir == DIR_DESCER && pacoteRemote.fim_curso_descida == 1) {
+        dir = DIR_NENHUMA;
+    }
 
     if (hold && dir != DIR_NENHUMA) {
         freio.liberar();
@@ -163,7 +188,7 @@ void atualizar_maquina_estados() {
 
 ### 7.1 Condições para Rearme
 
-O botão REARME no Painel Central (`rearme.verificar()`) limpa os estados de erro quando:
+O botão REARME no Painel Central (`rearme.verificar()`) limpa os estados `EMERGENCIA_ATIVA`, `FALHA_ENERGIA` e `FALHA_COMUNICACAO` quando:
 
 1. O botão de emergência que originou o estado está fisicamente solto; **ou**
 2. O Painel Central aceita o rearme mesmo com botão Remote travado (caso especial — ver seção 7.2).
@@ -184,13 +209,15 @@ Se `pacote_remote.emergencia == 1` no momento do rearme:
 - Freio permanece ON.
 - Operador deve iniciar nova movimentação manualmente.
 - Se o estado anterior era `FALHA_COMUNICACAO`, o sistema habilita modo degradado local até o watchdog recuperar.
+- Se o estado anterior era `FALHA_ENERGIA`, o sistema retorna a operação normal assim que a rede for detectada (GPIO 13 HIGH).
 
 ---
 
 ## 8. Invariantes da Máquina de Estados
 
 1. O estado `EMERGENCIA_ATIVA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`.
-2. O estado `FALHA_COMUNICACAO` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
+2. O estado `FALHA_ENERGIA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
+3. O estado `FALHA_COMUNICACAO` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
 3. Os estados `SUBINDO` e `DESCENDO` **nunca** coexistem (dois relés de direção simultâneos).
 4. Todo estado com Motor OFF implica Freio ON.
 5. Todo estado com Motor ON implica Freio OFF.

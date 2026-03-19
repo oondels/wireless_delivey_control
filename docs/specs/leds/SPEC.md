@@ -1,8 +1,8 @@
 # Especificação de Indicadores Visuais (LEDs)
 
-**Versão:** 1.0
-**Data:** 2026-03-16
-**Referência:** DESIGN_SPEC.md v3.1
+**Versão:** 1.1
+**Data:** 2026-03-19
+**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
 
 ---
 
@@ -59,6 +59,7 @@ Estes LEDs são controlados pelo módulo `leds.h` e suportam piscar não-bloquea
 | VEL3 | Ligado fixo | `velocidade == 3` (recebido no PacoteStatus) | — |
 | EMERGÊNCIA | Piscando | `estado_sistema == EMERGENCIA_ATIVA` | 4 Hz (125 ms) |
 | EMERGÊNCIA | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` | — |
+| EMERGÊNCIA | Piscando | `estado_sistema == FALHA_ENERGIA` | 2 Hz (250 ms) |
 | EMERGÊNCIA | Desligado | Estado normal (`PARADO`, `SUBINDO`, `DESCENDO`) | — |
 | ALARME | Piscando | `rearme_ativo == 1` **E** botão emergência local ainda travado (HIGH) | 2 Hz (250 ms) |
 | ALARME | Desligado | Qualquer outra condição | — |
@@ -94,9 +95,11 @@ void atualizarLeds(const PacoteStatus& status) {
 
     // EMERGÊNCIA
     if (status.estado_sistema == ESTADO_EMERGENCIA)
-        ledEmergencia.piscar(125);   // 4 Hz
+        ledEmergencia.piscar(125);          // 4 Hz
     else if (status.estado_sistema == ESTADO_FALHA_COMUNICACAO)
-        ledEmergencia.ligar();
+        ledEmergencia.ligar();              // fixo
+    else if (status.estado_sistema == ESTADO_FALHA_ENERGIA)
+        ledEmergencia.piscar(250);          // 2 Hz
     else
         ledEmergencia.desligar();
 
@@ -186,8 +189,8 @@ ledLink.atualizar();               // Chamar no loop principal
 | Frequência | Intervalo | Uso |
 |---|---|---|
 | 1 Hz | 500 ms | LINK sem conexão |
-| 2 Hz | 250 ms | ALARME (rearme com botão Remote travado) |
-| 4 Hz | 125 ms | EMERGÊNCIA ativa |
+| 2 Hz | 250 ms | ALARME (rearme com botão Remote travado); EMERGÊNCIA com `FALHA_ENERGIA` |
+| 4 Hz | 125 ms | EMERGÊNCIA ativa (`EMERGENCIA_ATIVA`) |
 
 ---
 
@@ -212,6 +215,7 @@ Guia rápido de diagnóstico baseado nos LEDs do Remote:
 |---|---|---|
 | LINK piscando (1 Hz) | Sem comunicação com o Principal | Verificar alcance, ligação do Principal |
 | EMERGÊNCIA piscando (4 Hz) | Emergência ativa | Rearmar no Painel Central |
+| EMERGÊNCIA piscando (2 Hz) | Queda de energia da rede elétrica | Verificar fonte do Painel Central + rearmar |
 | EMERGÊNCIA fixo | Falha de comunicação | Verificar link + rearmar no Painel |
 | ALARME piscando (2 Hz) | Rearme feito com botão local travado | Soltar botão de emergência no carrinho |
 | Nenhum LED aceso | Remote sem energia | Verificar bateria |

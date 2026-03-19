@@ -4,7 +4,7 @@
  * Detecta borda de descida do botão REARME (pulso, debounce 50ms).
  * Ao detectar pulso:
  * - Se botão EMERGÊNCIA local estiver ativo → rearme bloqueado
- * - Limpa emergência e estado FALHA_COMUNICACAO
+ * - Limpa emergência, estado FALHA_ENERGIA e FALHA_COMUNICACAO
  * - Se emergência Remote ainda travada → _rearmeAtivo = true
  * - Estado retorna a PARADO
  *
@@ -44,8 +44,10 @@ void Rearme::verificar(EstadoSistema* estadoAtual, bool emergenciaRemote, Emerge
         return;
     }
 
-    // Só rearma se estiver em EMERGENCIA ou FALHA_COMUNICACAO
-    if (*estadoAtual != ESTADO_EMERGENCIA && *estadoAtual != ESTADO_FALHA_COMUNICACAO) {
+    // Só rearma se estiver em EMERGENCIA, FALHA_ENERGIA ou FALHA_COMUNICACAO
+    if (*estadoAtual != ESTADO_EMERGENCIA
+        && *estadoAtual != ESTADO_FALHA_ENERGIA
+        && *estadoAtual != ESTADO_FALHA_COMUNICACAO) {
         return;
     }
 

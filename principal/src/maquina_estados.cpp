@@ -7,7 +7,7 @@
  * Invariantes (SPEC §8):
  * - Motor OFF implica Freio ON
  * - Motor ON implica Freio OFF
- * - EMERGENCIA/FALHA nunca transiciona direto para SUBINDO/DESCENDO
+ * - EMERGENCIA/FALHA_ENERGIA/FALHA_COMUNICACAO nunca transitiona direto para SUBINDO/DESCENDO
  *
  * Ref: maquina_estados/SPEC.md §4–6
  */
@@ -21,6 +21,7 @@ void MaquinaEstados::init() {
 
 EstadoSistema MaquinaEstados::atualizar(
     Emergencia&        emergencia,
+    MonitorRede&       monitorRede,
     WatchdogComm&      watchdog,
     Sensores&          sensores,
     Motor&             motor,
@@ -66,7 +67,18 @@ EstadoSistema MaquinaEstados::atualizar(
         _logBloqueioRemotoDescer = false;
     }
 
-    // Prioridade 2: watchdog de comunicação
+    // Prioridade 2: falha de energia da rede elétrica
+    if (!monitorRede.redePresente()) {
+        if (_estado != ESTADO_FALHA_ENERGIA) {
+            LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — falha de energia da rede");
+        }
+        motor.desligar();
+        freio.acionar();
+        _estado = ESTADO_FALHA_ENERGIA;
+        return _estado;
+    }
+
+    // Prioridade 3: watchdog de comunicação
     if (watchdogExpirado && !_controleLocalSemRemote) {
         if (_estado != ESTADO_FALHA_COMUNICACAO) {
             LOG_WARN("MAQEST", "Movimentacao BLOQUEADA — falha de comunicacao");
@@ -82,11 +94,15 @@ EstadoSistema MaquinaEstados::atualizar(
         LOG_INFO("MAQEST", "Comunicacao restabelecida — modo degradado local desativado");
     }
 
-    // Prioridade 3: fim de curso (apenas bloqueia SUBIR)
+    // Prioridade 4: fim de curso (bloqueia SUBIR e DESCER)
     if (sensores.fimDeCursoAcionado()) {
         if (tentativaRemotaSubir && !_logBloqueioRemotoSubir) {
-            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - freio acionado (fim de curso)");
+            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - fim de curso (bloqueio ativo)");
             _logBloqueioRemotoSubir = true;
+        }
+        if (tentativaRemotaDescer && !_logBloqueioRemotoDescer) {
+            LOG_WARN("REMOTO", "Comando DESCER bloqueado - fim de curso (bloqueio ativo)");
+            _logBloqueioRemotoDescer = true;
         }
         motor.desligar();
         freio.acionar();
@@ -94,7 +110,7 @@ EstadoSistema MaquinaEstados::atualizar(
         return _estado;
     }
 
-    // Prioridade 4: movimentação (Homem-Morto)
+    // Prioridade 5: movimentação (Homem-Morto)
     // Determinar direção: botão local tem prioridade sobre Remote
     Direcao dir = DIR_NENHUMA;
     bool holdLocal  = botoesLocal.subir_hold || botoesLocal.descer_hold;
@@ -116,9 +132,15 @@ EstadoSistema MaquinaEstados::atualizar(
         }
     }
 
-    // Fim de curso bloqueia apenas SUBIR — DESCER continua permitido
-    if (dir == DIR_SUBIR && sensores.fimDeCursoAcionado()) {
+    // Fim de curso de descida do Remote — bloqueia apenas DESCER, SUBIR permitido
+    if (dir == DIR_DESCER && pacoteRemote.fim_curso_descida == 1) {
+        if (!_logBloqueioFimCursoDescida) {
+            LOG_WARN("REMOTO", "Comando DESCER bloqueado - fim de curso descida ativo");
+            _logBloqueioFimCursoDescida = true;
+        }
         dir = DIR_NENHUMA;
+    } else {
+        _logBloqueioFimCursoDescida = false;
     }
 
     if (dir != DIR_NENHUMA) {
@@ -135,7 +157,7 @@ EstadoSistema MaquinaEstados::atualizar(
         return _estado;
     }
 
-    // Prioridade 5: padrão — PARADO
+    // Prioridade 6: padrão — PARADO
     motor.desligar();
     freio.acionar();
     _estado = ESTADO_PARADO;

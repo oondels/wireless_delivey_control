@@ -1,8 +1,8 @@
 # Especificação de Comunicação (ESP-NOW)
 
-**Versão:** 1.0
-**Data:** 2026-03-16
-**Referência:** DESIGN_SPEC.md v3.1
+**Versão:** 1.1
+**Data:** 2026-03-19
+**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
 
 ---
 
@@ -40,22 +40,24 @@ Os dois módulos ESP32 comunicam-se via **ESP-NOW**, protocolo peer-to-peer da E
 
 ```c
 typedef struct {
-    uint8_t  comando;       // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
-                            // 3=VEL1, 4=VEL2, 5=VEL3
-    uint8_t  botao_hold;    // 1=SUBIR ou DESCER pressionado (Homem-Morto)
-    uint8_t  emergencia;    // 1=botão de emergência com trava ativo no Remote
-    uint32_t timestamp;     // millis() do Remote
-    uint8_t  checksum;      // XOR de todos os bytes anteriores
+    uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
+                                 // 3=VEL1, 4=VEL2, 5=VEL3
+    uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado (Homem-Morto)
+    uint8_t  emergencia;         // 1=botão de emergência com trava ativo no Remote
+    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida (GPIO 13)
+    uint32_t timestamp;          // millis() do Remote
+    uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
 
-**Tamanho:** 8 bytes
+**Tamanho:** 9 bytes
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
 | `comando` | `uint8_t` | 0–5 | Comando ativo no momento do envio |
 | `botao_hold` | `uint8_t` | 0 ou 1 | 1 = botão SUBIR ou DESCER fisicamente pressionado |
 | `emergencia` | `uint8_t` | 0 ou 1 | 1 = botão de emergência com trava ativo no Remote |
+| `fim_curso_descida` | `uint8_t` | 0 ou 1 | 1 = carrinho na posição final de descida; bloqueia DESCER, SUBIR permitido |
 | `timestamp` | `uint32_t` | millis() | Timestamp do Remote para diagnóstico |
 | `checksum` | `uint8_t` | calculado | XOR de todos os bytes anteriores do pacote |
 
@@ -64,7 +66,7 @@ typedef struct {
 ```c
 typedef struct {
     uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
-                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO
+                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO, 5=FALHA_ENERGIA
     uint8_t  velocidade;     // 1, 2 ou 3
     uint8_t  trava_logica;   // 1=trava ativa (motor bloqueado)
     uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão Remote ainda travado
@@ -76,7 +78,7 @@ typedef struct {
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
-| `estado_sistema` | `uint8_t` | 0–4 | Estado atual da máquina de estados |
+| `estado_sistema` | `uint8_t` | 0–5 | Estado atual da máquina de estados |
 | `velocidade` | `uint8_t` | 1, 2 ou 3 | Nível de velocidade ativo |
 | `trava_logica` | `uint8_t` | 0 ou 1 | 1 = movimentação bloqueada por software |
 | `rearme_ativo` | `uint8_t` | 0 ou 1 | 1 = rearme feito com emergência Remote ainda travada |
@@ -107,7 +109,8 @@ typedef enum {
     ESTADO_SUBINDO           = 1,
     ESTADO_DESCENDO          = 2,
     ESTADO_EMERGENCIA        = 3,
-    ESTADO_FALHA_COMUNICACAO = 4
+    ESTADO_FALHA_COMUNICACAO = 4,
+    ESTADO_FALHA_ENERGIA     = 5   // queda de energia da rede elétrica (GPIO 13)
 } EstadoSistema;
 ```
 

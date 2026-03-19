@@ -1,7 +1,7 @@
 # Especificação de Hardware e I/O
 
-**Versão:** 1.1
-**Data:** 2026-03-17
+**Versão:** 1.2
+**Data:** 2026-03-19
 **Referência:** DESIGN_SPEC.md v3.1, IMPLEMENTATION_PLAN.md v3.2
 
 ---
@@ -64,12 +64,13 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 | Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
 |---|---|---|---|---|---|
-| Fim de curso | 26 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de subida (estacionamento) |
+| Fim de curso | 26 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de subida (estacionamento) — bloqueio pós-acionamento de 10 s |
 | Microchave freio | 27 | Microswitch NA | — | Nível (HIGH=engatado) | Estado mecânico do freio |
+| Monitor rede | 13 | Entrada digital | 50 ms | Nível (HIGH=presente) | Presença da rede elétrica — pull-down externo (divisor resistivo 5V→2,5V ou optoacoplador) |
 
-**Total: 2 entradas digitais**
+**Total: 3 entradas digitais**
 
-**Total de entradas no Principal: 9 GPIOs**
+**Total de entradas no Principal: 10 GPIOs**
 
 ---
 
@@ -98,7 +99,7 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 **Total de saídas no Principal: 7 GPIOs**
 
-**Total de GPIOs no Principal: 16** (9 entradas + 7 saídas)
+**Total de GPIOs no Principal: 17** (10 entradas + 7 saídas)
 
 ---
 
@@ -117,7 +118,13 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 > GPIOs de entrada consistentes com o Módulo Principal. GPIOs 34, 35, 36, 39 são input-only — usar pull-up externo 10kΩ.
 
-**Total de entradas no Remote: 6 GPIOs**
+### 6.2 Sensores
+
+| Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
+|---|---|---|---|---|---|
+| Fim de curso descida | 13 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de descida (margem do rio) — bloqueio pós-liberação de 10 s (bloqueia apenas DESCER) |
+
+**Total de entradas no Remote: 7 GPIOs** (6 botões + 1 sensor)
 
 ---
 
@@ -135,7 +142,7 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 **Total de saídas no Remote: 7 GPIOs**
 
-**Total de GPIOs no Remote: 13** (6 entradas + 7 saídas)
+**Total de GPIOs no Remote: 14** (7 entradas + 7 saídas)
 
 ---
 

@@ -1,7 +1,7 @@
 # Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 3.3
-**Data:** 2026-03-17
+**Versão:** 3.4
+**Data:** 2026-03-19
 **Status:** Em execução
 
 ---
@@ -138,7 +138,8 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 - O motor é cortado imediatamente (desaciona relés de direção).
 - O relé de freio é acionado.
 - O sistema entra no estado `PARADO` — não é emergência, não requer rearme.
-- O operador pode retomar a operação normalmente.
+- **Bloqueio pós-acionamento:** o movimento permanece bloqueado por **10 s** após o sensor ser confirmado, mesmo que ele já tenha sido liberado fisicamente. Proteção contra reacionamento acidental imediato.
+- Após o bloqueio de 10 s expirar, o operador pode retomar a operação normalmente.
 
 ---
 
@@ -157,6 +158,7 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Botão REARME | Entrada | 25 | Pull-up interno (INPUT_PULLUP) |
 | Fim de curso | Entrada | 26 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
 | Microchave freio | Entrada | 27 | Pull-up interno (INPUT_PULLUP) — NA, HIGH = freio engatado |
+| Monitor rede elétrica | Entrada | 13 | HIGH = rede presente; LOW = rede ausente — pull-down externo + debounce 50 ms |
 | Relé + LED DIREÇÃO A | Saída | 4 | HIGH = motor sentido SUBIR |
 | Relé + LED DIREÇÃO B | Saída | 16 | HIGH = motor sentido DESCER |
 | Relé + LED VEL1 | Saída | 17 | HIGH = velocidade 1 |
@@ -164,12 +166,13 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Relé + LED VEL3 | Saída | 18 | HIGH = velocidade 3 |
 | Relé + LED FREIO | Saída | 19 | HIGH = freio aplicado |
 | LED LINK REMOTE | Saída | 21 | Comunicação ativa com Remote |
-| **Total** | | **16** | **9 entradas + 7 saídas** |
+| **Total** | | **17** | **10 entradas + 7 saídas** |
 
 > GPIOs confirmados fisicamente na placa ESP32 WROOM-32U utilizada.
 > GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
 > GPIOs 32, 33, 25, 26 e 27 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
 > GPIO 27 (microchave freio): NA com pull-up interno — HIGH = freio engatado, LOW = freio liberado. Cabo partido lê HIGH e bloqueia motor (fail-safe).
+> GPIO 13 (monitor rede): pull-down externo (divisor resistivo 5V→2,5V ou optoacoplador); HIGH = rede presente, LOW = rede ausente. Debounce 50 ms no firmware.
 > GPIOs 0, 2, 12 e 15 evitados (strapping pins de boot).
 > Pinos de flash SPI interna (D0, D1, D2, D3, CLK, CMD) não utilizados.
 
@@ -183,6 +186,7 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
 | Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
 | Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
+| Fim de curso descida | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — LOW = carrinho na posição final de descida; debounce 20 ms + bloqueio 10 s pós-liberação |
 | LED LINK | Saída | 4 | Comunicação com Principal |
 | LED MOTOR | Saída | 16 | Motor em operação |
 | LED VEL1 | Saída | 17 | Velocidade 1 ativa |
@@ -190,11 +194,12 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | LED VEL3 | Saída | 18 | Velocidade 3 ativa |
 | LED EMERGÊNCIA | Saída | 19 | Emergência ou falha de comunicação |
 | LED ALARME | Saída | 21 | Rearme com botão local ainda travado |
-| **Total** | | **13** | **6 entradas + 7 saídas** |
+| **Total** | | **14** | **7 entradas + 7 saídas** |
 
 > GPIOs de ambos os módulos definidos. Mapeamento de entradas consistente entre Principal e Remote (mesmos GPIOs para botões com funções idênticas).
 > GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
-> GPIOs 32 e 33 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIOs 32, 33 e 13 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIO 13 (fim de curso descida): LOW = carrinho na posição final; bloqueio de 10 s pós-liberação bloqueia apenas DESCER; SUBIR permanece permitido.
 > Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas.
 
 ---
@@ -232,10 +237,12 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | 1 | Microchave do freio (circuito direto) | **Hardware** | Freio acionado independente do firmware |
 | 2 | Perda de heartbeat do Remote (watchdog) | Firmware | `FALHA_COMUNICACAO` |
 | 3 | Queda de energia / desligamento do Remote | Firmware | `FALHA_COMUNICACAO` |
-| 4 | Botão EMERGÊNCIA no Painel Central | Firmware | `EMERGENCIA_ATIVA` |
-| 5 | Botão EMERGÊNCIA no Remote | Firmware | `EMERGENCIA_ATIVA` |
-| 6 | Soltura do botão de acionamento (Homem-Morto) | Firmware | `PARADO` |
-| 7 | Fim de curso do estacionamento | Firmware | `PARADO` |
+| 4 | Queda de energia da rede elétrica (GPIO 13 LOW) | Firmware | `FALHA_ENERGIA` |
+| 5 | Botão EMERGÊNCIA no Painel Central | Firmware | `EMERGENCIA_ATIVA` |
+| 6 | Botão EMERGÊNCIA no Remote | Firmware | `EMERGENCIA_ATIVA` |
+| 7 | Soltura do botão de acionamento (Homem-Morto) | Firmware | `PARADO` |
+| 8 | Fim de curso do estacionamento (Principal GPIO 26) | Firmware | `PARADO` (bloqueia SUBIR e DESCER) |
+| 9 | Fim de curso de descida (Remote GPIO 13) | Firmware | `PARADO` (bloqueia apenas DESCER; SUBIR permitido) |
 
 ### 7.2 Botão de Emergência com Trava Mecânica
 
@@ -296,6 +303,14 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
                                      │ Rearme MANUAL (se remote travado)
                                      ▼
                     ┌──────────────────────────────────────────┐
+                    │           FALHA_ENERGIA                  │◄─── Queda de energia (GPIO 13 LOW)
+                    │  Relés direção: OFF                      │
+                    │  Relé freio: ON                          │
+                    │  Remote: ignorado                        │
+                    └────────────────┬─────────────────────────┘
+                                     │ Rearme MANUAL (Painel Central)
+                                     ▼
+                    ┌──────────────────────────────────────────┐
                     │           FALHA_COMUNICACAO              │◄─── Watchdog timeout
                     │  Relés direção: OFF                      │
                     │  Relé freio: ON                          │
@@ -316,14 +331,15 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 
 ### Tabela de Condições de Acionamento do Motor (camada firmware)
 
-| Emergência Ativa | Falha Comun. | Fim de Curso | Botão Hold | Resultado |
-|---|---|---|---|---|
-| Não | Não | Não acionado | Pressionado | Motor ON |
-| Não | Não | Não acionado | Solto | Motor OFF → Freio ON → PARADO |
-| Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → PARADO |
-| Não | Sim | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
-| Não | Sim | Qualquer | Pressionado (Painel local, após REARME) | Motor ON (modo degradado local) |
-| Sim | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
+| Emergência Ativa | Falha Energia | Falha Comun. | Fim de Curso | Botão Hold | Resultado |
+|---|---|---|---|---|---|
+| Não | Não | Não | Não acionado | Pressionado | Motor ON |
+| Não | Não | Não | Não acionado | Solto | Motor OFF → Freio ON → PARADO |
+| Não | Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → PARADO |
+| Não | Não | Sim | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
+| Não | Não | Sim | Qualquer | Pressionado (Painel local, após REARME) | Motor ON (modo degradado local) |
+| Não | Sim | Qualquer | Qualquer | Qualquer | FALHA_ENERGIA → Freio ON |
+| Sim | Qualquer | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
 
 > A microchave do freio não aparece nesta tabela por atuar em nível de hardware, fora do controle do firmware.
 
@@ -339,12 +355,13 @@ MAC do Principal fixado em firmware no Remote.
 
 ```c
 typedef struct {
-    uint8_t  comando;       // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
-                            // 3=VEL1, 4=VEL2, 5=VEL3
-    uint8_t  botao_hold;    // 1=SUBIR ou DESCER pressionado
-    uint8_t  emergencia;    // 1=botão com trava ativo no Remote
-    uint32_t timestamp;     // millis() do Remote
-    uint8_t  checksum;      // XOR de todos os bytes anteriores
+    uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
+                                 // 3=VEL1, 4=VEL2, 5=VEL3
+    uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
+    uint8_t  emergencia;         // 1=botão com trava ativo no Remote
+    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
+    uint32_t timestamp;          // millis() do Remote
+    uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
 
@@ -353,7 +370,7 @@ typedef struct {
 ```c
 typedef struct {
     uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
-                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO
+                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO, 5=FALHA_ENERGIA
     uint8_t  velocidade;     // 1, 2 ou 3 — sincroniza LEDs de velocidade no Remote
     uint8_t  trava_logica;   // 1=trava ativa
     uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão Remote ainda travado
@@ -401,6 +418,7 @@ Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor defini
 | VEL3 | Ligado fixo | `velocidade == 3` |
 | EMERGÊNCIA | Piscando 4 Hz | `estado_sistema == EMERGENCIA_ATIVA` |
 | EMERGÊNCIA | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` |
+| EMERGÊNCIA | Piscando 2 Hz | `estado_sistema == FALHA_ENERGIA` |
 | ALARME | Piscando 2 Hz | `rearme_ativo == 1` e botão emergência local travado |
 
 ---
@@ -482,13 +500,13 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 - **Segurança elétrica:** Relés com fator de segurança 2x sobre corrente de partida do motor. Isolação galvânica entre rede elétrica e GPIOs. Usar driver (transistor/ULN2003) entre GPIO e bobina do relé.
 - **Anti-colisão de direção:** Dead-time mínimo de 100 ms ao inverter sentido.
 - **Rearme:** Jamais automático.
-- **Fim de curso:** Debounce mínimo 20 ms.
+- **Fim de curso:** Debounce mínimo 20 ms; bloqueio pós-acionamento de 10 s.
 
 ---
 
 ## 13. Fora de Escopo (v1.0)
 
-- Fim de curso na posição inferior (margem do rio).
+- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 13)
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
 - Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).

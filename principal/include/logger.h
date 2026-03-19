@@ -67,6 +67,7 @@
           case 2: return "DESCENDO";
           case 3: return "EMERGENCIA";
           case 4: return "FALHA_COMUNICACAO";
+          case 5: return "FALHA_ENERGIA";
           default: return "DESCONHECIDO";
       }
   }

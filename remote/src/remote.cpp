@@ -4,6 +4,7 @@
  * Integra todos os módulos: botões, comunicação, LEDs.
  *
  * Sequência do loop:
+ *   0. Atualizar sensor fim de curso (debounce)
  *   1. Ler botões (debounce interno)
  *   2. Montar PacoteRemote
  *   3. Enviar pacote (heartbeat 200ms + imediato em mudança)
@@ -17,6 +18,7 @@
 #include "protocolo.h"
 #include "botoes.h"
 #include "comunicacao.h"
+#include "fim_curso.h"
 #include "leds.h"
 #include "atualizar_leds.h"
 #include "logger.h"
@@ -24,6 +26,7 @@
 // Instâncias globais
 Botoes      botoes;
 Comunicacao comunicacao;
+FimCurso    fimCursoDescida(PIN_FIM_CURSO_DESCIDA);
 
 // 7 LEDs dedicados do Remote
 Led ledLink(PIN_LED_LINK);
@@ -45,18 +48,25 @@ uint8_t estadoAnteriorLog  = ESTADO_PARADO;
 bool    linkAnteriorOk     = false;
 bool    logBloqueioLocalSubir = false;
 bool    logBloqueioLocalDescer = false;
+bool    logBloqueioFimCursoDescida = false;
+bool    fimCursoDescidaAnterior = false;
 
 void setup() {
     Serial.begin(115200);
     Serial.println("=== Módulo Remote — Inicializando ===");
 
     botoes.init();
+    fimCursoDescida.init();
     comunicacao.init();
 
     Serial.println("=== Módulo Remote — Pronto ===");
 }
 
 void loop() {
+    // 0. Atualizar sensor fim de curso (debounce + timer pós-liberação)
+    fimCursoDescida.atualizar();
+    bool fcDescida = fimCursoDescida.acionado();
+
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();
 
@@ -99,10 +109,20 @@ void loop() {
         logBloqueioLocalDescer = false;
     }
 
+    // Log de bloqueio de DESCER por fim de curso de descida (anti-spam)
+    if (fcDescida && tentativaLocalDescer && !logBloqueioFimCursoDescida) {
+        LOG_WARN("SENSOR", "Comando DESCER bloqueado - fim de curso descida ativo");
+        logBloqueioFimCursoDescida = true;
+    }
+    if (!tentativaLocalDescer || !fcDescida) {
+        logBloqueioFimCursoDescida = false;
+    }
+
     // 2. Montar PacoteRemote
     PacoteRemote pacote = {};
-    pacote.emergencia = btn.emergencia ? 1 : 0;
-    pacote.timestamp  = millis();
+    pacote.emergencia        = btn.emergencia ? 1 : 0;
+    pacote.fim_curso_descida = fcDescida ? 1 : 0;
+    pacote.timestamp         = millis();
 
     // Determinar comando e botao_hold
     if (btn.subir_hold) {
@@ -126,9 +146,10 @@ void loop() {
     }
 
     // 3. Enviar pacote: imediato em mudança OU periódico a cada 200ms
-    bool mudouEstado = (btn.subir_hold  != btnAnterior.subir_hold)  ||
-                       (btn.descer_hold != btnAnterior.descer_hold) ||
-                       (btn.emergencia  != btnAnterior.emergencia)  ||
+    bool mudouEstado = (btn.subir_hold  != btnAnterior.subir_hold)      ||
+                       (btn.descer_hold != btnAnterior.descer_hold)    ||
+                       (btn.emergencia  != btnAnterior.emergencia)     ||
+                       (fcDescida != fimCursoDescidaAnterior)          ||
                        btn.vel1_pulso || btn.vel2_pulso || btn.vel3_pulso;
 
     bool envioPeriodicoVencido = (millis() - ultimoEnvioMs >= HEARTBEAT_INTERVALO_MS);
@@ -139,6 +160,7 @@ void loop() {
     }
 
     btnAnterior = btn;
+    fimCursoDescidaAnterior = fcDescida;
 
     // Log de status recebido do Principal (transições)
     const volatile PacoteStatus& st = comunicacao.ultimoStatus();

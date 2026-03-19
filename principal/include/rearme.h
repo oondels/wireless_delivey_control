@@ -2,7 +2,7 @@
  * rearme.h — Lógica de rearme (desativação de emergência)
  *
  * Botão REARME é do tipo pulso (borda de descida, debounce 50ms).
- * Limpa emergência e FALHA_COMUNICACAO.
+ * Limpa emergência, FALHA_ENERGIA e FALHA_COMUNICACAO.
  * Caso especial: se emergência Remote ainda travada, seta _rearmeAtivo.
  *
  * Ref: seguranca/SPEC.md §3.4-3.5

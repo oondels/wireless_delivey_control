@@ -1,8 +1,8 @@
 # Especificação de Segurança e Emergência (Fail-Safe)
 
-**Versão:** 1.1
-**Data:** 2026-03-17
-**Referência:** DESIGN_SPEC.md v3.1
+**Versão:** 1.2
+**Data:** 2026-03-19
+**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
 
 ---
 
@@ -21,10 +21,11 @@ As condições de segurança são avaliadas em ordem estrita de prioridade no lo
 | Prioridade | Condição | Estado Resultante |
 |---|---|---|
 | 1 (máxima) | Emergência ativa (Painel ou Remote) | `EMERGENCIA_ATIVA` |
-| 2 | Falha de comunicação (watchdog timeout) | `FALHA_COMUNICACAO` |
-| 3 | Fim de curso acionado | `PARADO` |
-| 4 | Microchave do freio engatada | Motor bloqueado |
-| 5 | Botão de acionamento solto (Homem-Morto) | `PARADO` |
+| 2 | Queda de energia da rede elétrica (GPIO 13 LOW) | `FALHA_ENERGIA` |
+| 3 | Falha de comunicação (watchdog timeout) | `FALHA_COMUNICACAO` |
+| 4 | Fim de curso acionado | `PARADO` |
+| 5 | Microchave do freio engatada | Motor bloqueado |
+| 6 | Botão de acionamento solto (Homem-Morto) | `PARADO` |
 
 ---
 
@@ -182,6 +183,7 @@ Sequência executada imediatamente:
 - Ao acionar: motor OFF → freio ON → estado `PARADO`.
 - **Não** é um estado de emergência — não requer rearme.
 - Debounce mínimo de **20 ms** no firmware.
+- **Bloqueio pós-acionamento:** após o sensor ser confirmado, o bloqueio de movimento permanece ativo por **10 s** mesmo que o sensor físico tenha sido liberado. Medida de segurança para evitar reacionamento imediato acidental.
 
 ### 6.3 Anti-Colisão de Direção
 
@@ -205,11 +207,12 @@ Sequência executada imediatamente:
 |---|---|---|---|---|
 | 1 | Perda de heartbeat (watchdog timeout) | Comunicação | `FALHA_COMUNICACAO` | Sim (para liberar controle local em modo degradado) |
 | 2 | Queda de energia / desligamento do Remote | Hardware | `FALHA_COMUNICACAO` | Sim (para liberar controle local em modo degradado) |
-| 3 | Botão EMERGÊNCIA no Painel Central | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar |
-| 4 | Botão EMERGÊNCIA no Remote | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar; REARME apenas se remote travado |
-| 5 | Soltura do botão de acionamento (Homem-Morto) | Operador | `PARADO` | Não |
-| 6 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
-| 7 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
+| 3 | Queda de energia da rede elétrica (GPIO 13 LOW) | Hardware | `FALHA_ENERGIA` | Sim |
+| 4 | Botão EMERGÊNCIA no Painel Central | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar |
+| 5 | Botão EMERGÊNCIA no Remote | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar; REARME apenas se remote travado |
+| 6 | Soltura do botão de acionamento (Homem-Morto) | Operador | `PARADO` | Não |
+| 7 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
+| 8 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
 
 ---
 
@@ -219,7 +222,8 @@ Estas condições devem ser **sempre verdadeiras** no firmware, independentement
 
 1. `emergencia.isAtiva() == true` → motor **sempre** OFF e freio **sempre** ON.
 2. Ao detectar `FALHA_COMUNICACAO` (timeout), motor **sempre** OFF e freio **sempre** ON imediatamente.
-3. `emergencia.ativa()` é limpa automaticamente quando **nenhuma** fonte está ativa (botão local solto + remote com `emergencia==0`). REARME manual é necessário apenas quando o remote mantém `emergencia==1` e não é possível acessá-lo.
-4. O rearme **nunca** liga o motor — apenas retorna a `PARADO`.
-5. Dois relés de direção **nunca** estão ativos simultaneamente.
-6. O motor **nunca** é ligado sem botão hold ativo (Homem-Morto).
+3. Ao detectar `FALHA_ENERGIA` (GPIO 13 LOW com debounce), motor **sempre** OFF e freio **sempre** ON imediatamente. Requer rearme manual.
+4. `emergencia.ativa()` é limpa automaticamente quando **nenhuma** fonte está ativa (botão local solto + remote com `emergencia==0`). REARME manual é necessário apenas quando o remote mantém `emergencia==1` e não é possível acessá-lo.
+5. O rearme **nunca** liga o motor — apenas retorna a `PARADO`.
+6. Dois relés de direção **nunca** estão ativos simultaneamente.
+7. O motor **nunca** é ligado sem botão hold ativo (Homem-Morto).
