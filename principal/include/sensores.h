@@ -4,9 +4,10 @@
  * Debounce de 20 ms via millis() (não-bloqueante).
  * Lógica: LOW = sensor acionado (pull-up externo).
  *
- * Segurança: após o sensor ser acionado, o bloqueio de movimento
- * permanece ativo por BLOQUEIO_POS_FIM_CURSO_MS (10 s) mesmo que
- * o sensor físico já tenha sido liberado.
+ * Segurança: após o sensor ser fisicamente liberado, o bloqueio de
+ * movimento permanece ativo por BLOQUEIO_POS_FIM_CURSO_MS (10 s).
+ * O timer só começa na liberação — independente do tempo que o
+ * sensor ficou ativo.
  *
  * Ref: motor/SPEC.md §5, seguranca/SPEC.md §6.2
  */
@@ -27,7 +28,7 @@ public:
     /**
      * Retorna true se o movimento deve ser bloqueado por fim de curso:
      * - sensor fisicamente acionado (debounce 20 ms); OU
-     * - dentro do periodo de bloqueio pos-acionamento (10 s).
+     * - dentro dos 10 s contados a partir da liberacao fisica do sensor.
      */
     bool fimDeCursoAcionado();
 
@@ -35,7 +36,7 @@ private:
     bool     _estadoFiltrado      = false;
     bool     _ultimaLeitura       = HIGH;
     uint32_t _ultimoCambioMs      = 0;
-    uint32_t _ultimoAcionamentoMs = 0;   // timestamp do ultimo acionamento confirmado
+    uint32_t _ultimaLiberacaoMs   = 0;   // timestamp da ultima liberacao confirmada do sensor
 };
 
 #endif // SENSORES_H
