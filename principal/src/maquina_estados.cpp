@@ -94,11 +94,15 @@ EstadoSistema MaquinaEstados::atualizar(
         LOG_INFO("MAQEST", "Comunicacao restabelecida — modo degradado local desativado");
     }
 
-    // Prioridade 4: fim de curso (apenas bloqueia SUBIR)
+    // Prioridade 4: fim de curso (bloqueia SUBIR e DESCER)
     if (sensores.fimDeCursoAcionado()) {
         if (tentativaRemotaSubir && !_logBloqueioRemotoSubir) {
-            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - freio acionado (fim de curso)");
+            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - fim de curso acionado");
             _logBloqueioRemotoSubir = true;
+        }
+        if (tentativaRemotaDescer && !_logBloqueioRemotoDescer) {
+            LOG_WARN("REMOTO", "Comando DESCER bloqueado - fim de curso acionado");
+            _logBloqueioRemotoDescer = true;
         }
         motor.desligar();
         freio.acionar();
