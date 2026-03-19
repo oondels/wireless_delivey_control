@@ -2,7 +2,7 @@
  * maquina_estados.h — Máquina de estados finita do Módulo Principal
  *
  * Avalia condições em ordem estrita de prioridade a cada ciclo:
- * 1) Emergência, 2) Watchdog, 3) Fim de curso, 4) Movimentação, 5) PARADO.
+ * 1) Emergência, 2) Falha energia, 3) Watchdog, 4) Fim de curso, 5) Movimentação, 6) PARADO.
  *
  * Ref: maquina_estados/SPEC.md §4–6
  */
@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include "protocolo.h"
 #include "emergencia.h"
+#include "monitor_rede.h"
 #include "watchdog_comm.h"
 #include "sensores.h"
 #include "motor.h"
@@ -38,6 +39,7 @@ public:
      */
     EstadoSistema atualizar(
         Emergencia&        emergencia,
+        MonitorRede&       monitorRede,
         WatchdogComm&      watchdog,
         Sensores&          sensores,
         Motor&             motor,

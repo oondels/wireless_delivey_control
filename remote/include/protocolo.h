@@ -31,7 +31,8 @@ typedef enum {
     ESTADO_SUBINDO           = 1,
     ESTADO_DESCENDO          = 2,
     ESTADO_EMERGENCIA        = 3,
-    ESTADO_FALHA_COMUNICACAO = 4
+    ESTADO_FALHA_COMUNICACAO = 4,
+    ESTADO_FALHA_ENERGIA     = 5   // queda de energia da rede elétrica (GPIO 13)
 } EstadoSistema;
 
 // ============================================================
@@ -49,7 +50,7 @@ typedef struct {
 
 // Principal → Remote (5 bytes)
 typedef struct {
-    uint8_t  estado_sistema; // EstadoSistema enum (0-4)
+    uint8_t  estado_sistema; // EstadoSistema enum (0-5)
     uint8_t  velocidade;     // 1, 2 ou 3
     uint8_t  trava_logica;   // 1 = movimentação bloqueada
     uint8_t  rearme_ativo;   // 1 = rearme feito com emergência Remote ainda travada

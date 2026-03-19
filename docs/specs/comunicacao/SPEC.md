@@ -1,8 +1,8 @@
 # Especificação de Comunicação (ESP-NOW)
 
-**Versão:** 1.0
-**Data:** 2026-03-16
-**Referência:** DESIGN_SPEC.md v3.1
+**Versão:** 1.1
+**Data:** 2026-03-19
+**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
 
 ---
 
@@ -64,7 +64,7 @@ typedef struct {
 ```c
 typedef struct {
     uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
-                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO
+                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO, 5=FALHA_ENERGIA
     uint8_t  velocidade;     // 1, 2 ou 3
     uint8_t  trava_logica;   // 1=trava ativa (motor bloqueado)
     uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão Remote ainda travado
@@ -76,7 +76,7 @@ typedef struct {
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
-| `estado_sistema` | `uint8_t` | 0–4 | Estado atual da máquina de estados |
+| `estado_sistema` | `uint8_t` | 0–5 | Estado atual da máquina de estados |
 | `velocidade` | `uint8_t` | 1, 2 ou 3 | Nível de velocidade ativo |
 | `trava_logica` | `uint8_t` | 0 ou 1 | 1 = movimentação bloqueada por software |
 | `rearme_ativo` | `uint8_t` | 0 ou 1 | 1 = rearme feito com emergência Remote ainda travada |
@@ -107,7 +107,8 @@ typedef enum {
     ESTADO_SUBINDO           = 1,
     ESTADO_DESCENDO          = 2,
     ESTADO_EMERGENCIA        = 3,
-    ESTADO_FALHA_COMUNICACAO = 4
+    ESTADO_FALHA_COMUNICACAO = 4,
+    ESTADO_FALHA_ENERGIA     = 5   // queda de energia da rede elétrica (GPIO 13)
 } EstadoSistema;
 ```
 

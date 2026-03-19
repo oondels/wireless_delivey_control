@@ -1,8 +1,8 @@
 # Plano de Implementação — Monitoramento de Energia da Rede (GPIO 13)
 
-**Referência:** README.md v3.2 / IMPLEMENTATION_PLAN.md v3.2  
-**Data:** 2026-03-18  
-**Status:** Proposta
+**Referência:** README.md v3.4 / IMPLEMENTATION_PLAN.md v3.2
+**Data:** 2026-03-19
+**Status:** Aplicado — documentos atualizados; implementação pendente em firmware
 
 ---
 

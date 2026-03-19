@@ -1,7 +1,7 @@
 /**
  * pinout.h — Mapeamento de GPIOs do Módulo Principal
  *
- * Total: 16 GPIOs (9 entradas + 7 saídas)
+ * Total: 17 GPIOs (10 entradas + 7 saídas)
  *
  * Restrições respeitadas (hardware_io/SPEC.md §8):
  * - GPIO 0, 2, 12, 15 evitados para entradas críticas (strapping pins)
@@ -37,6 +37,7 @@
 
 #define PIN_FIM_DE_CURSO      26  // Nível — debounce 20 ms, pull-up interno (INPUT_PULLUP)
 #define PIN_MICROCHAVE_FREIO  27  // NA — pull-up interno; HIGH = freio engatado (fail-safe)
+#define PIN_MONITOR_REDE      13  // HIGH = rede presente; LOW = rede ausente — pull-down externo, debounce 50 ms
 
 // ============================================================
 // SAÍDAS — Relés com LED compartilhado (HIGH = ativo)

@@ -30,6 +30,7 @@
 #include "botoes.h"
 #include "comunicacao.h"
 #include "maquina_estados.h"
+#include "monitor_rede.h"
 #include "leds.h"
 #include "logger.h"
 
@@ -37,6 +38,7 @@
 Freio          freio;
 Sensores       sensores;
 Emergencia     emergencia;
+MonitorRede    monitorRede;
 Rearme         rearme;
 WatchdogComm   watchdog;
 Motor          motor;
@@ -69,6 +71,7 @@ void setup() {
     freio.init();            // Configura GPIO + aciona freio (estado seguro)
     sensores.init();
     pinMode(PIN_MICROCHAVE_FREIO, INPUT_PULLUP);  // GPIO 27 — NA, HIGH = freio engatado
+    monitorRede.init();      // GPIO 13 — pull-down externo, HIGH = rede presente
     emergencia.init();
     rearme.init();
     watchdog.init();
@@ -82,6 +85,9 @@ void setup() {
 }
 
 void loop() {
+    // 0. Atualizar debounce do monitor de rede (antes de qualquer avaliação)
+    monitorRede.atualizar();
+
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();
 
@@ -125,6 +131,7 @@ void loop() {
     // 3. Atualizar máquina de estados (prioridade sequencial)
     EstadoSistema novoEstado = maquinaEstados.atualizar(
         emergencia,
+        monitorRede,
         watchdog,
         sensores,
         motor,
@@ -229,7 +236,8 @@ void loop() {
         PacoteStatus status;
         status.estado_sistema = novoEstado;
         status.velocidade     = velocidade.atual();
-        status.trava_logica   = (novoEstado == ESTADO_EMERGENCIA ||
+        status.trava_logica   = (novoEstado == ESTADO_EMERGENCIA   ||
+                                 novoEstado == ESTADO_FALHA_ENERGIA ||
                                  novoEstado == ESTADO_FALHA_COMUNICACAO) ? 1 : 0;
         status.rearme_ativo   = rearme.isRearmeAtivo() ? 1 : 0;
         status.checksum       = 0; // Será calculado em enviarStatus()

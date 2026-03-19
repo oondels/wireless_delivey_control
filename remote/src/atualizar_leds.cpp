@@ -5,7 +5,7 @@
  * - LINK: fixo se comunicação ativa, piscar 1Hz se timeout > 1000ms
  * - MOTOR: fixo se SUBINDO ou DESCENDO
  * - VEL1/2/3: fixo conforme campo velocidade
- * - EMERGÊNCIA: piscar 4Hz se EMERGENCIA, fixo se FALHA_COMUNICACAO
+ * - EMERGÊNCIA: piscar 4Hz se EMERGENCIA, fixo se FALHA_COMUNICACAO, piscar 2Hz se FALHA_ENERGIA
  * - ALARME: piscar 2Hz se rearme_ativo E botão local travado
  *
  * Ref: leds/SPEC.md §3.2
@@ -49,9 +49,11 @@ void atualizarLeds(
 
     // EMERGÊNCIA
     if (status.estado_sistema == ESTADO_EMERGENCIA) {
-        ledEmergencia.piscar(125);   // 4 Hz
+        ledEmergencia.piscar(125);          // 4 Hz
     } else if (status.estado_sistema == ESTADO_FALHA_COMUNICACAO) {
-        ledEmergencia.ligar();
+        ledEmergencia.ligar();              // fixo
+    } else if (status.estado_sistema == ESTADO_FALHA_ENERGIA) {
+        ledEmergencia.piscar(250);          // 2 Hz — link OK, energia ausente
     } else {
         ledEmergencia.desligar();
     }
