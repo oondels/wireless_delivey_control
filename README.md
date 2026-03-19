@@ -138,7 +138,8 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 - O motor é cortado imediatamente (desaciona relés de direção).
 - O relé de freio é acionado.
 - O sistema entra no estado `PARADO` — não é emergência, não requer rearme.
-- O operador pode retomar a operação normalmente.
+- **Bloqueio pós-acionamento:** o movimento permanece bloqueado por **10 s** após o sensor ser confirmado, mesmo que ele já tenha sido liberado fisicamente. Proteção contra reacionamento acidental imediato.
+- Após o bloqueio de 10 s expirar, o operador pode retomar a operação normalmente.
 
 ---
 
@@ -495,7 +496,7 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 - **Segurança elétrica:** Relés com fator de segurança 2x sobre corrente de partida do motor. Isolação galvânica entre rede elétrica e GPIOs. Usar driver (transistor/ULN2003) entre GPIO e bobina do relé.
 - **Anti-colisão de direção:** Dead-time mínimo de 100 ms ao inverter sentido.
 - **Rearme:** Jamais automático.
-- **Fim de curso:** Debounce mínimo 20 ms.
+- **Fim de curso:** Debounce mínimo 20 ms; bloqueio pós-acionamento de 10 s.
 
 ---
 

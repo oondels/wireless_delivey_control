@@ -64,7 +64,7 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 | Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
 |---|---|---|---|---|---|
-| Fim de curso | 26 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de subida (estacionamento) |
+| Fim de curso | 26 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de subida (estacionamento) — bloqueio pós-acionamento de 10 s |
 | Microchave freio | 27 | Microswitch NA | — | Nível (HIGH=engatado) | Estado mecânico do freio |
 | Monitor rede | 13 | Entrada digital | 50 ms | Nível (HIGH=presente) | Presença da rede elétrica — pull-down externo (divisor resistivo 5V→2,5V ou optoacoplador) |
 

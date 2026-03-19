@@ -183,6 +183,7 @@ Sequência executada imediatamente:
 - Ao acionar: motor OFF → freio ON → estado `PARADO`.
 - **Não** é um estado de emergência — não requer rearme.
 - Debounce mínimo de **20 ms** no firmware.
+- **Bloqueio pós-acionamento:** após o sensor ser confirmado, o bloqueio de movimento permanece ativo por **10 s** mesmo que o sensor físico tenha sido liberado. Medida de segurança para evitar reacionamento imediato acidental.
 
 ### 6.3 Anti-Colisão de Direção
 

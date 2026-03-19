@@ -97,11 +97,11 @@ EstadoSistema MaquinaEstados::atualizar(
     // Prioridade 4: fim de curso (bloqueia SUBIR e DESCER)
     if (sensores.fimDeCursoAcionado()) {
         if (tentativaRemotaSubir && !_logBloqueioRemotoSubir) {
-            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - fim de curso acionado");
+            LOG_WARN("REMOTO", "Comando SUBIR bloqueado - fim de curso (bloqueio ativo)");
             _logBloqueioRemotoSubir = true;
         }
         if (tentativaRemotaDescer && !_logBloqueioRemotoDescer) {
-            LOG_WARN("REMOTO", "Comando DESCER bloqueado - fim de curso acionado");
+            LOG_WARN("REMOTO", "Comando DESCER bloqueado - fim de curso (bloqueio ativo)");
             _logBloqueioRemotoDescer = true;
         }
         motor.desligar();
