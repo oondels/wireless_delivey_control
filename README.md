@@ -244,9 +244,11 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | 8 | Fim de curso do estacionamento (Principal GPIO 26) | Firmware | `PARADO` (bloqueia SUBIR e DESCER) |
 | 9 | Fim de curso de descida (Remote GPIO 13) | Firmware | `PARADO` (bloqueia apenas DESCER; SUBIR permitido) |
 
-### 7.2 Botão de Emergência com Trava Mecânica
+### 7.2 Botão de Emergência NC com Trava Mecânica
 
-Botões de emergência são do tipo **com trava**: sinal permanece ativo até destravar manualmente. O firmware lê o nível contínuo do pino.
+Botões de emergência são do tipo **NC (normalmente fechado) com trava**: em repouso o contato está fechado (pino LOW); ao pressionar, o contato abre e o pull-up puxa o pino para HIGH (emergência ativa), permanecendo assim até destravar manualmente. O firmware lê o nível contínuo do pino.
+
+> **Fail-safe:** cabo partido ou desconexão resulta em pino HIGH → emergência ativada automaticamente.
 
 **Auto-liberação (caso normal):**
 
@@ -527,6 +529,6 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 | Fail-Safe | Qualquer falha leva ao estado seguro (freio aplicado) |
 | Rearme | Ato manual de desativar emergência e retornar à operação |
 | Trava Lógica | Flag de software que bloqueia movimentação independente de entradas físicas |
-| Botão com Trava | Botão que mantém sinal ativo após pressionado, até ser destrancado manualmente |
+| Botão NC com Trava | Botão normalmente fechado (NC) com trava: repouso = LOW (contato fecha, drena GND); pressionado = HIGH (contato abre, pull-up ativa). Mantém HIGH até destravar. Cabo partido também ativa emergência (fail-safe). |
 | LED ALARME | Indicador no Remote: Painel fez rearme mas botão local ainda travado |
 | GPIO Compartilhado | GPIO que aciona relé e LED simultaneamente via ligação física em paralelo |

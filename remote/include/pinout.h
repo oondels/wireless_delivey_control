@@ -9,7 +9,8 @@
  * - GPIO 1 (TX) e GPIO 3 (RX) reservados para Serial
  * - GPIOs 34, 35, 36, 39: pull-up externo 10kΩ obrigatório (input-only, sem pull-up interno)
  * - GPIOs 32, 33: pull-up interno via INPUT_PULLUP (sem resistor externo)
- * - Lógica de todos os botões: HIGH = solto, LOW = pressionado
+ * - Lógica botões NO: HIGH = solto, LOW = pressionado
+ * - Lógica botão NC (emergência): LOW = repouso (fechado), HIGH = pressionado (aberto)
  * - Saídas: HIGH = LED aceso
  *
  * Mapeamento consistente com o Módulo Principal onde as funções coincidem.
@@ -19,9 +20,11 @@
 #define PINOUT_H
 
 // ============================================================
-// ENTRADAS — Botões (LOW = pressionado)
+// ENTRADAS — Botões
 // GPIOs 34-39: pull-up externo obrigatório (input-only)
 // GPIOs 32, 33: pull-up interno (INPUT_PULLUP)
+// NO (normalmente aberto): LOW = pressionado
+// NC (normalmente fechado, emergência): HIGH = pressionado (contato aberto)
 // ============================================================
 
 #define PIN_BTN_SUBIR       36  // Hold (nível) — input-only, pull-up externo obrigatório
@@ -29,7 +32,7 @@
 #define PIN_BTN_VEL1        34  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL2        35  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL3        32  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
-#define PIN_BTN_EMERGENCIA  33  // Nível contínuo (trava mecânica) — pull-up interno (INPUT_PULLUP)
+#define PIN_BTN_EMERGENCIA  33  // NC: repouso LOW, pressionado HIGH — pull-up interno (INPUT_PULLUP)
 
 // ============================================================
 // ENTRADAS — Sensores

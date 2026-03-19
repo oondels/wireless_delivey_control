@@ -1,6 +1,6 @@
 # Especificação de Hardware e I/O
 
-**Versão:** 1.2
+**Versão:** 1.3
 **Data:** 2026-03-19
 **Referência:** DESIGN_SPEC.md v3.1, IMPLEMENTATION_PLAN.md v3.2
 
@@ -53,7 +53,7 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 | VEL1 | 34 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
 | VEL2 | 35 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
 | VEL3 | 32 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
-| EMERGÊNCIA | 33 | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+| EMERGÊNCIA | 33 | NC c/ trava | — | Nível contínuo | Emergência — NC: repouso LOW, pressionado HIGH |
 | REARME | 25 | Táctil | 50 ms | Pulso (borda) | Desativar emergência |
 
 > GPIOs 34, 35, 36, 39 são input-only (sem pull-up interno) — usar pull-up externo 10kΩ.
@@ -114,7 +114,7 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 | VEL1 | 34 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
 | VEL2 | 35 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
 | VEL3 | 32 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
-| EMERGÊNCIA | 33 | Com trava | — | Nível contínuo | Emergência — trava mecânica mantém sinal |
+| EMERGÊNCIA | 33 | NC c/ trava | — | Nível contínuo | Emergência — NC: repouso LOW, pressionado HIGH |
 
 > GPIOs de entrada consistentes com o Módulo Principal. GPIOs 34, 35, 36, 39 são input-only — usar pull-up externo 10kΩ.
 
@@ -175,13 +175,15 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 | Componente | Pull-Up |
 |---|---|
-| Botões tácteis | Resistor pull-up externo (10kΩ recomendado) |
-| Botão emergência (trava) | Resistor pull-up externo |
+| Botões tácteis (NO) | Resistor pull-up externo (10kΩ recomendado) |
+| Botão emergência NC (trava) | Pull-up interno (INPUT_PULLUP) — GPIO 33 |
 | Fim de curso | Resistor pull-up externo |
 
-Lógica: botão **não** pressionado = HIGH; botão pressionado = LOW.
+Lógica botões NO: **não** pressionado = HIGH; pressionado = LOW.
 
-> **Nota:** O firmware deve ser configurado para ler o nível correto de acordo com a lógica do circuito. Botões com trava mantêm nível LOW enquanto travados.
+Lógica botão emergência NC: **não** pressionado (repouso) = LOW (contato fechado drena para GND); pressionado = HIGH (contato abre, pull-up puxa para HIGH).
+
+> **Fail-safe:** com botão NC e pull-up, um cabo partido resulta em pino HIGH → emergência ativada. Comportamento seguro por projeto.
 
 ---
 

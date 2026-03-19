@@ -1,8 +1,9 @@
 /**
  * emergencia.cpp — Implementação da lógica de emergência
  *
- * Botão EMERGÊNCIA é do tipo com trava mecânica: sinal LOW enquanto
- * travado (pull-up interno via INPUT_PULLUP). O firmware lê nível contínuo, não borda.
+ * Botão EMERGÊNCIA é normalmente fechado (NC): em repouso o contato está fechado
+ * (pino em GND → lê LOW). Ao apertar, o contato abre → pull-up puxa para HIGH.
+ * O firmware lê nível contínuo, não borda.
  *
  * Auto-liberação: se nenhuma fonte estiver ativa (botão local solto E
  * emergenciaRemote == false), _ativa é limpa automaticamente.
@@ -21,8 +22,8 @@ void Emergencia::init() {
 }
 
 bool Emergencia::botaoLocalAtivo() const {
-    // LOW = pressionado/travado (pull-up interno)
-    return (digitalRead(PIN_BTN_EMERGENCIA) == LOW);
+    // HIGH = botão NC pressionado (contato aberto, pull-up puxa para HIGH)
+    return (digitalRead(PIN_BTN_EMERGENCIA) == HIGH);
 }
 
 bool Emergencia::verificar(bool emergenciaRemote) {
