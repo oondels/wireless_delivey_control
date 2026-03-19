@@ -186,6 +186,7 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
 | Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
 | Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
+| Fim de curso descida | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — LOW = carrinho na posição final de descida; debounce 20 ms + bloqueio 10 s pós-liberação |
 | LED LINK | Saída | 4 | Comunicação com Principal |
 | LED MOTOR | Saída | 16 | Motor em operação |
 | LED VEL1 | Saída | 17 | Velocidade 1 ativa |
@@ -193,11 +194,12 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | LED VEL3 | Saída | 18 | Velocidade 3 ativa |
 | LED EMERGÊNCIA | Saída | 19 | Emergência ou falha de comunicação |
 | LED ALARME | Saída | 21 | Rearme com botão local ainda travado |
-| **Total** | | **13** | **6 entradas + 7 saídas** |
+| **Total** | | **14** | **7 entradas + 7 saídas** |
 
 > GPIOs de ambos os módulos definidos. Mapeamento de entradas consistente entre Principal e Remote (mesmos GPIOs para botões com funções idênticas).
 > GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
-> GPIOs 32 e 33 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIOs 32, 33 e 13 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
+> GPIO 13 (fim de curso descida): LOW = carrinho na posição final; bloqueio de 10 s pós-liberação bloqueia apenas DESCER; SUBIR permanece permitido.
 > Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas.
 
 ---
@@ -239,7 +241,8 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | 5 | Botão EMERGÊNCIA no Painel Central | Firmware | `EMERGENCIA_ATIVA` |
 | 6 | Botão EMERGÊNCIA no Remote | Firmware | `EMERGENCIA_ATIVA` |
 | 7 | Soltura do botão de acionamento (Homem-Morto) | Firmware | `PARADO` |
-| 8 | Fim de curso do estacionamento | Firmware | `PARADO` |
+| 8 | Fim de curso do estacionamento (Principal GPIO 26) | Firmware | `PARADO` (bloqueia SUBIR e DESCER) |
+| 9 | Fim de curso de descida (Remote GPIO 13) | Firmware | `PARADO` (bloqueia apenas DESCER; SUBIR permitido) |
 
 ### 7.2 Botão de Emergência com Trava Mecânica
 
@@ -352,12 +355,13 @@ MAC do Principal fixado em firmware no Remote.
 
 ```c
 typedef struct {
-    uint8_t  comando;       // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
-                            // 3=VEL1, 4=VEL2, 5=VEL3
-    uint8_t  botao_hold;    // 1=SUBIR ou DESCER pressionado
-    uint8_t  emergencia;    // 1=botão com trava ativo no Remote
-    uint32_t timestamp;     // millis() do Remote
-    uint8_t  checksum;      // XOR de todos os bytes anteriores
+    uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
+                                 // 3=VEL1, 4=VEL2, 5=VEL3
+    uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
+    uint8_t  emergencia;         // 1=botão com trava ativo no Remote
+    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
+    uint32_t timestamp;          // millis() do Remote
+    uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
 
@@ -502,7 +506,7 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 
 ## 13. Fora de Escopo (v1.0)
 
-- Fim de curso na posição inferior (margem do rio).
+- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 13)
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
 - Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).

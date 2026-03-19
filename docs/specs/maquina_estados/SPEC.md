@@ -82,8 +82,8 @@ A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição ver
 | 1 (máxima) | `emergencia.verificar()` retorna true (botão local OU flag ativa) | → `EMERGENCIA_ATIVA` |
 | 2 | `!monitorRede.redePresente()` (GPIO 13 LOW com debounce 50 ms) | → `FALHA_ENERGIA` |
 | 3 | `watchdog.expirado()` (> 500ms sem pacote) e modo degradado local inativo | → `FALHA_COMUNICACAO` |
-| 4 | Fim de curso acionado | → `PARADO` |
-| 5 | Botão hold ativo + direção válida | → `SUBINDO` ou `DESCENDO` |
+| 4 | Fim de curso local acionado (bloqueia SUBIR e DESCER) | → `PARADO` |
+| 5 | Botão hold ativo + direção válida (DESCER bloqueado se `fim_curso_descida == 1`) | → `SUBINDO` ou `DESCENDO` |
 | 6 (padrão) | Nenhuma condição acima | → `PARADO` |
 
 ---
@@ -153,7 +153,7 @@ void atualizar_maquina_estados() {
         return;
     }
 
-    // Prioridade 4: fim de curso
+    // Prioridade 4: fim de curso local (bloqueia SUBIR e DESCER)
     if (sensores.fimDeCursoAcionado()) {
         motor.desligar();
         freio.acionar();
@@ -164,6 +164,11 @@ void atualizar_maquina_estados() {
     // Prioridade 5: movimentação
     bool hold = botao_hold_local || (pacoteRemote.botao_hold && !watchdog.expirado());
     Direcao dir = obter_direcao_ativa();
+
+    // Fim de curso de descida do Remote — bloqueia apenas DESCER, SUBIR permitido
+    if (dir == DIR_DESCER && pacoteRemote.fim_curso_descida == 1) {
+        dir = DIR_NENHUMA;
+    }
 
     if (hold && dir != DIR_NENHUMA) {
         freio.liberar();

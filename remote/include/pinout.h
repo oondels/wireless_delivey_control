@@ -1,7 +1,7 @@
 /**
  * pinout.h — Mapeamento de GPIOs do Módulo Remote
  *
- * Total: 13 GPIOs (6 entradas + 7 saídas)
+ * Total: 14 GPIOs (7 entradas + 7 saídas)
  *
  * Restrições respeitadas (hardware_io/SPEC.md §8):
  * - GPIO 0, 2, 12, 15 evitados para entradas críticas (strapping pins)
@@ -30,6 +30,12 @@
 #define PIN_BTN_VEL2        35  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL3        32  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
 #define PIN_BTN_EMERGENCIA  33  // Nível contínuo (trava mecânica) — pull-up interno (INPUT_PULLUP)
+
+// ============================================================
+// ENTRADAS — Sensores
+// ============================================================
+
+#define PIN_FIM_CURSO_DESCIDA  13  // LOW = carrinho na posição final de descida — pull-up interno (INPUT_PULLUP)
 
 // ============================================================
 // SAÍDAS — LEDs dedicados (HIGH = aceso)

@@ -132,9 +132,15 @@ EstadoSistema MaquinaEstados::atualizar(
         }
     }
 
-    // Fim de curso bloqueia apenas SUBIR — DESCER continua permitido
-    if (dir == DIR_SUBIR && sensores.fimDeCursoAcionado()) {
+    // Fim de curso de descida do Remote — bloqueia apenas DESCER, SUBIR permitido
+    if (dir == DIR_DESCER && pacoteRemote.fim_curso_descida == 1) {
+        if (!_logBloqueioFimCursoDescida) {
+            LOG_WARN("REMOTO", "Comando DESCER bloqueado - fim de curso descida ativo");
+            _logBloqueioFimCursoDescida = true;
+        }
         dir = DIR_NENHUMA;
+    } else {
+        _logBloqueioFimCursoDescida = false;
     }
 
     if (dir != DIR_NENHUMA) {
