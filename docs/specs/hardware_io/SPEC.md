@@ -85,9 +85,10 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 | VEL1 | 17 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO HIGH = ativo |
 | VEL2 | 5 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO HIGH = ativo |
 | VEL3 | 18 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO HIGH = ativo |
-| FREIO | 19 | Freio mecânico | LED FREIO | GPIO HIGH = freio aplicado |
+| FREIO_ON | 19 | Bobina de aplicação (cilindro avança) | LED FREIO — aceso quando ativo | HIGH = energizada |
+| FREIO_OFF | 22 | Bobina de liberação (cilindro recua) | Nenhum | HIGH = energizada |
 
-**Total: 6 GPIOs de saída (compartilhados relé + LED)**
+**Total: 7 GPIOs de saída (6 c/ LED + 1 sem LED)**
 
 ### 5.2 LEDs Exclusivos
 
@@ -97,9 +98,9 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 **Total: 1 GPIO de saída exclusivo**
 
-**Total de saídas no Principal: 7 GPIOs**
+**Total de saídas no Principal: 8 GPIOs**
 
-**Total de GPIOs no Principal: 17** (10 entradas + 7 saídas)
+**Total de GPIOs no Principal: 18** (10 entradas + 8 saídas)
 
 ---
 
@@ -209,7 +210,7 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 | Parâmetro | Valor |
 |---|---|
 | Tensão de operação | 5V |
-| Número de canais (Principal) | 6 (direção A, direção B, VEL1, VEL2, VEL3, freio) |
+| Número de canais (Principal) | 7 (direção A, direção B, VEL1, VEL2, VEL3, FREIO_ON, FREIO_OFF) — de 8 disponíveis |
 | Acionamento | Ativo HIGH (via GPIO do ESP32) |
 | Dimensionamento | Corrente de partida do motor × fator 2x |
 
@@ -241,6 +242,8 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 > A microchave atua em duas camadas: (1) **hardware** — corta/permite alimentação do freio diretamente no circuito; (2) **firmware** — ESP32 lê GPIO 27 e bloqueia motor por software quando HIGH. O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor.
 >
 > Fail-safe: cabo partido lê HIGH → interpretado como freio engatado → motor bloqueado.
+>
+> A microchave indica o estado mecânico resultante do cilindro (posição de avanço = freio aplicado, posição de recuo = freio liberado), independentemente de qual bobina está energizada no momento.
 
 ---
 

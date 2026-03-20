@@ -84,20 +84,35 @@ A velocidade é controlada por **hardware externo**: potenciômetros físicos pr
 
 | Relé | Função | GPIO | Acionamento |
 |---|---|---|---|
-| FREIO | Freio mecânico | 1 GPIO compartilhado (relé + LED) | HIGH = freio aplicado |
+| FREIO_ON | Bobina de aplicação — cilindro avança, freio trava | 19 | HIGH = energizada |
+| FREIO_OFF | Bobina de liberação — cilindro recua, freio libera | 22 | HIGH = energizada |
 
 ### 4.2 API do Firmware (classe `Freio`)
 
 ```cpp
 Freio freio;
 freio.init();
-freio.acionar();   // GPIO HIGH → relé energizado → freio aplicado + LED aceso
-freio.liberar();   // GPIO LOW  → relé desenergizado → freio liberado + LED apagado
+
+// Aciona o freio: desenergia FREIO_OFF → dead-time 10 ms → energiza FREIO_ON
+freio.acionar();
+//   GPIO 22 (FREIO_OFF) → LOW   (desaciona primeiro)
+//   delay 10 ms
+//   GPIO 19 (FREIO_ON)  → HIGH  (aciona depois)
+//   LED FREIO aceso
+
+// Libera o freio: desenergia FREIO_ON → dead-time 10 ms → energiza FREIO_OFF
+freio.liberar();
+//   GPIO 19 (FREIO_ON)  → LOW   (desaciona primeiro)
+//   delay 10 ms
+//   GPIO 22 (FREIO_OFF) → HIGH  (aciona depois)
+//   LED FREIO apagado
 ```
+
+> **Invariante:** `FREIO_ON` e `FREIO_OFF` nunca ficam HIGH simultaneamente. A troca sempre segue a ordem: desaciona o lado ativo → dead-time ~10 ms → aciona o lado oposto.
 
 ### 4.3 Regras de Operação
 
-- O freio é o **estado padrão** — sempre acionado quando o motor está desligado.
+- O freio é o **estado padrão** — `FREIO_ON` energizado e `FREIO_OFF` desenergizado sempre que o motor está parado ou em qualquer estado de bloqueio.
 - O freio é liberado **somente** quando o motor está prestes a ser ligado.
 - Não há leitura de sensor de freio pelo firmware — a microchave atua diretamente no circuito.
 
@@ -184,6 +199,8 @@ Operador solta SUBIR → pressiona DESCER (ou vice-versa)
 | Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → `PARADO` |
 | Não | Sim | Qualquer | Qualquer | `FALHA_COMUNICACAO` → Freio ON |
 | Sim | Qualquer | Qualquer | Qualquer | `EMERGENCIA_ATIVA` → Freio ON |
+
+> "Freio acionado" = `FREIO_ON HIGH + FREIO_OFF LOW`. "Freio liberado" = `FREIO_OFF HIGH + FREIO_ON LOW`.
 
 ---
 

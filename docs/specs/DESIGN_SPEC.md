@@ -55,7 +55,7 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
 | Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava), REARME; microchave do freio; fim de curso do estacionamento |
-| Saídas relés | Relés 5V: direção do motor (2x), velocidade (3x), freio (1x) |
+| Saídas relés | Relés 5V: direção do motor (2x), velocidade (3x), freio (2x — FREIO_ON e FREIO_OFF) |
 | Saídas LEDs | 1 GPIO por LED: VEL1, VEL2, VEL3, EMERGÊNCIA, LINK REMOTE — cor definida pelo LED físico instalado |
 | Comunicação | ESP-NOW — recebe pacotes do Remote, envia status de retorno |
 
@@ -307,7 +307,8 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 | VEL1 | 17 | Ligado fixo | `velocidade_atual == 1` (compartilhado c/ relé) |
 | VEL2 | 5 | Ligado fixo | `velocidade_atual == 2` (compartilhado c/ relé) |
 | VEL3 | 18 | Ligado fixo | `velocidade_atual == 3` (compartilhado c/ relé) |
-| FREIO | 19 | Ligado fixo | Relé de freio acionado (compartilhado c/ relé) |
+| FREIO_ON  | 19 | Ligado fixo | Bobina de aplicação energizada — freio aplicado (compartilhado c/ relé) |
+| FREIO_OFF | 22 | (sem LED)   | Bobina de liberação — sem indicador visual                            |
 | LINK REMOTE | 21 | Ligado fixo | Comunicação com Remote ativa (watchdog OK) |
 
 **Total: 7 GPIOs de saída** (6 compartilhados com relés + 1 exclusivo)

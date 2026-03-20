@@ -63,7 +63,7 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
 | Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava), REARME; fim de curso do estacionamento |
-| Saídas relés/LEDs | 1 GPIO por canal — aciona relé **e** LED simultaneamente via ligação física: DIREÇÃO A, DIREÇÃO B, VEL1, VEL2, VEL3, FREIO |
+| Saídas relés/LEDs | 1 GPIO por canal — aciona relé **e** LED simultaneamente via ligação física: DIREÇÃO A, DIREÇÃO B, VEL1, VEL2, VEL3, FREIO_ON, FREIO_OFF. O LED de freio está associado apenas ao canal `FREIO_ON` — aceso quando o freio está aplicado, apagado quando liberado. |
 | LEDs exclusivos | LINK REMOTE (sem relé associado — GPIO dedicado) |
 | Comunicação | ESP-NOW — recebe pacotes do Remote, envia status de retorno |
 
@@ -107,7 +107,10 @@ GPIO ESP32
 | VEL1 | Potenciômetro velocidade 1 | Velocidade 1 selecionada |
 | VEL2 | Potenciômetro velocidade 2 | Velocidade 2 selecionada |
 | VEL3 | Potenciômetro velocidade 3 | Velocidade 3 selecionada |
-| FREIO | Relé de freio | Freio acionado pelo sistema |
+| FREIO_ON  | Bobina de aplicação (cilindro avança — freio trava) | Freio aplicado |
+| FREIO_OFF | Bobina de liberação (cilindro recua — freio libera)  | (sem LED)      |
+
+> O freio é composto por um cilindro com solenoide de dupla bobina. `FREIO_ON` e `FREIO_OFF` nunca ficam ativos simultaneamente. O firmware garante a troca sequencial com dead-time de ~10 ms entre desacionar uma bobina e acionar a outra.
 
 **Canal com GPIO exclusivo (sem relé) no Principal:**
 
@@ -128,6 +131,8 @@ A microchave do freio atua em **duas camadas independentes**:
 - Cabo partido → GPIO lê HIGH → interpretado como freio engatado (**fail-safe** ✅)
 
 O Remote **não recebe** o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor.
+
+> A microchave indica o estado mecânico resultante do cilindro (freio aplicado ou liberado), independentemente de qual bobina está energizada. O comportamento fail-safe permanece: cabo partido → GPIO HIGH → motor bloqueado.
 
 ### 4.3 Fim de Curso do Estacionamento
 
@@ -164,15 +169,17 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Relé + LED VEL1 | Saída | 17 | HIGH = velocidade 1 |
 | Relé + LED VEL2 | Saída | 5 | HIGH = velocidade 2 |
 | Relé + LED VEL3 | Saída | 18 | HIGH = velocidade 3 |
-| Relé + LED FREIO | Saída | 19 | HIGH = freio aplicado |
+| Relé + LED FREIO_ON  | Saída | 19 | HIGH = bobina de aplicação energizada (freio trava) |
+| Relé FREIO_OFF       | Saída | 22 | HIGH = bobina de liberação energizada (freio libera) — sem LED |
 | LED LINK REMOTE | Saída | 21 | Comunicação ativa com Remote |
-| **Total** | | **17** | **10 entradas + 7 saídas** |
+| **Total** | | **18** | **10 entradas + 8 saídas** |
 
 > GPIOs confirmados fisicamente na placa ESP32 WROOM-32U utilizada.
 > GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
 > GPIOs 32, 33, 25, 26 e 27 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
 > GPIO 27 (microchave freio): NA com pull-up interno — HIGH = freio engatado, LOW = freio liberado. Cabo partido lê HIGH e bloqueia motor (fail-safe).
 > GPIO 13 (monitor rede): pull-down externo (divisor resistivo 5V→2,5V ou optoacoplador); HIGH = rede presente, LOW = rede ausente. Debounce 50 ms no firmware.
+> GPIO 22 (FREIO_OFF): saída digital, sem restrições de boot. Sem LED associado. `FREIO_ON` e `FREIO_OFF` nunca ficam HIGH simultaneamente — garantido por firmware.
 > GPIOs 0, 2, 12 e 15 evitados (strapping pins de boot).
 > Pinos de flash SPI interna (D0, D1, D2, D3, CLK, CMD) não utilizados.
 
@@ -405,7 +412,7 @@ Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor defini
 | VEL1 | Relé VEL1 | Velocidade 1 selecionada |
 | VEL2 | Relé VEL2 | Velocidade 2 selecionada |
 | VEL3 | Relé VEL3 | Velocidade 3 selecionada |
-| FREIO | Relé FREIO | Relé de freio acionado pelo firmware |
+| FREIO_ON | Relé FREIO_ON | Bobina de aplicação energizada — freio aplicado |
 | LINK REMOTE | — (GPIO exclusivo) | Comunicação ativa com o Remote |
 
 ### 10.2 LEDs no Módulo Remote (GPIOs dedicados)

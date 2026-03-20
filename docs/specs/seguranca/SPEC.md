@@ -216,6 +216,8 @@ Sequência executada imediatamente:
 | 7 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
 | 8 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
 
+> Em todos os casos acima, "freio acionado" corresponde a `FREIO_ON HIGH + FREIO_OFF LOW`. O comportamento fail-safe (queda de energia → freio aplicado) é garantido pela bobina `FREIO_ON` permanecer energizada por padrão.
+
 ---
 
 ## 9. Invariantes de Segurança
