@@ -32,7 +32,7 @@ public:
 private:
     static constexpr uint8_t MAC_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-    static void onDataRecv(const uint8_t* mac, const uint8_t* data, int len);
+    static void onDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len);
     static void atualizarPeerRemoto(const uint8_t* mac);
     static bool registrarPeer(const uint8_t* mac);
 
