@@ -1,8 +1,8 @@
 # Especificação de Hardware e I/O
 
-**Versão:** 1.3
-**Data:** 2026-03-19
-**Referência:** DESIGN_SPEC.md v3.1, IMPLEMENTATION_PLAN.md v3.2
+**Versão:** 1.4
+**Data:** 2026-03-22
+**Referência:** DESIGN_SPEC.md v3.3, README.md v3.4
 
 ---
 
@@ -78,15 +78,19 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 
 ### 5.1 Relés (com LED Compartilhado)
 
+O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; `GPIO HIGH` = relé desacionado. Cada GPIO aciona o relé e o LED em paralelo — ambos seguem o mesmo estado lógico.
+
 | Relé | GPIO | Função | LED Associado | Acionamento |
 |---|---|---|---|---|
-| DIREÇÃO A | 4 | Motor sentido SUBIR | LED SUBIR | GPIO HIGH = ativo |
-| DIREÇÃO B | 16 | Motor sentido DESCER | LED DESCER | GPIO HIGH = ativo |
-| VEL1 | 17 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO HIGH = ativo |
-| VEL2 | 5 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO HIGH = ativo |
-| VEL3 | 18 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO HIGH = ativo |
-| FREIO_ON | 19 | Bobina de aplicação (cilindro avança) | LED FREIO — aceso quando ativo | HIGH = energizada |
-| FREIO_OFF | 22 | Bobina de liberação (cilindro recua) | Nenhum | HIGH = energizada |
+| DIREÇÃO A | 4 | Motor sentido SUBIR | LED SUBIR — aceso quando motor sobe | GPIO LOW = ativo |
+| DIREÇÃO B | 16 | Motor sentido DESCER | LED DESCER — aceso quando motor desce | GPIO LOW = ativo |
+| VEL1 | 17 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO LOW = ativo |
+| VEL2 | 5 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO LOW = ativo |
+| VEL3 | 18 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO LOW = ativo |
+| FREIO_ON | 19 | Bobina de aplicação (cilindro avança, freio trava) | LED FREIO — aceso quando bobina pulsa | GPIO LOW = energizada |
+| FREIO_OFF | 22 | Bobina de liberação (cilindro retrai, freio libera) | Nenhum | GPIO LOW = energizada |
+
+> **Nota sobre o LED FREIO_ON:** o relé permanece ativo apenas durante o pulso de acionamento (~7s até microchave confirmar). Após confirmação, o relé é desativado (GPIO HIGH) para não manter a bobina energizada continuamente.
 
 **Total: 7 GPIOs de saída (6 c/ LED + 1 sem LED)**
 
@@ -211,7 +215,7 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 |---|---|
 | Tensão de operação | 5V |
 | Número de canais (Principal) | 7 (direção A, direção B, VEL1, VEL2, VEL3, FREIO_ON, FREIO_OFF) — de 8 disponíveis |
-| Acionamento | Ativo HIGH (via GPIO do ESP32) |
+| Acionamento | **Ativo LOW** — GPIO LOW = relé acionado; GPIO HIGH = relé desacionado |
 | Dimensionamento | Corrente de partida do motor × fator 2x |
 
 ---
@@ -232,18 +236,24 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 | Parâmetro | Valor |
 |---|---|
 | Tipo | Microswitch NA (normalmente aberto) |
-| Localização | Acoplada ao freio mecânico |
-| Conexão | Direta no circuito elétrico do freio **E** conectada ao GPIO 27 do ESP32 Principal (leitura) |
-| GPIO | 27 |
+| Localização | Acoplada ao cilindro do freio — acionada quando cilindro está retraído (freio liberado) |
+| Conexão | GPIO 27 do ESP32 Principal |
 | Pull-up | Interno (INPUT_PULLUP) |
-| Lógica | NA: HIGH = freio engatado, LOW = freio liberado |
-| Função | Duas camadas de segurança: hardware (corta circuito do freio) e firmware (bloqueia motor por software) |
+| Lógica | HIGH = freio engatado (cilindro avançado, micro aberta); LOW = freio liberado (cilindro retraído, micro pressionada) |
+| Função firmware | Controla máquina de estados do freio (`Freio::atualizar()`); bloqueia motor enquanto GPIO 27 ≠ LOW |
 
-> A microchave atua em duas camadas: (1) **hardware** — corta/permite alimentação do freio diretamente no circuito; (2) **firmware** — ESP32 lê GPIO 27 e bloqueia motor por software quando HIGH. O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor.
+**Comportamento por estado:**
+
+| Condição | GPIO 27 | Microchave | Estado do cilindro | Motor |
+|---|---|---|---|---|
+| Freio engatado (padrão) | HIGH | Aberta | Avançado (brake pads travados) | Bloqueado |
+| Freio em transição (FREIO_OFF pulsando) | HIGH → LOW | Abre → Fecha | Retraindo (~7s) | Bloqueado durante transição |
+| Freio liberado (confirmado) | LOW | Pressionada | Retraído (brake pads livres) | Permitido |
+| Freio em transição (FREIO_ON pulsando) | LOW → HIGH | Fecha → Abre | Avançando (~7s) | Bloqueado |
+
+> Fail-safe: cabo partido → GPIO flutua HIGH → interpretado como freio engatado → motor bloqueado.
 >
-> Fail-safe: cabo partido lê HIGH → interpretado como freio engatado → motor bloqueado.
->
-> A microchave indica o estado mecânico resultante do cilindro (posição de avanço = freio aplicado, posição de recuo = freio liberado), independentemente de qual bobina está energizada no momento.
+> O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor durante a transição de ~7s.
 
 ---
 

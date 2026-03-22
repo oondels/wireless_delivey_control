@@ -12,7 +12,8 @@
  * - Lógica botões NO (normalmente aberto): HIGH = solto, LOW = pressionado
  * - Lógica botão NC (emergência, GPIO 33): LOW = repouso, HIGH = pressionado (contato aberto)
  * - Microchave freio (GPIO 27): NA, HIGH = freio engatado, LOW = freio liberado
- * - Saídas: HIGH = ativo (relé energizado / LED aceso)
+ * - Saídas relés: LOW = ativo (módulo relé ativo em LOW); HIGH = relé desacionado
+ * - LED LINK (GPIO 21, exclusivo): comportamento reflete lógica do módulo relé (LOW = aceso quando watchdog OK)
  * - FREIO_ON e FREIO_OFF nunca ficam HIGH simultaneamente — garantido por firmware
  * - GPIO 22 (FREIO_OFF): saída digital segura, sem restrições de boot, sem LED associado
  */

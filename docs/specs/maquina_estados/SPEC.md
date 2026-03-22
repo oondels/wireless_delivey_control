@@ -1,8 +1,8 @@
 # Especificação da Máquina de Estados
 
-**Versão:** 1.2
-**Data:** 2026-03-19
-**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
+**Versão:** 1.3
+**Data:** 2026-03-22
+**Referência:** DESIGN_SPEC.md v3.3, README.md v3.4
 
 ---
 
@@ -171,12 +171,24 @@ void atualizar_maquina_estados() {
     }
 
     if (hold && dir != DIR_NENHUMA) {
+        // Inicia liberação do freio (idempotente — só pulsa se não estiver já liberando/liberado)
         freio.liberar();
-        motor.acionar(dir);
-        estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
+
+        // Motor só aciona após microchave confirmar freio liberado (GPIO 27 = LOW, ~7s de espera)
+        // Dupla verificação: estado interno E leitura direta do GPIO
+        bool freio_liberado = freio.isLiberado() && (digitalRead(PIN_MICROCHAVE_FREIO) == LOW);
+
+        if (freio_liberado) {
+            motor.acionar(dir);
+            estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
+        } else {
+            // Freio ainda em transição (~7s) — aguardar sem acionar motor
+            motor.desligar();
+            estado = ESTADO_PARADO;
+        }
     } else {
         motor.desligar();
-        freio.acionar();
+        freio.acionar();  // Inicia engate (idempotente)
         estado = ESTADO_PARADO;
     }
 }
@@ -218,7 +230,8 @@ Se `pacote_remote.emergencia == 1` no momento do rearme:
 1. O estado `EMERGENCIA_ATIVA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`.
 2. O estado `FALHA_ENERGIA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
 3. O estado `FALHA_COMUNICACAO` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
-3. Os estados `SUBINDO` e `DESCENDO` **nunca** coexistem (dois relés de direção simultâneos).
-4. Todo estado com Motor OFF implica Freio ON.
-5. Todo estado com Motor ON implica Freio OFF.
-6. A transição de recuperação **sempre** passa por `PARADO`.
+4. Os estados `SUBINDO` e `DESCENDO` **nunca** coexistem (dois relés de direção simultâneos).
+5. Motor ON implica `freio.isLiberado() == true` E `GPIO 27 == LOW`.
+6. Durante transição do freio (ENGATANDO/LIBERANDO), o motor permanece desligado e o estado é `PARADO`.
+7. A transição de recuperação **sempre** passa por `PARADO`.
+8. `emergencia.ativa()` é limpa automaticamente quando todas as fontes inativas. Nunca limpa automaticamente se Remote mantém `emergencia == 1` — exige REARME manual.

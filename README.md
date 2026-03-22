@@ -1,7 +1,7 @@
 # Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 3.4
-**Data:** 2026-03-19
+**Versão:** 3.5
+**Data:** 2026-03-22
 **Status:** Em execução
 
 ---
@@ -118,21 +118,43 @@ GPIO ESP32
 |---|---|
 | LINK REMOTE | LED indicando comunicação ativa com o Remote |
 
-### 4.2 Microchave do Freio — Acionamento Direto por Hardware
+### 4.2 Microchave do Freio — Lógica e Temporização
 
-A microchave do freio atua em **duas camadas independentes**:
+O freio é um **cilindro solenoide de dupla bobina**. A microchave (GPIO 27, NA + pull-up interno) indica a posição do cilindro:
 
-1. **Hardware:** conectada diretamente ao circuito elétrico do freio — corta ou permite a alimentação do freio independentemente do firmware. O acionamento do freio é garantido mesmo em caso de falha total do software.
-2. **Firmware:** conectada ao GPIO 27 do ESP32 Principal. O firmware lê o estado e **bloqueia o motor por software** quando detecta o freio engatado (HIGH = engatado, NA com pull-up interno).
+| GPIO 27 | Microchave | Cilindro | Estado do freio |
+|---|---|---|---|
+| HIGH | Aberta | Avançado | **Engatado** (ativo) — modo padrão |
+| LOW | Pressionada | Retraído | **Liberado** (inativo) — motor permitido |
 
-**Comportamento elétrico (NA + pull-up interno):**
-- Freio LIBERADO → contato fechado → GPIO lê LOW
-- Freio ENGATADO → contato aberto → GPIO lê HIGH
-- Cabo partido → GPIO lê HIGH → interpretado como freio engatado (**fail-safe** ✅)
+**O cilindro leva aproximadamente 7 segundos para completar o curso em cada sentido.**
 
-O Remote **não recebe** o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor.
+Os relés das bobinas funcionam como **pulsos**: são ativados para iniciar o movimento e desativados automaticamente quando a microchave confirma a posição final. Isso evita manter a bobina energizada continuamente.
 
-> A microchave indica o estado mecânico resultante do cilindro (freio aplicado ou liberado), independentemente de qual bobina está energizada. O comportamento fail-safe permanece: cabo partido → GPIO HIGH → motor bloqueado.
+**Sequência ao solicitar movimento (SUBIR/DESCER):**
+1. Firmware dispara pulso em FREIO_OFF (GPIO 22) — cilindro começa a retrair.
+2. Durante ~7s, o motor fica **bloqueado** e o estado permanece `PARADO`.
+3. Quando GPIO 27 = LOW, o firmware confirma freio liberado e desativa o relé FREIO_OFF.
+4. Motor é acionado.
+
+**Fail-safe:** cabo partido → GPIO HIGH → motor bloqueado por hardware de pull-up.
+
+O Remote **não recebe** o estado do freio. O operador percebe a espera pela ausência de resposta do motor durante a transição.
+
+> A microchave também pode estar conectada diretamente ao circuito elétrico do freio como camada de hardware independente (redundância).
+
+### 4.2.1 Modo Manual de Recuperação do Freio
+
+Para situações onde o cilindro para no meio do curso (microchave não ativada, sistema travado):
+
+| Combinação de botões | Ação |
+|---|---|
+| Segurar **REARME** + pressionar **SUBIR** | Força cilindro avançar (freio engata) |
+| Segurar **REARME** + pressionar **DESCER** | Força cilindro retrair (freio libera) |
+
+- Motor permanece desligado durante o modo manual.
+- A máquina de estados principal é ignorada.
+- Ao soltar REARME, o sistema ressincroniza o estado pela leitura da microchave.
 
 ### 4.3 Fim de Curso do Estacionamento
 
@@ -340,17 +362,16 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 
 ### Tabela de Condições de Acionamento do Motor (camada firmware)
 
-| Emergência Ativa | Falha Energia | Falha Comun. | Fim de Curso | Botão Hold | Resultado |
-|---|---|---|---|---|---|
-| Não | Não | Não | Não acionado | Pressionado | Motor ON |
-| Não | Não | Não | Não acionado | Solto | Motor OFF → Freio ON → PARADO |
-| Não | Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → PARADO |
-| Não | Não | Sim | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
-| Não | Não | Sim | Qualquer | Pressionado (Painel local, após REARME) | Motor ON (modo degradado local) |
-| Não | Sim | Qualquer | Qualquer | Qualquer | FALHA_ENERGIA → Freio ON |
-| Sim | Qualquer | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
-
-> A microchave do freio não aparece nesta tabela por atuar em nível de hardware, fora do controle do firmware.
+| Emergência Ativa | Falha Energia | Falha Comun. | Fim de Curso | GPIO 27 | Botão Hold | Resultado |
+|---|---|---|---|---|---|---|
+| Não | Não | Não | Não acionado | LOW (freio liberado) | Pressionado | Motor ON |
+| Não | Não | Não | Não acionado | HIGH (freio engatado/transição) | Pressionado | Motor AGUARDA (~7s para freio liberar) |
+| Não | Não | Não | Não acionado | Qualquer | Solto | Motor OFF → Freio ON → PARADO |
+| Não | Não | Não | Acionado | Qualquer | Qualquer | Motor OFF → Freio ON → PARADO |
+| Não | Não | Sim | Qualquer | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
+| Não | Não | Sim | Qualquer | Qualquer | Pressionado (Painel local, após REARME) | Motor ON (modo degradado local, se GPIO 27 LOW) |
+| Não | Sim | Qualquer | Qualquer | Qualquer | Qualquer | FALHA_ENERGIA → Freio ON |
+| Sim | Qualquer | Qualquer | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
 
 ---
 
@@ -387,7 +408,7 @@ typedef struct {
 } PacoteStatus;
 ```
 
-> O campo `estado_freio` foi removido do `PacoteStatus` em relação à versão anterior, pois o firmware do Principal não lê mais a microchave.
+> O campo `estado_freio` foi removido do `PacoteStatus`: o Remote não exibe estado do freio. O estado `FALHA_ENERGIA` (valor 5) foi adicionado. O firmware DO lê a microchave (GPIO 27) — a leitura é usada internamente pela classe `Freio` para controle da máquina de estados.
 
 ### 9.4 Frequência de Envio
 
@@ -472,17 +493,21 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 
 ```
 [1523] [INFO] [BOTAO] Botao SUBIR pressionado (hold)
-[1523] [INFO] [FREIO] Liberando freio
-[1523] [INFO] [MOTOR] Motor ativado — direcao SUBIR
-[1523] [INFO] [ESTADO] Transicao: PARADO -> SUBINDO
-[3891] [INFO] [BOTAO] Botao SUBIR solto
-[3891] [INFO] [MOTOR] Motor desligado
-[3891] [INFO] [FREIO] Acionando freio
-[3891] [INFO] [ESTADO] Transicao: SUBINDO -> PARADO
-[5200] [WARN] [EMERG] Emergencia ATIVADA — botao local pressionado
-[5200] [WARN] [MAQEST] Movimentacao BLOQUEADA — emergencia ativa
-[5200] [INFO] [ESTADO] Transicao: PARADO -> EMERGENCIA
+[1523] [INFO] [FREIO] Iniciando liberacao do freio
+[~8500] [INFO] [FREIO] Microchave confirmou freio liberado — desativando rele FREIO_OFF
+[~8500] [INFO] [MOTOR] Motor ativado — direcao SUBIR
+[~8500] [INFO] [ESTADO] Transicao: PARADO -> SUBINDO
+[12000] [INFO] [BOTAO] Botao SUBIR solto
+[12000] [INFO] [MOTOR] Motor desligado
+[12000] [INFO] [FREIO] Iniciando engate do freio
+[~19000] [INFO] [FREIO] Microchave confirmou freio engatado — desativando rele FREIO_ON
+[~19000] [INFO] [ESTADO] Transicao: SUBINDO -> PARADO
+[25000] [WARN] [EMERG] Emergencia ATIVADA — botao local pressionado
+[25000] [WARN] [MAQEST] Movimentacao BLOQUEADA — emergencia ativa
+[25000] [INFO] [ESTADO] Transicao: PARADO -> EMERGENCIA
 ```
+
+> Note o atraso de ~7s entre pressionar o botão e o motor iniciar — é o tempo do cilindro completar o curso e acionar a microchave.
 
 ### 11.5 Desabilitar em Produção
 
