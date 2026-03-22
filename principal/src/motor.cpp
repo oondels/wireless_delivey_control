@@ -21,19 +21,19 @@ void Motor::init() {
 }
 
 void Motor::relesOff() {
-    digitalWrite(PIN_RELE_DIRECAO_A, LOW);
-    digitalWrite(PIN_RELE_DIRECAO_B, LOW);
+    digitalWrite(PIN_RELE_DIRECAO_A, HIGH);
+    digitalWrite(PIN_RELE_DIRECAO_B, HIGH);
 }
 
 void Motor::ativarDirecao(Direcao dir) {
     if (dir == DIR_SUBIR) {
         LOG_INFO("MOTOR", "Motor ativado — direcao SUBIR");
-        digitalWrite(PIN_RELE_DIRECAO_A, HIGH);
-        digitalWrite(PIN_RELE_DIRECAO_B, LOW);
-    } else if (dir == DIR_DESCER) {
-        LOG_INFO("MOTOR", "Motor ativado — direcao DESCER");
         digitalWrite(PIN_RELE_DIRECAO_A, LOW);
         digitalWrite(PIN_RELE_DIRECAO_B, HIGH);
+    } else if (dir == DIR_DESCER) {
+        LOG_INFO("MOTOR", "Motor ativado — direcao DESCER");
+        digitalWrite(PIN_RELE_DIRECAO_A, HIGH);
+        digitalWrite(PIN_RELE_DIRECAO_B, LOW);
     }
     _direcao = dir;
 }

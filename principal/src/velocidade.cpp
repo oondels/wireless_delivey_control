@@ -11,13 +11,13 @@ const uint8_t Velocidade::_pinos[3] = {PIN_RELE_VEL1, PIN_RELE_VEL2, PIN_RELE_VE
 
 void Velocidade::desacionarTodos() {
     for (int i = 0; i < 3; i++) {
-        digitalWrite(_pinos[i], LOW);
+        digitalWrite(_pinos[i], HIGH);
     }
 }
 
 void Velocidade::acionarNivel(uint8_t nivel) {
     if (nivel >= 1 && nivel <= 3) {
-        digitalWrite(_pinos[nivel - 1], HIGH);
+        digitalWrite(_pinos[nivel - 1], LOW);
     }
 }
 

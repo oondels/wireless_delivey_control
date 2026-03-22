@@ -10,25 +10,25 @@
 void Freio::init() {
     pinMode(PIN_RELE_FREIO_ON, OUTPUT);
     pinMode(PIN_RELE_FREIO_OFF, OUTPUT);
-    digitalWrite(PIN_RELE_FREIO_ON, LOW);
-    digitalWrite(PIN_RELE_FREIO_OFF, LOW);
+    digitalWrite(PIN_RELE_FREIO_ON, HIGH);
+    digitalWrite(PIN_RELE_FREIO_OFF, HIGH);
     acionar(); // Estado padrão: freio aplicado
 }
 
 void Freio::acionar() {
-    if (digitalRead(PIN_RELE_FREIO_ON) == LOW) {
+    if (digitalRead(PIN_RELE_FREIO_ON) == HIGH) {
         LOG_INFO("FREIO", "Acionando freio");
-        digitalWrite(PIN_RELE_FREIO_OFF, LOW);
+        digitalWrite(PIN_RELE_FREIO_OFF, HIGH);
         delay(10);
-        digitalWrite(PIN_RELE_FREIO_ON, HIGH);
+        digitalWrite(PIN_RELE_FREIO_ON, LOW);
     }
 }
 
 void Freio::liberar() {
-    if (digitalRead(PIN_RELE_FREIO_ON) == HIGH) {
+    if (digitalRead(PIN_RELE_FREIO_ON) == LOW) {
         LOG_INFO("FREIO", "Liberando freio");
-        digitalWrite(PIN_RELE_FREIO_ON, LOW);
+        digitalWrite(PIN_RELE_FREIO_ON, HIGH);
         delay(10);
-        digitalWrite(PIN_RELE_FREIO_OFF, HIGH);
+        digitalWrite(PIN_RELE_FREIO_OFF, LOW);
     }
 }
