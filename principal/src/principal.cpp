@@ -52,6 +52,9 @@ Led            ledLink(PIN_LED_LINK);
 uint32_t       ultimoEnvioStatusMs = 0;
 EstadoSistema  estadoAnterior      = ESTADO_PARADO;
 
+// Controle do modo manual do freio
+bool           modoManualFreioAnterior  = false;
+
 // Controle de logging de transições (evitar spam)
 bool           watchdogAnteriorExpirado = false;
 bool           subirAnterior            = false;
@@ -68,9 +71,8 @@ void setup() {
     Serial.println("=== Módulo Principal — Inicializando ===");
 
     // Inicializar todos os módulos
-    freio.init();            // Configura GPIO + aciona freio (estado seguro)
+    freio.init();            // Configura GPIO + verifica microchave + estado seguro
     sensores.init();
-    pinMode(PIN_MICROCHAVE_FREIO, INPUT_PULLUP);  // GPIO 27 — NA, HIGH = freio engatado
     monitorRede.init();      // GPIO 13 — pull-down externo, HIGH = rede presente
     emergencia.init();
     rearme.init();
@@ -88,8 +90,45 @@ void loop() {
     // 0. Atualizar debounce do monitor de rede (antes de qualquer avaliação)
     monitorRede.atualizar();
 
+    // 0.5. Verificar microchave do freio (desativa relé após confirmação)
+    freio.atualizar();
+
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();
+
+    // 1.5. Modo manual do freio: REARME segurado + SUBIR/DESCER
+    //       Para ajuste quando o cilindro para no meio do curso
+    bool rearmeSeguro = (digitalRead(PIN_BTN_REARME) == LOW);
+    bool modoManualFreio = rearmeSeguro && (btn.subir_hold || btn.descer_hold);
+
+    if (modoManualFreio) {
+        motor.desligar();  // Motor sempre desligado em modo manual do freio
+
+        if (btn.subir_hold) {
+            freio.manualAcionar();   // REARME + SUBIR = cilindro avança (freio engata)
+        } else {
+            freio.manualLiberar();   // REARME + DESCER = cilindro retrai (freio libera)
+        }
+
+        modoManualFreioAnterior = true;
+
+        // Pular máquina de estados — ir direto para envio de status e LEDs
+        estadoAnterior = maquinaEstados.estadoAtual();
+        // LED LINK continua funcionando normalmente
+        if (!watchdog.expirado()) {
+            ledLink.desligar();
+        } else {
+            ledLink.ligar();
+        }
+        ledLink.atualizar();
+        return;
+    }
+
+    // Saindo do modo manual — sincronizar estado do freio pela microchave
+    if (modoManualFreioAnterior && !modoManualFreio) {
+        freio.manualParar();
+        modoManualFreioAnterior = false;
+    }
 
     // 2. Verificar rearme (antes da máquina de estados)
     EstadoSistema estadoAntesRearme = maquinaEstados.estadoAtual();
@@ -254,10 +293,11 @@ void loop() {
     }
 
     // 6. Atualizar LED LINK (watchdog OK = aceso, expirado = apagado)
+    //    Relé ativo em LOW: desligar() = LOW = relé acionado = LED aceso
     if (!watchdog.expirado()) {
-        ledLink.ligar();
-    } else {
         ledLink.desligar();
+    } else {
+        ledLink.ligar();
     }
     ledLink.atualizar();
 }

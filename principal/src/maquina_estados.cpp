@@ -34,8 +34,9 @@ EstadoSistema MaquinaEstados::atualizar(
     const bool tentativaRemotaDescer = (pacoteRemote.botao_hold == 1) && (pacoteRemote.comando == CMD_DESCER);
     const bool watchdogExpirado = watchdog.expirado();
 
-    // Leitura da microchave do freio (NA + pull-up interno: HIGH = freio engatado)
-    const bool freio_engatado = (digitalRead(PIN_MICROCHAVE_FREIO) == HIGH);
+    // Dupla verificação do freio: estado interno + leitura direta da microchave (GPIO 27)
+    // Ambas devem concordar para permitir movimentação
+    const bool freio_liberado = freio.isLiberado() && (digitalRead(PIN_MICROCHAVE_FREIO) == LOW);
 
     // Prioridade 1: emergência (botão local OU flag já ativa OU Remote)
     // Se rearmeAtivo=true, sinal de emergência do remote é ignorado (sobreposto pelo REARME)
@@ -144,14 +145,15 @@ EstadoSistema MaquinaEstados::atualizar(
     }
 
     if (dir != DIR_NENHUMA) {
-        if (!freio_engatado) {
-            freio.liberar();
+        freio.liberar();  // Idempotente se já liberando/liberado
+
+        if (freio_liberado) {
+            // Freio confirmado liberado pela microchave — motor pode acionar
             motor.acionar(dir);
             _estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
         } else {
-            // Operador tenta mover mas freio está engatado por hardware — bloqueia silenciosamente
+            // Freio ainda em transição (~10s) — aguardar sem acionar motor
             motor.desligar();
-            freio.acionar();
             _estado = ESTADO_PARADO;
         }
         return _estado;
