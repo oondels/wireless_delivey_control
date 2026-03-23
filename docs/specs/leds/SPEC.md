@@ -27,9 +27,11 @@ Estes LEDs estão conectados em paralelo com o módulo relé no mesmo GPIO. Acen
 | LED VEL1 | Relé velocidade 1 |
 | LED VEL2 | Relé velocidade 2 |
 | LED VEL3 | Relé velocidade 3 |
-| LED FREIO | Relé freio |
+| LED FREIO_ON | Relé FREIO_ON — aceso quando freio está aplicado |
 
-**Total: 6 LEDs compartilhados**
+> `FREIO_OFF` não possui LED associado. O estado "freio liberado" é indicado pela ausência do LED FREIO_ON.
+
+**Total: 6 LEDs compartilhados (FREIO_OFF não possui LED)**
 
 ### 2.2 LEDs Exclusivos com Abstração de Software
 
@@ -131,7 +133,7 @@ Controlados diretamente pelo acionamento dos relés — sem lógica de LED separ
 | VEL3 | Ligado fixo | `velocidade_atual == 3` (relé VEL3 ativo) |
 | DIREÇÃO A | Ligado fixo | Motor SUBINDO (relé DIREÇÃO A ativo) |
 | DIREÇÃO B | Ligado fixo | Motor DESCENDO (relé DIREÇÃO B ativo) |
-| FREIO | Ligado fixo | Freio acionado (relé FREIO ativo) |
+| FREIO_ON | Ligado fixo | Bobina de aplicação ativa — freio travado |
 
 ### 4.2 LED Exclusivo
 
@@ -140,7 +142,9 @@ Controlados diretamente pelo acionamento dos relés — sem lógica de LED separ
 | LINK REMOTE | Ligado fixo | Comunicação com Remote ativa (watchdog OK) |
 | LINK REMOTE | Desligado | Watchdog expirado ou Remote ausente |
 
-**Total no Painel Central: 6 compartilhados + 1 exclusivo = 7 GPIOs de saída**
+> O canal `FREIO_OFF` não possui LED. O estado "freio liberado" é inferido pela ausência do LED `FREIO_ON`.
+
+**Total no Painel Central: 6 compartilhados + 1 exclusivo = 7 GPIOs de saída** (FREIO_OFF não entra na contagem de LEDs)
 
 ---
 

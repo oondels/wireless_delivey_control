@@ -1,8 +1,8 @@
 # Especificação de Controle de Motor e Freio
 
-**Versão:** 1.0
-**Data:** 2026-03-16
-**Referência:** DESIGN_SPEC.md v3.1
+**Versão:** 2.0
+**Data:** 2026-03-22
+**Referência:** DESIGN_SPEC.md v3.3, README.md v3.4
 
 ---
 
@@ -82,30 +82,94 @@ A velocidade é controlada por **hardware externo**: potenciômetros físicos pr
 
 ### 4.1 Configuração
 
+O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; `GPIO HIGH` = relé desacionado.
+
 | Relé | Função | GPIO | Acionamento |
 |---|---|---|---|
-| FREIO | Freio mecânico | 1 GPIO compartilhado (relé + LED) | HIGH = freio aplicado |
+| FREIO_ON | Bobina de aplicação — cilindro avança, freio trava | 19 | GPIO LOW = bobina energizada |
+| FREIO_OFF | Bobina de liberação — cilindro recua, freio libera | 22 | GPIO LOW = bobina energizada |
 
-### 4.2 API do Firmware (classe `Freio`)
+**Microchave do freio (GPIO 27, NA + pull-up interno):**
+
+| GPIO 27 | Microchave | Estado do cilindro | Estado do freio |
+|---|---|---|---|
+| HIGH | Aberta (não pressionada) | Avançado | **Engatado** (ativo) — motor bloqueado |
+| LOW | Pressionada (acionada) | Retraído | **Liberado** (inativo) — motor permitido |
+
+> **Modo padrão:** freio engatado (GPIO 27 = HIGH). Fail-safe: cabo partido → GPIO HIGH → motor bloqueado.
+
+### 4.2 Máquina de Estados do Freio
+
+O freio possui uma máquina de estados interna (classe `Freio`) com 4 estados:
+
+```
+FREIO_ENGATADO   — Freio aplicado, confirmado pela microchave (GPIO 27 = HIGH)
+FREIO_ENGATANDO  — Relé FREIO_ON ativo, cilindro avançando (~7s), aguardando GPIO 27 → HIGH
+FREIO_LIBERADO   — Freio liberado, confirmado pela microchave (GPIO 27 = LOW)
+FREIO_LIBERANDO  — Relé FREIO_OFF ativo, cilindro retraindo (~7s), aguardando GPIO 27 → LOW
+```
+
+Os relés funcionam como **pulsos**: são ativados para iniciar o movimento do cilindro e desativados automaticamente quando a microchave confirma que o cilindro chegou à posição final. Isso evita manter a bobina energizada desnecessariamente.
+
+### 4.3 API do Firmware (classe `Freio`)
 
 ```cpp
 Freio freio;
-freio.init();
-freio.acionar();   // GPIO HIGH → relé energizado → freio aplicado + LED aceso
-freio.liberar();   // GPIO LOW  → relé desenergizado → freio liberado + LED apagado
+freio.init();  // Configura GPIOs, lê microchave para determinar estado inicial
+
+// Inicia engate do freio (idempotente se já ENGATADO ou ENGATANDO)
+freio.acionar();
+//   GPIO 22 (FREIO_OFF) → HIGH  (garante bobina de liberação inativa)
+//   delay 10 ms
+//   GPIO 19 (FREIO_ON)  → LOW   (pulsa bobina de aplicação)
+//   _estado = FREIO_ENGATANDO
+//   atualizar() desativa FREIO_ON quando GPIO 27 → HIGH (~7s)
+
+// Inicia liberação do freio (idempotente se já LIBERADO ou LIBERANDO)
+freio.liberar();
+//   GPIO 19 (FREIO_ON)  → HIGH  (garante bobina de aplicação inativa)
+//   delay 10 ms
+//   GPIO 22 (FREIO_OFF) → LOW   (pulsa bobina de liberação)
+//   _estado = FREIO_LIBERANDO
+//   atualizar() desativa FREIO_OFF quando GPIO 27 → LOW (~7s)
+
+// Monitorar microchave e transicionar estados (chamar no loop principal)
+freio.atualizar();
+
+// Consultar estado
+freio.isLiberado();   // true somente após GPIO 27 = LOW confirmado
+freio.isEngatado();   // true somente após GPIO 27 = HIGH confirmado
+freio.isTransicao();  // true durante ENGATANDO ou LIBERANDO
 ```
 
-### 4.3 Regras de Operação
+> **Invariante:** `FREIO_ON` e `FREIO_OFF` nunca ficam LOW (ativos) simultaneamente. A troca sempre segue: desativa lado ativo → dead-time ~10 ms → ativa lado oposto.
 
-- O freio é o **estado padrão** — sempre acionado quando o motor está desligado.
-- O freio é liberado **somente** quando o motor está prestes a ser ligado.
-- Não há leitura de sensor de freio pelo firmware — a microchave atua diretamente no circuito.
+### 4.4 Regras de Operação
 
-### 4.4 Microchave do Freio (Hardware Externo)
+- O freio é o **estado padrão** — sistema inicializa em FREIO_ENGATADO (ou FREIO_ENGATANDO se GPIO 27 = LOW na inicialização).
+- O motor **nunca** aciona sem `freio.isLiberado() == true` **E** `digitalRead(GPIO 27) == LOW` (dupla verificação).
+- Durante a transição (~7s), o motor permanece bloqueado e o estado do sistema é `PARADO`.
+- Guarda de segurança em `atualizar()`: se estado é LIBERADO mas GPIO 27 = HIGH (freio engata externamente), estado é corrigido imediatamente para ENGATADO.
 
-- Conectada **diretamente** ao circuito do freio mecânico, **não** ao ESP32.
-- Atua como camada de segurança independente do firmware.
-- Impede fisicamente o funcionamento do motor se o freio estiver engatado.
+### 4.5 Modo Manual de Recuperação (REARME + SUBIR/DESCER)
+
+Para situações onde o cilindro para no meio do curso (microchave não ativada, sistema travado):
+
+| Combinação | Ação |
+|---|---|
+| REARME segurado + SUBIR hold | `freio.manualAcionar()` — força cilindro avançar (freio engata) |
+| REARME segurado + DESCER hold | `freio.manualLiberar()` — força cilindro retrair (freio libera) |
+
+- Motor permanece **sempre desligado** durante o modo manual.
+- Máquina de estados principal é **ignorada**.
+- Ao soltar REARME ou direção, `freio.manualParar()` desliga ambos os relés e ressincroniza o estado pela microchave.
+
+### 4.6 Microchave do Freio
+
+- Conectada ao **GPIO 27** do ESP32 Principal (NA, pull-up interno `INPUT_PULLUP`).
+- Lida pelo firmware para controle da máquina de estados do freio.
+- Também pode estar conectada diretamente ao circuito elétrico do freio como camada de hardware independente.
+- O Remote **não recebe** o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor durante a transição.
 
 ---
 
@@ -145,8 +209,15 @@ Operador pressiona e segura SUBIR ou DESCER
   ├─ Verificar: falha_comunicacao == false
   ├─ Verificar: fim_de_curso não acionado (se SUBIR)
   │
-  ├─ Liberar freio (GPIO LOW → relé freio OFF)
-  ├─ Acionar relé de direção correspondente (GPIO HIGH)
+  ├─ freio.liberar() → pulso FREIO_OFF (GPIO 22 LOW)
+  │   [cilindro retrai durante ~7 segundos]
+  │   [atualizar() monitora GPIO 27]
+  │
+  ├─ Aguardar: freio.isLiberado() == true E GPIO 27 == LOW
+  │   (durante a espera: motor desligado, estado PARADO)
+  │
+  ├─ freio.atualizar() confirma GPIO 27 LOW → FREIO_OFF desativado
+  ├─ Acionar relé de direção correspondente (GPIO LOW = ativo)
   └─ Estado → SUBINDO ou DESCENDO
 ```
 
@@ -155,8 +226,12 @@ Operador pressiona e segura SUBIR ou DESCER
 ```
 Operador solta SUBIR ou DESCER
   │
-  ├─ Desacionar relés de direção (GPIO LOW)
-  ├─ Acionar freio (GPIO HIGH → relé freio ON)
+  ├─ Desacionar relés de direção (GPIO HIGH = inativo)
+  ├─ freio.acionar() → pulso FREIO_ON (GPIO 19 LOW)
+  │   [cilindro avança durante ~7 segundos]
+  │   [atualizar() monitora GPIO 27]
+  │
+  ├─ freio.atualizar() confirma GPIO 27 HIGH → FREIO_ON desativado
   └─ Estado → PARADO
 ```
 
@@ -165,11 +240,12 @@ Operador solta SUBIR ou DESCER
 ```
 Operador solta SUBIR → pressiona DESCER (ou vice-versa)
   │
-  ├─ Desacionar relé de direção atual (GPIO LOW)
-  ├─ Acionar freio (GPIO HIGH)
-  ├─ Aguardar dead-time (100 ms)
-  ├─ Liberar freio (GPIO LOW)
-  ├─ Acionar relé de direção oposta (GPIO HIGH)
+  ├─ Desacionar relé de direção atual (GPIO HIGH)
+  ├─ freio.acionar() → pulso FREIO_ON
+  ├─ Dead-time 100 ms no motor (classe Motor)
+  ├─ freio.liberar() → pulso FREIO_OFF
+  ├─ Aguardar freio.isLiberado() == true (GPIO 27 LOW)
+  ├─ Acionar relé de direção oposta (GPIO LOW)
   └─ Estado → DESCENDO (ou SUBINDO)
 ```
 
@@ -177,13 +253,16 @@ Operador solta SUBIR → pressiona DESCER (ou vice-versa)
 
 ## 7. Tabela de Condições de Acionamento do Motor
 
-| Emergência | Falha Comun. | Fim de Curso | Botão Hold | Resultado |
-|---|---|---|---|---|
-| Não | Não | Não acionado | Pressionado | Motor ON |
-| Não | Não | Não acionado | Solto | Motor OFF → Freio ON → `PARADO` |
-| Não | Não | Acionado | Qualquer | Motor OFF → Freio ON → `PARADO` |
-| Não | Sim | Qualquer | Qualquer | `FALHA_COMUNICACAO` → Freio ON |
-| Sim | Qualquer | Qualquer | Qualquer | `EMERGENCIA_ATIVA` → Freio ON |
+| Emergência | Falha Comun. | Fim de Curso | GPIO 27 | Botão Hold | Resultado |
+|---|---|---|---|---|---|
+| Não | Não | Não acionado | LOW (freio liberado) | Pressionado | Motor ON |
+| Não | Não | Não acionado | HIGH (freio engatado/transição) | Pressionado | Motor AGUARDA (FREIO_OFF pulsando) |
+| Não | Não | Não acionado | Qualquer | Solto | Motor OFF → Freio ON → `PARADO` |
+| Não | Não | Acionado | Qualquer | Qualquer | Motor OFF → Freio ON → `PARADO` |
+| Não | Sim | Qualquer | Qualquer | Qualquer | `FALHA_COMUNICACAO` → Freio ON |
+| Sim | Qualquer | Qualquer | Qualquer | Qualquer | `EMERGENCIA_ATIVA` → Freio ON |
+
+> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação da microchave, ambos ficam HIGH (bobinas desenergizadas).
 
 ---
 

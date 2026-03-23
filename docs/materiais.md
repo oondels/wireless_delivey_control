@@ -29,7 +29,7 @@
 | **Valor total** | **R$ 40,00** |
 | Link | [Ver no Mercado Livre](https://www.mercadolivre.com.br/modulo-rele-8-canais-5v-10a-para-arduino-e-automaco-blutu/p/MLB45022588) |
 
-> Módulo com 8 canais, 5V, 10A — compatível com Arduino e automação.
+> Módulo com 8 canais, 5V, 10A — compatível com Arduino e automação. 7 canais em uso (FREIO_ON e FREIO_OFF ocupam 2 canais; 1 canal livre restante).
 
 ---
 

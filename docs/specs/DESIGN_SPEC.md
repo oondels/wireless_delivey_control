@@ -1,7 +1,7 @@
 # Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 3.2
-**Data:** 2026-03-17
+**Versão:** 3.3
+**Data:** 2026-03-22
 **Status:** Em execução
 
 ---
@@ -55,7 +55,7 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
 | Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava), REARME; microchave do freio; fim de curso do estacionamento |
-| Saídas relés | Relés 5V: direção do motor (2x), velocidade (3x), freio (1x) |
+| Saídas relés | Relés 5V: direção do motor (2x), velocidade (3x), freio (2x — FREIO_ON e FREIO_OFF) |
 | Saídas LEDs | 1 GPIO por LED: VEL1, VEL2, VEL3, EMERGÊNCIA, LINK REMOTE — cor definida pelo LED físico instalado |
 | Comunicação | ESP-NOW — recebe pacotes do Remote, envia status de retorno |
 
@@ -78,7 +78,14 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 
 ### 4.1 Microchave do Freio
 
-Conectada ao Módulo Principal. Indica o estado mecânico do freio. Sinal HIGH = freio liberado; sinal LOW = freio engatado. Condição obrigatória para acionamento do motor (ver seção 5.3).
+Conectada ao GPIO 27 do Módulo Principal (NA + pull-up interno). Indica o estado mecânico do freio pelo posicionamento do cilindro:
+
+- **GPIO 27 HIGH** (pull-up, sem GND) = microchave aberta = cilindro avançado = **freio engatado** (ativo)
+- **GPIO 27 LOW** (recebendo GND) = microchave pressionada = cilindro retraído = **freio liberado** (inativo)
+
+O modo padrão do freio é **engatado** (GPIO 27 HIGH). O motor só pode ser acionado após o freio ser liberado e a microchave confirmar (GPIO 27 LOW). O cilindro leva aproximadamente **7 segundos** para completar o curso em cada sentido.
+
+Fail-safe: cabo partido → GPIO flutua HIGH → interpretado como freio engatado → motor bloqueado.
 
 ### 4.2 Fim de Curso do Estacionamento
 
@@ -114,12 +121,24 @@ Sensor instalado no estacionamento/depósito que é acionado quando o carrinho c
 - Esta regra aplica-se tanto ao Painel Central quanto ao Remote.
 - O Remote transmite o estado do botão (pressionado / solto) continuamente. O Principal executa a lógica localmente com base no estado recebido.
 
-### 5.3 Trava Lógica e Microchave do Freio
+### 5.3 Sequência de Acionamento do Motor com Freio
 
-- O Principal monitora continuamente o estado da microchave conectada ao freio mecânico.
-- O motor **só pode ser energizado** se a microchave indicar que o freio está **liberado** (sinal HIGH).
-- Se a microchave indicar freio engatado (sinal LOW), qualquer comando de movimentação é **sumariamente ignorado**.
-- Quando a trava lógica está ativa no software (emergência ou outra condição de bloqueio), os comandos de movimentação do Remote são ignorados independentemente do estado da microchave.
+O freio é um cilindro solenoide de dupla bobina. O motor **não aciona imediatamente** ao pressionar o botão — há uma sequência obrigatória:
+
+1. Operador pressiona e mantém SUBIR ou DESCER.
+2. Firmware dispara um pulso em `FREIO_OFF` (GPIO 22 LOW) para iniciar a retração do cilindro.
+3. O cilindro retrai ao longo de **~7 segundos** até acionar a microchave.
+4. Quando GPIO 27 = LOW (microchave pressionada), o freio está confirmado como liberado. O firmware desativa o relé `FREIO_OFF` (pulso encerrado).
+5. Somente então o motor é acionado (`FREIO_ON` e `FREIO_OFF` ambos desativados; motor ON).
+
+**O motor nunca aciona antes de GPIO 27 = LOW.** O firmware usa dupla verificação: estado interno da máquina do freio (`isLiberado()`) **E** leitura direta de GPIO 27.
+
+Ao soltar o botão, o processo inverso ocorre:
+1. Motor desligado imediatamente.
+2. Pulso em `FREIO_ON` (GPIO 19 LOW) para avançar o cilindro e engatá-lo.
+3. Quando GPIO 27 = HIGH (microchave abre), o freio está confirmado engatado. Firmware desativa `FREIO_ON`.
+
+Quando a trava lógica está ativa no software (emergência ou outra condição de bloqueio), os comandos de movimentação são ignorados independentemente do estado da microchave.
 
 ---
 
@@ -255,14 +274,15 @@ typedef struct {
 ```c
 typedef struct {
     uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
-                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO
-    uint8_t  estado_freio;   // 0=engatado, 1=liberado
+                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO, 5=FALHA_ENERGIA
     uint8_t  velocidade;     // 1, 2 ou 3 — sincroniza LEDs de velocidade no Remote
-    uint8_t  trava_logica;   // 1=trava ativa
+    uint8_t  trava_logica;   // 1=trava ativa (motor bloqueado)
     uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão emergência Remote ainda travado
     uint8_t  checksum;
 } PacoteStatus;
 ```
+
+> O campo `estado_freio` foi removido: o Remote não exibe estado do freio diretamente. O campo `FALHA_ENERGIA` (valor 5) foi adicionado para refletir o estado de queda de energia da rede elétrica.
 
 ### 8.4 Frequência de Envio
 
@@ -307,7 +327,8 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 | VEL1 | 17 | Ligado fixo | `velocidade_atual == 1` (compartilhado c/ relé) |
 | VEL2 | 5 | Ligado fixo | `velocidade_atual == 2` (compartilhado c/ relé) |
 | VEL3 | 18 | Ligado fixo | `velocidade_atual == 3` (compartilhado c/ relé) |
-| FREIO | 19 | Ligado fixo | Relé de freio acionado (compartilhado c/ relé) |
+| FREIO_ON  | 19 | Ligado fixo | Bobina de aplicação energizada — freio aplicado (compartilhado c/ relé) |
+| FREIO_OFF | 22 | (sem LED)   | Bobina de liberação — sem indicador visual                            |
 | LINK REMOTE | 21 | Ligado fixo | Comunicação com Remote ativa (watchdog OK) |
 
 **Total: 7 GPIOs de saída** (6 compartilhados com relés + 1 exclusivo)
@@ -335,7 +356,7 @@ O firmware inclui logging via Serial (115200 baud) para depuração pré-deploy.
 
 ## 12. Fora de Escopo (v1.0)
 
-- Fim de curso na posição inferior (margem do rio).
+- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 13)
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
 - Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).

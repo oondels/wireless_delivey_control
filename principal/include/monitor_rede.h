@@ -27,7 +27,11 @@ public:
     void atualizar();
 
     // Retorna true se a rede está presente (estado estável HIGH)
+    #ifdef BYPASS_MONITOR_REDE
+    bool redePresente() const { return true; }
+    #else
     bool redePresente() const { return _ultimoEstavel; }
+    #endif
 
 private:
     bool     _ultimoEstavel    = true;   // estado estável após debounce

@@ -1,8 +1,8 @@
 # Especificação de Segurança e Emergência (Fail-Safe)
 
-**Versão:** 1.3
-**Data:** 2026-03-19
-**Referência:** DESIGN_SPEC.md v3.1, README.md v3.4
+**Versão:** 1.4
+**Data:** 2026-03-22
+**Referência:** DESIGN_SPEC.md v3.3, README.md v3.4
 
 ---
 
@@ -172,12 +172,15 @@ Sequência executada imediatamente:
 
 ## 6. Proteções de Hardware
 
-### 6.1 Microchave do Freio
+### 6.1 Microchave do Freio (GPIO 27)
 
-- Conectada diretamente ao circuito do freio mecânico (**não** ao ESP32).
-- Atua como camada de segurança independente do firmware.
-- Impede fisicamente o funcionamento do motor se o freio estiver engatado.
-- Não depende de software para funcionar.
+- Conectada ao **GPIO 27** do ESP32 Principal (NA, `INPUT_PULLUP`).
+- Indica o estado mecânico do cilindro do freio:
+  - **HIGH** = cilindro avançado = freio engatado → motor bloqueado
+  - **LOW** = cilindro retraído = freio liberado → motor permitido
+- O firmware lê GPIO 27 continuamente em `Freio::atualizar()` e bloqueia o motor até receber confirmação LOW.
+- Fail-safe: cabo partido → HIGH → motor bloqueado (comportamento seguro por projeto).
+- Pode também estar conectada diretamente ao circuito do freio como camada de hardware independente (opcional, não depende do firmware).
 
 ### 6.2 Fim de Curso do Estacionamento
 
@@ -215,6 +218,8 @@ Sequência executada imediatamente:
 | 6 | Soltura do botão de acionamento (Homem-Morto) | Operador | `PARADO` | Não |
 | 7 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
 | 8 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
+
+> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação da microchave, ambos ficam HIGH (bobinas desenergizadas — os relés funcionam como pulso). O comportamento fail-safe (queda de energia → freio aplicado) é garantido pelo estado padrão do sistema ser FREIO_ENGATADO.
 
 ---
 

@@ -64,7 +64,7 @@ void Comunicacao::atualizarPeerRemoto(const uint8_t* mac) {
     );
 }
 
-void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
+void Comunicacao::onDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
     if (len != sizeof(PacoteRemote)) {
         return;
     }
@@ -78,6 +78,7 @@ void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
         return;
     }
 
+    const uint8_t* mac = (info != nullptr) ? info->src_addr : nullptr;
     atualizarPeerRemoto(mac);
 
     // Pacote válido — resetar watchdog
