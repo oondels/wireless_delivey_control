@@ -13,6 +13,14 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 ### Refatorado
 - Todos os módulos do Principal convertidos de C procedural para C++ orientado a objetos (classes encapsuladas, sem variáveis globais/static de módulo)
 
+### Corrigido
+- Estado seguro do freio: `FREIO_ON` permanece ativo por padrão no boot e em qualquer estado de repouso; freio só é liberado ao acionar o motor ou entrar no modo manual
+- Modo manual do freio — dois bugs de segurança:
+  - Relé `FREIO_OFF` permanecia ativo mesmo após a microchave confirmar o fim de curso do cilindro, forçando contra o componente mecânico; agora o loop verifica o GPIO antes de acionar e chama `manualParar()` se o fim de curso já foi atingido
+  - Emergência era ignorada durante o modo manual porque o bloco executava `return` antes da máquina de estados; adicionada verificação prévia que combina `emergencia.isAtiva()`, botão local e campo `emergencia` do último `PacoteRemote`
+- Lógica de parada no modo manual ajustada; estado do freio sincronizado pela leitura da microchave ao sair do modo manual
+- Compatibilidade do callback `OnDataRecv` com ESP-IDF < 5.0: adicionada guarda de pré-processador via `ESP_IDF_VERSION_MAJOR` para suportar as duas assinaturas do callback (corrige erros de build `esp_now_recv_info_t does not name a type`)
+
 ### Alterado
 - Em perda de comunicação, fail-safe imediato mantido (motor OFF + freio ON), com desbloqueio apenas por REARME manual
 - Comandos do Remote passam a ser ignorados durante watchdog expirado; controle local permanece disponível em modo degradado até recuperação do link
