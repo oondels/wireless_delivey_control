@@ -219,7 +219,7 @@ Sequência executada imediatamente:
 | 7 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
 | 8 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
 
-> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação da microchave, ambos ficam HIGH (bobinas desenergizadas — os relés funcionam como pulso). O comportamento fail-safe (queda de energia → freio aplicado) é garantido pelo estado padrão do sistema ser FREIO_ENGATADO.
+> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação de liberação (GPIO 27 = LOW), FREIO_OFF vai para HIGH (pulso encerrado). FREIO_ON **permanece LOW** continuamente enquanto o freio está engatado — não é desativado após confirmação da microchave. O comportamento fail-safe (queda de energia → freio aplicado) é garantido pelo estado padrão do sistema ser FREIO_ENGATADO com FREIO_ON ativo.
 
 ---
 

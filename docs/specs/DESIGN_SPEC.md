@@ -128,8 +128,8 @@ O freio é um cilindro solenoide de dupla bobina. O motor **não aciona imediata
 1. Operador pressiona e mantém SUBIR ou DESCER.
 2. Firmware dispara um pulso em `FREIO_OFF` (GPIO 22 LOW) para iniciar a retração do cilindro.
 3. O cilindro retrai ao longo de **~10 segundos** até acionar a microchave.
-4. Quando GPIO 27 = LOW (microchave pressionada), o freio está confirmado como liberado. O firmware desativa o relé `FREIO_OFF` (pulso encerrado).
-5. Somente então o motor é acionado (`FREIO_ON` e `FREIO_OFF` ambos desativados; motor ON).
+4. Quando GPIO 27 = LOW (microchave pressionada), o freio está confirmado como liberado. O firmware desativa o relé `FREIO_OFF` (pulso encerrado). `FREIO_ON` permanece LOW (ativo continuamente).
+5. Somente então o motor é acionado (`FREIO_OFF` desativado; `FREIO_ON` ativo; motor ON).
 
 **O motor nunca aciona antes de GPIO 27 = LOW.** O firmware usa dupla verificação: estado interno da máquina do freio (`isLiberado()`) **E** leitura direta de GPIO 27.
 

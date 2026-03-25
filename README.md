@@ -129,13 +129,15 @@ O freio é um **cilindro solenoide de dupla bobina**. A microchave (GPIO 27, NA 
 
 **O cilindro leva aproximadamente 10 segundos para completar o curso em cada sentido.**
 
-Os relés das bobinas funcionam como **pulsos**: são ativados para iniciar o movimento e desativados automaticamente quando a microchave confirma a posição final. Isso evita manter a bobina energizada continuamente.
+Os relés das bobinas operam de forma assimétrica:
+- **FREIO_ON (GPIO 19 — aplicação):** permanece **ativo continuamente** enquanto o freio está engatado. O cilindro possui fim de curso mecânico próprio; o relé não é desativado após a microchave confirmar.
+- **FREIO_OFF (GPIO 22 — liberação):** funciona como **pulso** — é ativado para retrair o cilindro e desativado automaticamente quando a microchave confirma o freio liberado (GPIO 27 = LOW), evitando pressão contínua desnecessária.
 
 **Sequência ao solicitar movimento (SUBIR/DESCER):**
-1. Firmware dispara pulso em FREIO_OFF (GPIO 22) — cilindro começa a retrair.
+1. Firmware ativa FREIO_OFF (GPIO 22 LOW) — cilindro começa a retrair.
 2. Durante ~10s, o motor fica **bloqueado** e o estado permanece `PARADO`.
 3. Quando GPIO 27 = LOW, o firmware confirma freio liberado e desativa o relé FREIO_OFF.
-4. Motor é acionado.
+4. Motor é acionado. FREIO_ON permanece LOW (ativo) durante toda a movimentação.
 
 **Fail-safe:** cabo partido → GPIO HIGH → motor bloqueado por hardware de pull-up.
 

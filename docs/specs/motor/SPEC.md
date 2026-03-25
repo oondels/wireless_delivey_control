@@ -109,7 +109,9 @@ FREIO_LIBERADO   — Freio liberado, confirmado pela microchave (GPIO 27 = LOW)
 FREIO_LIBERANDO  — Relé FREIO_OFF ativo, cilindro retraindo (~10s), aguardando GPIO 27 → LOW
 ```
 
-Os relés funcionam como **pulsos**: são ativados para iniciar o movimento do cilindro e desativados automaticamente quando a microchave confirma que o cilindro chegou à posição final. Isso evita manter a bobina energizada desnecessariamente.
+Os relés operam de forma assimétrica:
+- **FREIO_ON (GPIO 19 — aplicação):** permanece **ativo continuamente** enquanto o freio está engatado. O cilindro possui fim de curso mecânico próprio; o relé não é desativado após a microchave confirmar o engate.
+- **FREIO_OFF (GPIO 22 — liberação):** funciona como **pulso** — é ativado para retrair o cilindro e desativado automaticamente quando a microchave confirma o freio liberado (GPIO 27 = LOW).
 
 ### 4.3 API do Firmware (classe `Freio`)
 
@@ -121,9 +123,10 @@ freio.init();  // Configura GPIOs, lê microchave para determinar estado inicial
 freio.acionar();
 //   GPIO 22 (FREIO_OFF) → HIGH  (garante bobina de liberação inativa)
 //   delay 10 ms
-//   GPIO 19 (FREIO_ON)  → LOW   (pulsa bobina de aplicação)
+//   GPIO 19 (FREIO_ON)  → LOW   (ativa bobina de aplicação — permanece ativa)
 //   _estado = FREIO_ENGATANDO
-//   atualizar() desativa FREIO_ON quando GPIO 27 → HIGH (~10s)
+//   atualizar() confirma GPIO 27 → HIGH (~10s) e atualiza _estado = FREIO_ENGATADO
+//   FREIO_ON permanece LOW continuamente (não é desativado após confirmação)
 
 // Inicia liberação do freio (idempotente se já LIBERADO ou LIBERANDO)
 freio.liberar();
@@ -163,6 +166,7 @@ Para situações onde o cilindro para no meio do curso (microchave não ativada,
 - Motor permanece **sempre desligado** durante o modo manual.
 - Máquina de estados principal é **ignorada**.
 - Ao soltar REARME ou direção, `freio.manualParar()` desliga ambos os relés e ressincroniza o estado pela microchave.
+- **Emergência tem prioridade máxima:** se qualquer fonte de emergência estiver ativa (botão local, botão remote, ou sinal ESP-NOW), o modo manual é **completamente bloqueado**, independentemente de REARME estar pressionado.
 
 ### 4.6 Microchave do Freio
 
@@ -231,7 +235,7 @@ Operador solta SUBIR ou DESCER
   │   [cilindro avança durante ~10 segundos]
   │   [atualizar() monitora GPIO 27]
   │
-  ├─ freio.atualizar() confirma GPIO 27 HIGH → FREIO_ON desativado
+  ├─ freio.atualizar() confirma GPIO 27 HIGH → _estado = FREIO_ENGATADO (FREIO_ON permanece LOW)
   └─ Estado → PARADO
 ```
 
@@ -262,7 +266,7 @@ Operador solta SUBIR → pressiona DESCER (ou vice-versa)
 | Não | Sim | Qualquer | Qualquer | Qualquer | `FALHA_COMUNICACAO` → Freio ON |
 | Sim | Qualquer | Qualquer | Qualquer | Qualquer | `EMERGENCIA_ATIVA` → Freio ON |
 
-> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação da microchave, ambos ficam HIGH (bobinas desenergizadas).
+> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação de liberação (GPIO 27 = LOW), FREIO_OFF vai para HIGH (pulso encerrado). FREIO_ON **permanece LOW** continuamente enquanto o freio está engatado.
 
 ---
 

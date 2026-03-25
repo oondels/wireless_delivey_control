@@ -90,7 +90,7 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 | FREIO_ON | 19 | Bobina de aplicação (cilindro avança, freio trava) | LED FREIO — aceso quando bobina pulsa | GPIO LOW = energizada |
 | FREIO_OFF | 22 | Bobina de liberação (cilindro retrai, freio libera) | Nenhum | GPIO LOW = energizada |
 
-> **Nota sobre o LED FREIO_ON:** o relé permanece ativo apenas durante o pulso de acionamento (~10s até microchave confirmar). Após confirmação, o relé é desativado (GPIO HIGH) para não manter a bobina energizada continuamente.
+> **Nota sobre o LED FREIO_ON:** o relé permanece ativo **continuamente** enquanto o freio está engatado — o cilindro possui fim de curso mecânico próprio, portanto o relé não é desativado após confirmação da microchave. O LED acende ao acionar o freio e permanece aceso enquanto o freio estiver aplicado.
 
 **Total: 7 GPIOs de saída (6 c/ LED + 1 sem LED)**
 
