@@ -64,6 +64,7 @@ void Comunicacao::atualizarPeerRemoto(const uint8_t* mac) {
     );
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 void Comunicacao::onDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
     if (len != sizeof(PacoteRemote)) {
         return;
@@ -90,6 +91,33 @@ void Comunicacao::onDataRecv(const esp_now_recv_info_t* info, const uint8_t* dat
     memcpy((void*)&_ultimoPacote, &pacote, sizeof(PacoteRemote));
     _novoPacote = true;
 }
+#else
+void Comunicacao::onDataRecv(const uint8_t* mac_addr, const uint8_t* data, int len) {
+    if (len != sizeof(PacoteRemote)) {
+        return;
+    }
+
+    PacoteRemote pacote;
+    memcpy(&pacote, data, sizeof(PacoteRemote));
+
+    // Validar checksum — pacotes inválidos são descartados sem resetar watchdog
+    uint8_t cs = calcular_checksum((const uint8_t*)&pacote, sizeof(PacoteRemote) - 1);
+    if (cs != pacote.checksum) {
+        return;
+    }
+
+    atualizarPeerRemoto(mac_addr);
+
+    // Pacote válido — resetar watchdog
+    if (_pWatchdog) {
+        _pWatchdog->resetar();
+    }
+
+    // Copiar pacote para variável estática
+    memcpy((void*)&_ultimoPacote, &pacote, sizeof(PacoteRemote));
+    _novoPacote = true;
+}
+#endif
 
 void Comunicacao::init(WatchdogComm& watchdog) {
     _pWatchdog   = &watchdog;

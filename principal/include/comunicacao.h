@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
+#include <esp_idf_version.h>
 #include "protocolo.h"
 #include "watchdog_comm.h"
 
@@ -32,7 +33,12 @@ public:
 private:
     static constexpr uint8_t MAC_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+    // Assinatura compatível com ESP-IDF 5.x (Arduino ESP32 >= 3.x) e versões anteriores
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     static void onDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len);
+#else
+    static void onDataRecv(const uint8_t* mac_addr, const uint8_t* data, int len);
+#endif
     static void atualizarPeerRemoto(const uint8_t* mac);
     static bool registrarPeer(const uint8_t* mac);
 
