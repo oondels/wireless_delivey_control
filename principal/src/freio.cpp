@@ -103,18 +103,20 @@ void Freio::manualLiberar() {
 void Freio::manualParar() {
     if (!_modoManual) return;
 
-    // Retorna ao estado seguro: desativa FREIO_OFF, ativa FREIO_ON
+    // Desliga ambos os relés
+    digitalWrite(PIN_RELE_FREIO_ON, HIGH);
     digitalWrite(PIN_RELE_FREIO_OFF, HIGH);
-    delay(10);
-    digitalWrite(PIN_RELE_FREIO_ON, LOW);
 
-    // Sincroniza estado interno pela microchave
+    // Sincroniza estado pela microchave
     if (digitalRead(PIN_MICROCHAVE_FREIO) == HIGH) {
         _estado = FREIO_ENGATADO;
+    } else if (digitalRead(PIN_MICROCHAVE_FREIO) == LOW) {
+        _estado = FREIO_LIBERADO;
     } else {
-        _estado = FREIO_ENGATANDO;  // Ainda em curso — atualizar() confirma quando chegar
+        // Cilindro no meio do curso — estado indefinido, manter como ENGATANDO
+        _estado = FREIO_ENGATANDO;
     }
 
     _modoManual = false;
-    LOG_WARN("FREIO", "Modo MANUAL desativado — rele FREIO_ON ativo, aguardando confirmacao");
+    LOG_WARN("FREIO", "Modo MANUAL desativado — estado sincronizado pela microchave");
 }
