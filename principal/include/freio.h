@@ -11,8 +11,10 @@
  *   HIGH = freio engatado (cilindro avançado, microchave aberta)
  *   LOW  = freio liberado (cilindro retraído, microchave pressionada)
  *
- * O cilindro leva ~10s para completar o curso. Os relés das bobinas são
- * desativados após confirmação da microchave (funcionam como pulso).
+ * O cilindro leva ~10s para completar o curso. O cilindro possui fim de
+ * curso mecânico próprio — os relés permanecem ativos continuamente:
+ * FREIO_ON enquanto o freio está engatado; FREIO_OFF enquanto liberado.
+ * Estado padrão e seguro: FREIO_ON ativo.
  *
  * Ref: motor/SPEC.md §4
  */
@@ -46,7 +48,7 @@ public:
     // Controla relés diretamente, ignorando máquina de estados do freio
     void manualAcionar();   // Força relé FREIO_ON (cilindro avança)
     void manualLiberar();   // Força relé FREIO_OFF (cilindro retrai)
-    void manualParar();     // Desliga ambos os relés e sincroniza estado pela microchave
+    void manualParar();     // Ativa FREIO_ON (estado seguro) e sincroniza estado pela microchave
     bool emModoManual() const { return _modoManual; }
 
 private:

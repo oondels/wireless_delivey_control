@@ -2,8 +2,9 @@
  * freio.cpp — Implementação do controle do freio solenoide de dupla bobina
  *
  * O cilindro leva ~10s para completar o curso em cada direção.
- * Os relés funcionam como pulso: são desativados após a microchave
- * confirmar que o cilindro chegou à posição final.
+ * O cilindro possui fim de curso mecânico próprio — os relés permanecem
+ * ativos continuamente (FREIO_ON enquanto engatado, FREIO_OFF enquanto liberado).
+ * Estado padrão e seguro do sistema: FREIO_ON ativo.
  *
  * Ref: motor/SPEC.md §4
  */
@@ -16,20 +17,16 @@ void Freio::init() {
     pinMode(PIN_RELE_FREIO_OFF, OUTPUT);
     pinMode(PIN_MICROCHAVE_FREIO, INPUT_PULLUP);
 
-    // Ambos os relés desativados inicialmente
-    digitalWrite(PIN_RELE_FREIO_ON, HIGH);
+    // FREIO_OFF desativado; FREIO_ON ativo — estado seguro padrão
     digitalWrite(PIN_RELE_FREIO_OFF, HIGH);
+    digitalWrite(PIN_RELE_FREIO_ON, LOW);
 
-    // Determinar estado inicial pela microchave
     if (digitalRead(PIN_MICROCHAVE_FREIO) == HIGH) {
-        // Freio já engatado — não precisa pulsar
         _estado = FREIO_ENGATADO;
-        LOG_INFO("FREIO", "Init — freio ja engatado (microchave HIGH)");
+        LOG_INFO("FREIO", "Init — freio ja engatado, rele FREIO_ON mantido ativo");
     } else {
-        // Freio liberado — acionar para estado seguro
-        LOG_INFO("FREIO", "Init — freio liberado, acionando para estado seguro");
-        digitalWrite(PIN_RELE_FREIO_ON, LOW);
         _estado = FREIO_ENGATANDO;
+        LOG_INFO("FREIO", "Init — freio liberado, acionando para estado seguro");
     }
 }
 
@@ -63,10 +60,9 @@ void Freio::atualizar() {
 
     bool microchave = digitalRead(PIN_MICROCHAVE_FREIO);
 
-    // Transições de confirmação: relé ativo → microchave confirma → desativa relé
+    // Transições de confirmação: apenas atualiza estado interno — relés permanecem ativos
     if (_estado == FREIO_ENGATANDO && microchave == HIGH) {
-        LOG_INFO("FREIO", "Microchave confirmou freio engatado — desativando rele FREIO_ON");
-        digitalWrite(PIN_RELE_FREIO_ON, HIGH);
+        LOG_INFO("FREIO", "Microchave confirmou freio engatado — rele FREIO_ON permanece ativo");
         _estado = FREIO_ENGATADO;
     }
 
@@ -107,20 +103,18 @@ void Freio::manualLiberar() {
 void Freio::manualParar() {
     if (!_modoManual) return;
 
-    // Desliga ambos os relés
-    digitalWrite(PIN_RELE_FREIO_ON, HIGH);
+    // Retorna ao estado seguro: desativa FREIO_OFF, ativa FREIO_ON
     digitalWrite(PIN_RELE_FREIO_OFF, HIGH);
+    delay(10);
+    digitalWrite(PIN_RELE_FREIO_ON, LOW);
 
-    // Sincroniza estado pela microchave
+    // Sincroniza estado interno pela microchave
     if (digitalRead(PIN_MICROCHAVE_FREIO) == HIGH) {
         _estado = FREIO_ENGATADO;
-    } else if (digitalRead(PIN_MICROCHAVE_FREIO) == LOW) {
-        _estado = FREIO_LIBERADO;
     } else {
-        // Cilindro no meio do curso — estado indefinido, manter como ENGATANDO
-        _estado = FREIO_ENGATANDO;
+        _estado = FREIO_ENGATANDO;  // Ainda em curso — atualizar() confirma quando chegar
     }
 
     _modoManual = false;
-    LOG_WARN("FREIO", "Modo MANUAL desativado — estado sincronizado pela microchave");
+    LOG_WARN("FREIO", "Modo MANUAL desativado — rele FREIO_ON ativo, aguardando confirmacao");
 }
