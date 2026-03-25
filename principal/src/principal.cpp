@@ -98,16 +98,35 @@ void loop() {
 
     // 1.5. Modo manual do freio: REARME segurado + SUBIR/DESCER
     //       Para ajuste quando o cilindro para no meio do curso
+    //       Bloqueado se emergência estiver ativa — segurança tem prioridade máxima
     bool rearmeSeguro = (digitalRead(PIN_BTN_REARME) == LOW);
-    bool modoManualFreio = rearmeSeguro && (btn.subir_hold || btn.descer_hold);
+    bool emergenciaAtivaModoManual = emergencia.isAtiva()
+                                  || emergencia.botaoLocalAtivo()
+                                  || (comunicacao.ultimoPacote().emergencia == 1);
+    bool modoManualFreio = rearmeSeguro && (btn.subir_hold || btn.descer_hold)
+                        && !emergenciaAtivaModoManual;
 
     if (modoManualFreio) {
         motor.desligar();  // Motor sempre desligado em modo manual do freio
 
+
+        // TODO: Verificar qual direcao é necessário parar com o PIN_MICROCHAVE_FREIO
         if (btn.subir_hold) {
-            freio.manualAcionar();   // REARME + SUBIR = cilindro avança (freio engata)
+            // REARME + SUBIR = cilindro avança (freio engata)
+            // Interrompe ao atingir posição final (GPIO 27 LOW) para não esmagar a microchave
+            if (digitalRead(PIN_MICROCHAVE_FREIO) == LOW) {
+                freio.manualParar();
+            } else {
+                freio.manualAcionar();
+            }
         } else {
-            freio.manualLiberar();   // REARME + DESCER = cilindro retrai (freio libera)
+            // REARME + DESCER = cilindro retrai (freio libera)
+            // Interrompe ao atingir posição final (GPIO 27 LOW) para não esmagar a microchave
+            if (digitalRead(PIN_MICROCHAVE_FREIO) == LOW) {
+                freio.manualParar();
+            } else {
+                freio.manualLiberar();
+            }
         }
 
         modoManualFreioAnterior = true;
