@@ -116,11 +116,11 @@ Emergência Remote ativa (botão travado)
 | Parâmetro | Valor | Configurável |
 |---|---|---|
 | Timeout | 500 ms | Sim (constante `WATCHDOG_TIMEOUT_MS` em firmware) |
-| Frequência de heartbeat do Remote | 200 ms | Sim |
+| Frequência de heartbeat do Remote | 100 ms | Sim (constante `HEARTBEAT_INTERVALO_MS` em firmware) |
 
 ### 4.2 Funcionamento
 
-- O Remote envia heartbeat a cada **200 ms**, mesmo sem nenhum botão pressionado.
+- O Remote envia heartbeat a cada **100 ms**, mesmo sem nenhum botão pressionado.
 - O Principal mantém um timestamp do último pacote recebido (internamente na classe `WatchdogComm`).
 - A cada ciclo do loop principal, verifica: `watchdog.expirado()` (equivale a `millis() - _ultimoPacoteMs > WATCHDOG_TIMEOUT_MS`).
 - Se o timeout for excedido: motor OFF → freio ON → estado `FALHA_COMUNICACAO`.

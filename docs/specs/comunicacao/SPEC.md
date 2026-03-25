@@ -28,9 +28,10 @@ Os dois módulos ESP32 comunicam-se via **ESP-NOW**, protocolo peer-to-peer da E
 
 ## 3. Emparelhamento
 
-- O endereço MAC do Módulo Principal é **fixado em firmware** no código do Remote.
-- Não há descoberta automática de peers.
-- Ambos os módulos registram o peer na inicialização via `esp_now_add_peer()`.
+- Ambos os módulos iniciam em modo de descoberta, usando **broadcast** (`FF:FF:FF:FF:FF:FF`) como peer inicial.
+- O MAC do peer real é detectado dinamicamente a partir do campo `src_addr` do primeiro pacote válido recebido.
+- Ao detectar o MAC real, o módulo registra o peer via `esp_now_add_peer()` e passa a enviar diretamente para aquele endereço.
+- Não é necessário hardcodar MACs em firmware — a descoberta é automática.
 
 ---
 
@@ -146,8 +147,8 @@ uint8_t calcular_checksum(uint8_t* data, size_t len) {
 
 | Condição | Frequência |
 |---|---|
-| Nenhum botão pressionado (heartbeat) | A cada **200 ms** |
-| Mudança de estado de botão | **Imediato** + repetir a cada 200 ms enquanto ativo |
+| Nenhum botão pressionado (heartbeat) | A cada **100 ms** |
+| Mudança de estado de botão | **Imediato** + repetir a cada 100 ms enquanto ativo |
 
 ### 7.2 Principal → Remote
 
@@ -163,8 +164,8 @@ uint8_t calcular_checksum(uint8_t* data, size_t len) {
 | Parâmetro | Valor |
 |---|---|
 | Timeout | **500 ms** (`WATCHDOG_TIMEOUT_MS`) |
-| Heartbeat do Remote | **200 ms** |
-| Margem de segurança | 2.5x o intervalo de heartbeat |
+| Heartbeat do Remote | **100 ms** (`HEARTBEAT_INTERVALO_MS`) |
+| Margem de segurança | 5x o intervalo de heartbeat |
 
 - Verificado a cada ciclo do loop principal.
 - Ao expirar: motor OFF → freio ON → `FALHA_COMUNICACAO`.

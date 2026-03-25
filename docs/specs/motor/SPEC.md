@@ -104,9 +104,9 @@ O freio possui uma máquina de estados interna (classe `Freio`) com 4 estados:
 
 ```
 FREIO_ENGATADO   — Freio aplicado, confirmado pela microchave (GPIO 27 = HIGH)
-FREIO_ENGATANDO  — Relé FREIO_ON ativo, cilindro avançando (~7s), aguardando GPIO 27 → HIGH
+FREIO_ENGATANDO  — Relé FREIO_ON ativo, cilindro avançando (~10s), aguardando GPIO 27 → HIGH
 FREIO_LIBERADO   — Freio liberado, confirmado pela microchave (GPIO 27 = LOW)
-FREIO_LIBERANDO  — Relé FREIO_OFF ativo, cilindro retraindo (~7s), aguardando GPIO 27 → LOW
+FREIO_LIBERANDO  — Relé FREIO_OFF ativo, cilindro retraindo (~10s), aguardando GPIO 27 → LOW
 ```
 
 Os relés funcionam como **pulsos**: são ativados para iniciar o movimento do cilindro e desativados automaticamente quando a microchave confirma que o cilindro chegou à posição final. Isso evita manter a bobina energizada desnecessariamente.
@@ -123,7 +123,7 @@ freio.acionar();
 //   delay 10 ms
 //   GPIO 19 (FREIO_ON)  → LOW   (pulsa bobina de aplicação)
 //   _estado = FREIO_ENGATANDO
-//   atualizar() desativa FREIO_ON quando GPIO 27 → HIGH (~7s)
+//   atualizar() desativa FREIO_ON quando GPIO 27 → HIGH (~10s)
 
 // Inicia liberação do freio (idempotente se já LIBERADO ou LIBERANDO)
 freio.liberar();
@@ -131,7 +131,7 @@ freio.liberar();
 //   delay 10 ms
 //   GPIO 22 (FREIO_OFF) → LOW   (pulsa bobina de liberação)
 //   _estado = FREIO_LIBERANDO
-//   atualizar() desativa FREIO_OFF quando GPIO 27 → LOW (~7s)
+//   atualizar() desativa FREIO_OFF quando GPIO 27 → LOW (~10s)
 
 // Monitorar microchave e transicionar estados (chamar no loop principal)
 freio.atualizar();
@@ -148,7 +148,7 @@ freio.isTransicao();  // true durante ENGATANDO ou LIBERANDO
 
 - O freio é o **estado padrão** — sistema inicializa em FREIO_ENGATADO (ou FREIO_ENGATANDO se GPIO 27 = LOW na inicialização).
 - O motor **nunca** aciona sem `freio.isLiberado() == true` **E** `digitalRead(GPIO 27) == LOW` (dupla verificação).
-- Durante a transição (~7s), o motor permanece bloqueado e o estado do sistema é `PARADO`.
+- Durante a transição (~10s), o motor permanece bloqueado e o estado do sistema é `PARADO`.
 - Guarda de segurança em `atualizar()`: se estado é LIBERADO mas GPIO 27 = HIGH (freio engata externamente), estado é corrigido imediatamente para ENGATADO.
 
 ### 4.5 Modo Manual de Recuperação (REARME + SUBIR/DESCER)
@@ -210,7 +210,7 @@ Operador pressiona e segura SUBIR ou DESCER
   ├─ Verificar: fim_de_curso não acionado (se SUBIR)
   │
   ├─ freio.liberar() → pulso FREIO_OFF (GPIO 22 LOW)
-  │   [cilindro retrai durante ~7 segundos]
+  │   [cilindro retrai durante ~10 segundos]
   │   [atualizar() monitora GPIO 27]
   │
   ├─ Aguardar: freio.isLiberado() == true E GPIO 27 == LOW
@@ -228,7 +228,7 @@ Operador solta SUBIR ou DESCER
   │
   ├─ Desacionar relés de direção (GPIO HIGH = inativo)
   ├─ freio.acionar() → pulso FREIO_ON (GPIO 19 LOW)
-  │   [cilindro avança durante ~7 segundos]
+  │   [cilindro avança durante ~10 segundos]
   │   [atualizar() monitora GPIO 27]
   │
   ├─ freio.atualizar() confirma GPIO 27 HIGH → FREIO_ON desativado

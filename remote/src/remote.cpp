@@ -7,7 +7,7 @@
  *   0. Atualizar sensor fim de curso (debounce)
  *   1. Ler botões (debounce interno)
  *   2. Montar PacoteRemote
- *   3. Enviar pacote (heartbeat 200ms + imediato em mudança)
+ *   3. Enviar pacote (heartbeat 100ms + imediato em mudança)
  *   4. Atualizar LEDs com base no último PacoteStatus recebido
  *
  * Ref: IMPLEMENTATION_PLAN §2.5
@@ -145,7 +145,7 @@ void loop() {
         pacote.botao_hold = 0;
     }
 
-    // 3. Enviar pacote: imediato em mudança OU periódico a cada 200ms
+    // 3. Enviar pacote: imediato em mudança OU periódico a cada 100ms (HEARTBEAT_INTERVALO_MS)
     bool mudouEstado = (btn.subir_hold  != btnAnterior.subir_hold)      ||
                        (btn.descer_hold != btnAnterior.descer_hold)    ||
                        (btn.emergencia  != btnAnterior.emergencia)     ||

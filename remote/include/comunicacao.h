@@ -1,8 +1,8 @@
 /**
  * comunicacao.h — Comunicação ESP-NOW do Módulo Remote
  *
- * Inicialização WiFi + ESP-NOW, registro de peer (MAC do Principal fixo),
- * envio de PacoteRemote (heartbeat 200ms + imediato em mudança),
+ * Inicialização WiFi + ESP-NOW, descoberta dinâmica do peer Principal via broadcast,
+ * envio de PacoteRemote (heartbeat 100ms + imediato em mudança),
  * callback OnDataRecv para receber PacoteStatus.
  *
  * Ref: comunicacao/SPEC.md §7, §9.1

@@ -174,7 +174,7 @@ void atualizar_maquina_estados() {
         // Inicia liberação do freio (idempotente — só pulsa se não estiver já liberando/liberado)
         freio.liberar();
 
-        // Motor só aciona após microchave confirmar freio liberado (GPIO 27 = LOW, ~7s de espera)
+        // Motor só aciona após microchave confirmar freio liberado (GPIO 27 = LOW, ~10s de espera)
         // Dupla verificação: estado interno E leitura direta do GPIO
         bool freio_liberado = freio.isLiberado() && (digitalRead(PIN_MICROCHAVE_FREIO) == LOW);
 
@@ -182,7 +182,7 @@ void atualizar_maquina_estados() {
             motor.acionar(dir);
             estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
         } else {
-            // Freio ainda em transição (~7s) — aguardar sem acionar motor
+            // Freio ainda em transição (~10s) — aguardar sem acionar motor
             motor.desligar();
             estado = ESTADO_PARADO;
         }

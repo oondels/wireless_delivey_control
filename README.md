@@ -127,13 +127,13 @@ O freio é um **cilindro solenoide de dupla bobina**. A microchave (GPIO 27, NA 
 | HIGH | Aberta | Avançado | **Engatado** (ativo) — modo padrão |
 | LOW | Pressionada | Retraído | **Liberado** (inativo) — motor permitido |
 
-**O cilindro leva aproximadamente 7 segundos para completar o curso em cada sentido.**
+**O cilindro leva aproximadamente 10 segundos para completar o curso em cada sentido.**
 
 Os relés das bobinas funcionam como **pulsos**: são ativados para iniciar o movimento e desativados automaticamente quando a microchave confirma a posição final. Isso evita manter a bobina energizada continuamente.
 
 **Sequência ao solicitar movimento (SUBIR/DESCER):**
 1. Firmware dispara pulso em FREIO_OFF (GPIO 22) — cilindro começa a retrair.
-2. Durante ~7s, o motor fica **bloqueado** e o estado permanece `PARADO`.
+2. Durante ~10s, o motor fica **bloqueado** e o estado permanece `PARADO`.
 3. Quando GPIO 27 = LOW, o firmware confirma freio liberado e desativa o relé FREIO_OFF.
 4. Motor é acionado.
 
@@ -154,7 +154,7 @@ Para situações onde o cilindro para no meio do curso (microchave não ativada,
 
 - Motor permanece desligado durante o modo manual.
 - A máquina de estados principal é ignorada.
-- Ao soltar REARME, o sistema ressincroniza o estado pela leitura da microchave.
+- Ao soltar REARME **ou** a direção (SUBIR/DESCER), o sistema ressincroniza o estado pela leitura da microchave.
 
 ### 4.3 Fim de Curso do Estacionamento
 
@@ -314,7 +314,7 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 
 - Timeout: **500 ms** (configurável).
 - Sem pacote no timeout: freio acionado, motor cortado, `FALHA_COMUNICACAO`.
-- Remote envia heartbeat a cada **200 ms**.
+- Remote envia heartbeat a cada **100 ms**.
 - `FALHA_COMUNICACAO` exige rearme manual.
 - Após REARME em `FALHA_COMUNICACAO`, o Principal entra em **modo degradado local**: comandos locais (Painel Central) são permitidos mesmo sem link com Remote.
 - Durante modo degradado, comandos do Remote permanecem bloqueados até a comunicação ser restabelecida.
@@ -365,7 +365,7 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 | Emergência Ativa | Falha Energia | Falha Comun. | Fim de Curso | GPIO 27 | Botão Hold | Resultado |
 |---|---|---|---|---|---|---|
 | Não | Não | Não | Não acionado | LOW (freio liberado) | Pressionado | Motor ON |
-| Não | Não | Não | Não acionado | HIGH (freio engatado/transição) | Pressionado | Motor AGUARDA (~7s para freio liberar) |
+| Não | Não | Não | Não acionado | HIGH (freio engatado/transição) | Pressionado | Motor AGUARDA (~10s para freio liberar) |
 | Não | Não | Não | Não acionado | Qualquer | Solto | Motor OFF → Freio ON → PARADO |
 | Não | Não | Não | Acionado | Qualquer | Qualquer | Motor OFF → Freio ON → PARADO |
 | Não | Não | Sim | Qualquer | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
@@ -379,7 +379,7 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 
 ### 9.1 Emparelhamento
 
-MAC do Principal fixado em firmware no Remote.
+Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer inicial. O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido, e o peer é registrado automaticamente via `esp_now_add_peer()`.
 
 ### 9.2 Pacote Remote → Principal
 
@@ -414,8 +414,8 @@ typedef struct {
 
 | Direção | Condição | Frequência |
 |---|---|---|
-| Remote → Principal | Heartbeat | A cada 200 ms |
-| Remote → Principal | Mudança de estado | Imediato + repetir a cada 200 ms |
+| Remote → Principal | Heartbeat | A cada 100 ms |
+| Remote → Principal | Mudança de estado | Imediato + repetir a cada 100 ms |
 | Principal → Remote | Status | A cada 200 ms ou imediato em mudança de estado |
 
 ---
@@ -507,7 +507,7 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 [25000] [INFO] [ESTADO] Transicao: PARADO -> EMERGENCIA
 ```
 
-> Note o atraso de ~7s entre pressionar o botão e o motor iniciar — é o tempo do cilindro completar o curso e acionar a microchave.
+> Note o atraso de ~10s entre pressionar o botão e o motor iniciar — é o tempo do cilindro completar o curso e acionar a microchave.
 
 ### 11.5 Desabilitar em Produção
 

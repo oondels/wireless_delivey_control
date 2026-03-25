@@ -83,7 +83,7 @@ Conectada ao GPIO 27 do Módulo Principal (NA + pull-up interno). Indica o estad
 - **GPIO 27 HIGH** (pull-up, sem GND) = microchave aberta = cilindro avançado = **freio engatado** (ativo)
 - **GPIO 27 LOW** (recebendo GND) = microchave pressionada = cilindro retraído = **freio liberado** (inativo)
 
-O modo padrão do freio é **engatado** (GPIO 27 HIGH). O motor só pode ser acionado após o freio ser liberado e a microchave confirmar (GPIO 27 LOW). O cilindro leva aproximadamente **7 segundos** para completar o curso em cada sentido.
+O modo padrão do freio é **engatado** (GPIO 27 HIGH). O motor só pode ser acionado após o freio ser liberado e a microchave confirmar (GPIO 27 LOW). O cilindro leva aproximadamente **10 segundos** para completar o curso em cada sentido.
 
 Fail-safe: cabo partido → GPIO flutua HIGH → interpretado como freio engatado → motor bloqueado.
 
@@ -127,7 +127,7 @@ O freio é um cilindro solenoide de dupla bobina. O motor **não aciona imediata
 
 1. Operador pressiona e mantém SUBIR ou DESCER.
 2. Firmware dispara um pulso em `FREIO_OFF` (GPIO 22 LOW) para iniciar a retração do cilindro.
-3. O cilindro retrai ao longo de **~7 segundos** até acionar a microchave.
+3. O cilindro retrai ao longo de **~10 segundos** até acionar a microchave.
 4. Quando GPIO 27 = LOW (microchave pressionada), o freio está confirmado como liberado. O firmware desativa o relé `FREIO_OFF` (pulso encerrado).
 5. Somente então o motor é acionado (`FREIO_ON` e `FREIO_OFF` ambos desativados; motor ON).
 
@@ -199,7 +199,7 @@ Emergência Remote ativa (botão travado)
 
 - Timeout: **500 ms** (configurável em firmware).
 - Se nenhum pacote for recebido dentro do timeout: freio acionado, motor cortado, estado `FALHA_COMUNICACAO`.
-- Remote envia heartbeat a cada **200 ms** mesmo sem botão pressionado.
+- Remote envia heartbeat a cada **100 ms** mesmo sem botão pressionado.
 - `FALHA_COMUNICACAO` exige rearme manual pelo Painel Central.
 
 ---
@@ -254,7 +254,7 @@ Transições globais → FALHA_COMUNICACAO (qualquer estado operacional):
 
 ### 8.1 Emparelhamento
 
-MAC do Principal fixado em firmware no Remote (ou configurado na inicialização).
+Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer inicial. O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido, e o peer é registrado automaticamente via `esp_now_add_peer()`.
 
 ### 8.2 Pacote Remote → Principal
 
@@ -288,8 +288,8 @@ typedef struct {
 
 | Direção | Condição | Frequência |
 |---|---|---|
-| Remote → Principal | Heartbeat (sem botão) | A cada 200 ms |
-| Remote → Principal | Mudança de estado de botão | Imediato + repetir a cada 200 ms enquanto ativo |
+| Remote → Principal | Heartbeat (sem botão) | A cada 100 ms |
+| Remote → Principal | Mudança de estado de botão | Imediato + repetir a cada 100 ms enquanto ativo |
 | Principal → Remote | Status de retorno | A cada 200 ms ou imediato após mudança de estado |
 
 ---

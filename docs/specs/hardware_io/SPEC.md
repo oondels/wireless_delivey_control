@@ -90,7 +90,7 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 | FREIO_ON | 19 | Bobina de aplicação (cilindro avança, freio trava) | LED FREIO — aceso quando bobina pulsa | GPIO LOW = energizada |
 | FREIO_OFF | 22 | Bobina de liberação (cilindro retrai, freio libera) | Nenhum | GPIO LOW = energizada |
 
-> **Nota sobre o LED FREIO_ON:** o relé permanece ativo apenas durante o pulso de acionamento (~7s até microchave confirmar). Após confirmação, o relé é desativado (GPIO HIGH) para não manter a bobina energizada continuamente.
+> **Nota sobre o LED FREIO_ON:** o relé permanece ativo apenas durante o pulso de acionamento (~10s até microchave confirmar). Após confirmação, o relé é desativado (GPIO HIGH) para não manter a bobina energizada continuamente.
 
 **Total: 7 GPIOs de saída (6 c/ LED + 1 sem LED)**
 
@@ -247,13 +247,13 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 | Condição | GPIO 27 | Microchave | Estado do cilindro | Motor |
 |---|---|---|---|---|
 | Freio engatado (padrão) | HIGH | Aberta | Avançado (brake pads travados) | Bloqueado |
-| Freio em transição (FREIO_OFF pulsando) | HIGH → LOW | Abre → Fecha | Retraindo (~7s) | Bloqueado durante transição |
+| Freio em transição (FREIO_OFF pulsando) | HIGH → LOW | Abre → Fecha | Retraindo (~10s) | Bloqueado durante transição |
 | Freio liberado (confirmado) | LOW | Pressionada | Retraído (brake pads livres) | Permitido |
-| Freio em transição (FREIO_ON pulsando) | LOW → HIGH | Fecha → Abre | Avançando (~7s) | Bloqueado |
+| Freio em transição (FREIO_ON pulsando) | LOW → HIGH | Fecha → Abre | Avançando (~10s) | Bloqueado |
 
 > Fail-safe: cabo partido → GPIO flutua HIGH → interpretado como freio engatado → motor bloqueado.
 >
-> O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor durante a transição de ~7s.
+> O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor durante a transição de ~10s.
 
 ---
 
