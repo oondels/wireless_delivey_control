@@ -2,7 +2,7 @@
  * botoes.cpp — Implementação da leitura de botões do Remote
  *
  * Debounce genérico via millis(). SUBIR/DESCER retornam nível (hold).
- * VEL1/2/3 retornam pulso (borda HIGH→LOW, consumido após leitura).
+ * VEL1/VEL2/RESET retornam pulso (borda HIGH→LOW, consumido após leitura).
  * EMERGÊNCIA retorna nível contínuo (NC: HIGH = ativo, contato aberto).
  *
  * Ref: hardware_io/SPEC.md §6
@@ -12,7 +12,7 @@
 
 const uint8_t Botoes::_pinos[NUM_BOTOES] = {
     PIN_BTN_SUBIR, PIN_BTN_DESCER,
-    PIN_BTN_VEL1, PIN_BTN_VEL2, PIN_BTN_VEL3,
+    PIN_BTN_VEL1, PIN_BTN_VEL2, PIN_BTN_RESET,
     PIN_BTN_EMERGENCIA
 };
 
@@ -55,10 +55,10 @@ EstadoBotoes Botoes::ler() {
     resultado.subir_hold  = (_estadoFiltrado[IDX_SUBIR]  == LOW);
     resultado.descer_hold = (_estadoFiltrado[IDX_DESCER] == LOW);
 
-    // VEL1/2/3: pulso — borda de descida (HIGH → LOW)
-    resultado.vel1_pulso = (estadoAnterior[IDX_VEL1] == HIGH && _estadoFiltrado[IDX_VEL1] == LOW);
-    resultado.vel2_pulso = (estadoAnterior[IDX_VEL2] == HIGH && _estadoFiltrado[IDX_VEL2] == LOW);
-    resultado.vel3_pulso = (estadoAnterior[IDX_VEL3] == HIGH && _estadoFiltrado[IDX_VEL3] == LOW);
+    // VEL1/VEL2/RESET: pulso — borda de descida (HIGH → LOW)
+    resultado.vel1_pulso  = (estadoAnterior[IDX_VEL1]  == HIGH && _estadoFiltrado[IDX_VEL1]  == LOW);
+    resultado.vel2_pulso  = (estadoAnterior[IDX_VEL2]  == HIGH && _estadoFiltrado[IDX_VEL2]  == LOW);
+    resultado.reset_pulso = (estadoAnterior[IDX_RESET]  == HIGH && _estadoFiltrado[IDX_RESET] == LOW);
 
     // EMERGÊNCIA: nível contínuo (NC: HIGH = botão pressionado, contato aberto)
     resultado.emergencia = (_estadoFiltrado[IDX_EMERGENCIA] == HIGH);

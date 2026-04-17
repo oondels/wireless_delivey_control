@@ -3,7 +3,7 @@
  *
  * Debounce 50ms para todos os botões.
  * SUBIR/DESCER: hold (nível) — true enquanto pressionado.
- * VEL1/VEL2/VEL3: pulso (borda descida) — true apenas no momento da pressão.
+ * VEL1/VEL2/RESET: pulso (borda descida) — true apenas no momento da pressão.
  * EMERGÊNCIA: nível contínuo (trava mecânica) — true enquanto travado.
  *
  * Ref: hardware_io/SPEC.md §6
@@ -20,7 +20,7 @@ struct EstadoBotoes {
     bool descer_hold;      // true = DESCER pressionado agora
     bool vel1_pulso;       // true = VEL1 acabou de ser pressionado (borda)
     bool vel2_pulso;       // true = VEL2 acabou de ser pressionado (borda)
-    bool vel3_pulso;       // true = VEL3 acabou de ser pressionado (borda)
+    bool reset_pulso;      // true = RESET acabou de ser pressionado (borda)
     bool emergencia;       // true = botão emergência com trava ativo (nível)
 };
 
@@ -35,7 +35,7 @@ public:
     EstadoBotoes ler();
 
 private:
-    enum { IDX_SUBIR = 0, IDX_DESCER, IDX_VEL1, IDX_VEL2, IDX_VEL3, IDX_EMERGENCIA };
+    enum { IDX_SUBIR = 0, IDX_DESCER, IDX_VEL1, IDX_VEL2, IDX_RESET, IDX_EMERGENCIA };
 
     static const uint8_t _pinos[NUM_BOTOES];
     bool     _ultimaLeitura[NUM_BOTOES];

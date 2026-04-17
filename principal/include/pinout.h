@@ -1,66 +1,41 @@
 /**
  * pinout.h — Mapeamento de GPIOs do Módulo Principal
  *
- * Total: 18 GPIOs (10 entradas + 8 saídas)
+ * O Principal não possui entradas físicas nesta arquitetura.
+ * Recebe comandos via ESP-NOW do Remote e os repassa para as
+ * entradas digitais do CLP via saídas GPIO.
  *
- * Restrições respeitadas (hardware_io/SPEC.md §8):
- * - GPIO 0, 2, 12, 15 evitados para entradas críticas (strapping pins)
- * - GPIO 34, 35, 36, 39 usados apenas como entrada (input-only, sem pull-up interno)
- * - GPIO 1 (TX) e GPIO 3 (RX) reservados para Serial
- * - GPIOs 34, 35, 36, 39: pull-up externo 10kΩ obrigatório (input-only, sem pull-up interno)
- * - GPIOs 27, 32, 33, 25, 26: pull-up interno via INPUT_PULLUP (sem resistor externo)
- * - Lógica botões NO (normalmente aberto): HIGH = solto, LOW = pressionado
- * - Lógica botão NC (emergência, GPIO 33): LOW = repouso, HIGH = pressionado (contato aberto)
- * - Microchave freio (GPIO 27): NA, HIGH = freio engatado, LOW = freio liberado
- * - Saídas relés: LOW = ativo (módulo relé ativo em LOW); HIGH = relé desacionado
- * - LED LINK (GPIO 21, exclusivo): comportamento reflete lógica do módulo relé (LOW = aceso quando watchdog OK)
- * - FREIO_ON e FREIO_OFF nunca ficam HIGH simultaneamente — garantido por firmware
- * - GPIO 22 (FREIO_OFF): saída digital segura, sem restrições de boot, sem LED associado
+ * Total: 8 saídas GPIO
+ *
+ * Lógica de comunicação com CLP: ativo em LOW (GND)
+ * - LOW (GND) = sinal ativo → CLP lê entrada como acionada
+ * - HIGH       = sinal inativo (repouso)
+ *
+ * Restrições de boot respeitadas: GPIOs 0, 2, 12, 15 não utilizados.
+ * GPIO 1 (TX) e GPIO 3 (RX) reservados para Serial.
  */
 
 #ifndef PINOUT_H
 #define PINOUT_H
 
 // ============================================================
-// ENTRADAS — Botões
-// GPIOs 34-39: pull-up externo obrigatório (input-only)
-// GPIOs 25, 26, 32, 33: pull-up interno (INPUT_PULLUP)
-// NO (normalmente aberto): LOW = pressionado
-// NC (normalmente fechado, emergência): HIGH = pressionado (contato aberto)
+// SAÍDAS — Sinais para entradas digitais do CLP
+// Lógica ativa em LOW (GND): LOW = ativo, HIGH = inativo
+// Inicialização: todos HIGH (inativo)
 // ============================================================
 
-#define PIN_BTN_SUBIR       36  // Hold (nível) — input-only, pull-up externo obrigatório
-#define PIN_BTN_DESCER      39  // Hold (nível) — input-only, pull-up externo obrigatório
-#define PIN_BTN_VEL1        34  // Pulso (borda) — input-only, pull-up externo obrigatório
-#define PIN_BTN_VEL2        35  // Pulso (borda) — input-only, pull-up externo obrigatório
-#define PIN_BTN_VEL3        32  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
-#define PIN_BTN_EMERGENCIA  33  // NC: repouso LOW, pressionado HIGH — pull-up interno (INPUT_PULLUP)
-#define PIN_BTN_REARME      25  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
+#define PIN_CLP_SUBIR       4   // SUBIR hold ativo enquanto botão pressionado no Remote
+#define PIN_CLP_DESCER      16  // DESCER hold ativo enquanto botão pressionado no Remote
+#define PIN_CLP_VEL1        17  // VEL1 selecionada (pulso PULSO_CLP_MS ms)
+#define PIN_CLP_VEL2        5   // VEL2 selecionada (pulso PULSO_CLP_MS ms)
+#define PIN_CLP_EMERGENCIA  18  // Emergência: botão Remote travado OU watchdog expirado
+#define PIN_CLP_RESET       19  // RESET: pulso de PULSO_CLP_MS ms
+#define PIN_CLP_FIM_CURSO   22  // Fim de curso de descida (Remote GPIO 13)
 
 // ============================================================
-// ENTRADAS — Sensores
+// SAÍDAS — LED exclusivo
 // ============================================================
 
-#define PIN_FIM_DE_CURSO      26  // Nível — debounce 20 ms, pull-up interno (INPUT_PULLUP)
-#define PIN_MICROCHAVE_FREIO  27  // NA — pull-up interno; HIGH = freio engatado (fail-safe)
-#define PIN_MONITOR_REDE      13  // HIGH = rede presente; LOW = rede ausente — pull-down externo, debounce 50 ms
-
-// ============================================================
-// SAÍDAS — Relés com LED compartilhado (HIGH = ativo)
-// ============================================================
-
-#define PIN_RELE_DIRECAO_A  4   // Motor sentido SUBIR + LED
-#define PIN_RELE_DIRECAO_B  16  // Motor sentido DESCER + LED
-#define PIN_RELE_VEL1       17  // Velocidade 1 + LED
-#define PIN_RELE_VEL2       5   // Velocidade 2 + LED
-#define PIN_RELE_VEL3       18  // Velocidade 3 + LED
-#define PIN_RELE_FREIO_ON   19  // Bobina de aplicação — cilindro avança, freio trava + LED
-#define PIN_RELE_FREIO_OFF  22  // Bobina de liberação — cilindro recua, freio libera (sem LED)
-
-// ============================================================
-// SAÍDAS — LEDs exclusivos (sem relé associado)
-// ============================================================
-
-#define PIN_LED_LINK        21  // Comunicação ativa com Remote
+#define PIN_LED_LINK        21  // Comunicação ativa com Remote (aceso = link OK)
 
 #endif // PINOUT_H

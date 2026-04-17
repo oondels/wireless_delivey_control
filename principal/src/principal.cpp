@@ -1,322 +1,235 @@
 /**
- * principal.cpp — Loop principal do Módulo Principal (Mestre)
+ * principal.cpp — Loop principal do Módulo Principal (Bridge ESP → CLP)
  *
- * Integra todos os módulos: botões, emergência, rearme, watchdog,
- * máquina de estados, motor, freio, velocidade, comunicação e LED.
+ * O Principal não possui entradas físicas. Recebe comandos do Módulo Remote
+ * via ESP-NOW e os repassa para as entradas digitais do CLP via GPIO.
+ * Toda a lógica de controle (motor, freio, estados, segurança) é executada
+ * pelo CLP programado em Ladder.
+ *
+ * Lógica de nível para o CLP: ativo em LOW (GND)
+ *   LOW  = sinal ativo → CLP lê entrada como acionada
+ *   HIGH = sinal inativo (repouso)
+ *
+ * Fail-safe: se o Remote ficar silencioso > WATCHDOG_TIMEOUT_MS,
+ * PIN_CLP_EMERGENCIA vai a LOW imediatamente (emergência ao CLP).
+ * Todos os demais sinais de movimento ficam em HIGH (inativos).
  *
  * Sequência do loop:
- *   1. Ler botões
- *   2. Verificar rearme
- *   3. Atualizar máquina de estados
- *   4. Processar velocidade
- *   5. Montar e enviar PacoteStatus
- *   6. Atualizar LED LINK
- *
- * Estado inicial: PARADO, freio acionado, velocidade 1.
- *
- * Ref: IMPLEMENTATION_PLAN §2.6
+ *   1. Verificar watchdog — se expirado, acionar emergência no CLP
+ *   2. Se novo pacote recebido:
+ *      a. Resetar watchdog
+ *      b. Mapear campos do PacoteRemote para GPIOs do CLP
+ *   3. Enviar PacoteStatus ao Remote (heartbeat 200ms)
+ *   4. Atualizar LED LINK
  */
 
 #include <Arduino.h>
 #include "pinout.h"
 #include "protocolo.h"
-#include "freio.h"
-#include "sensores.h"
-#include "emergencia.h"
-#include "rearme.h"
-#include "watchdog_comm.h"
-#include "motor.h"
-#include "velocidade.h"
-#include "botoes.h"
 #include "comunicacao.h"
-#include "maquina_estados.h"
-#include "monitor_rede.h"
+#include "watchdog_comm.h"
 #include "leds.h"
 #include "logger.h"
 
-// Instâncias globais dos módulos
-Freio          freio;
-Sensores       sensores;
-Emergencia     emergencia;
-MonitorRede    monitorRede;
-Rearme         rearme;
+// ============================================================
+// GPIOs de saída para o CLP
+// ============================================================
+
+static const uint8_t PINOS_CLP[] = {
+    PIN_CLP_SUBIR,
+    PIN_CLP_DESCER,
+    PIN_CLP_VEL1,
+    PIN_CLP_VEL2,
+    PIN_CLP_EMERGENCIA,
+    PIN_CLP_RESET,
+    PIN_CLP_FIM_CURSO
+};
+static constexpr int NUM_PINOS_CLP = sizeof(PINOS_CLP) / sizeof(PINOS_CLP[0]);
+
+// ============================================================
+// Estado de pulso (VEL1, VEL2, RESET são pulsos, não níveis)
+// ============================================================
+
+static uint32_t pulsoVel1Inicio   = 0;
+static uint32_t pulsoVel2Inicio   = 0;
+static uint32_t pulsoResetInicio  = 0;
+static bool     pulsoVel1Ativo    = false;
+static bool     pulsoVel2Ativo    = false;
+static bool     pulsoResetAtivo   = false;
+
+// ============================================================
+// Instâncias globais
+// ============================================================
+
 WatchdogComm   watchdog;
-Motor          motor;
-Velocidade     velocidade;
-Botoes         botoes;
 Comunicacao    comunicacao;
-MaquinaEstados maquinaEstados;
 Led            ledLink(PIN_LED_LINK);
 
 // Controle de envio periódico de status
 uint32_t       ultimoEnvioStatusMs = 0;
-EstadoSistema  estadoAnterior      = ESTADO_PARADO;
 
-// Controle do modo manual do freio
-bool           modoManualFreioAnterior  = false;
-
-// Controle de logging de transições (evitar spam)
+// Logging anti-spam
 bool           watchdogAnteriorExpirado = false;
-bool           subirAnterior            = false;
-bool           descerAnterior           = false;
-bool           emergenciaRemotaAnterior = false;
-bool           comandoMovRemotoAnteriorAtivo = false;
-uint8_t        ultimoComandoMovRemoto = CMD_HEARTBEAT;
-bool           ultimoComandoMovRemotoBloqueado = false;
-uint8_t        ultimaOrigemBloqueioMovRemoto = 0;
-uint8_t        velocidadeAnteriorLog    = 1;
+
+// ============================================================
+// Funções auxiliares
+// ============================================================
+
+/** Seta todos os sinais de movimento para HIGH (inativo). */
+static void pararMovimento() {
+    digitalWrite(PIN_CLP_SUBIR,  HIGH);
+    digitalWrite(PIN_CLP_DESCER, HIGH);
+}
+
+/** Seta emergência no CLP (LOW = ativo). */
+static void setEmergencia(bool ativa) {
+    digitalWrite(PIN_CLP_EMERGENCIA, ativa ? LOW : HIGH);
+}
+
+/** Ativa um pulso no CLP (VEL1, VEL2 ou RESET). */
+static void iniciarPulso(uint8_t pino, uint32_t& inicio, bool& ativo) {
+    digitalWrite(pino, LOW);
+    inicio = millis();
+    ativo  = true;
+}
+
+/** Verifica e encerra pulsos vencidos. */
+static void atualizarPulsos() {
+    uint32_t agora = millis();
+
+    if (pulsoVel1Ativo && (agora - pulsoVel1Inicio >= PULSO_CLP_MS)) {
+        digitalWrite(PIN_CLP_VEL1, HIGH);
+        pulsoVel1Ativo = false;
+    }
+    if (pulsoVel2Ativo && (agora - pulsoVel2Inicio >= PULSO_CLP_MS)) {
+        digitalWrite(PIN_CLP_VEL2, HIGH);
+        pulsoVel2Ativo = false;
+    }
+    if (pulsoResetAtivo && (agora - pulsoResetInicio >= PULSO_CLP_MS)) {
+        digitalWrite(PIN_CLP_RESET, HIGH);
+        pulsoResetAtivo = false;
+    }
+}
+
+// ============================================================
+// Setup
+// ============================================================
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("=== Módulo Principal — Inicializando ===");
+    Serial.println("=== Módulo Principal (Bridge ESP→CLP) — Inicializando ===");
 
-    // Inicializar todos os módulos
-    freio.init();            // Configura GPIO + verifica microchave + estado seguro
-    sensores.init();
-    monitorRede.init();      // GPIO 13 — pull-down externo, HIGH = rede presente
-    emergencia.init();
-    rearme.init();
+    // Inicializar todas as saídas CLP como HIGH (inativo)
+    for (int i = 0; i < NUM_PINOS_CLP; i++) {
+        pinMode(PINOS_CLP[i], OUTPUT);
+        digitalWrite(PINOS_CLP[i], HIGH);
+    }
+
     watchdog.init();
-    motor.init();
-    velocidade.init();       // Padrão VEL1
-    botoes.init();
     comunicacao.init(watchdog);
-    maquinaEstados.init();   // Estado PARADO
 
-    Serial.println("=== Módulo Principal — Pronto ===");
+    Serial.println("=== Módulo Principal — Pronto. Aguardando Remote... ===");
 }
 
+// ============================================================
+// Loop
+// ============================================================
+
 void loop() {
-    // 0. Atualizar debounce do monitor de rede (antes de qualquer avaliação)
-    monitorRede.atualizar();
+    uint32_t agora = millis();
 
-    // 0.5. Verificar microchave do freio (desativa relé após confirmação)
-    freio.atualizar();
+    // 1. Verificar watchdog
+    bool watchdogExpirado = watchdog.expirado();
 
-    // 1. Ler botões locais (debounce interno)
-    EstadoBotoes btn = botoes.ler();
+    if (watchdogExpirado) {
+        // Fail-safe: Remote silencioso → emergência no CLP, movimento parado
+        pararMovimento();
+        setEmergencia(true);
 
-    // 1.5. Modo manual do freio: REARME segurado + SUBIR/DESCER
-    //       Para ajuste quando o cilindro para no meio do curso
-    //       Bloqueado se emergência estiver ativa — segurança tem prioridade máxima
-    bool rearmeSeguro = (digitalRead(PIN_BTN_REARME) == LOW);
-    bool emergenciaAtivaModoManual = emergencia.isAtiva()
-                                  || emergencia.botaoLocalAtivo()
-                                  || (comunicacao.ultimoPacote().emergencia == 1);
-    bool modoManualFreio = rearmeSeguro && (btn.subir_hold || btn.descer_hold)
-                        && !emergenciaAtivaModoManual;
-
-    if (modoManualFreio) {
-        motor.desligar();  // Motor sempre desligado em modo manual do freio
-
-
-        // TODO: Verificar qual direcao é necessário parar com o PIN_MICROCHAVE_FREIO
-        if (btn.subir_hold) {
-            // REARME + SUBIR = cilindro avança (freio engata)
-            // Interrompe ao atingir posição final (GPIO 27 LOW) para não esmagar a microchave
-            if (digitalRead(PIN_MICROCHAVE_FREIO) == LOW) {
-                freio.manualParar();
-            } else {
-                freio.manualAcionar();
-            }
-        } else {
-            // REARME + DESCER = cilindro retrai (freio libera)
-            // Interrompe ao atingir posição final (GPIO 27 LOW) para não esmagar a microchave
-            if (digitalRead(PIN_MICROCHAVE_FREIO) == LOW) {
-                freio.manualParar();
-            } else {
-                freio.manualLiberar();
-            }
+        if (!watchdogAnteriorExpirado) {
+            LOG_ERROR("WDOG", "Watchdog EXPIRADO — emergencia ativada no CLP");
         }
-
-        modoManualFreioAnterior = true;
-
-        // Pular máquina de estados — ir direto para envio de status e LEDs
-        estadoAnterior = maquinaEstados.estadoAtual();
-        // LED LINK continua funcionando normalmente
-        if (!watchdog.expirado()) {
-            ledLink.desligar();
-        } else {
-            ledLink.ligar();
-        }
-        ledLink.atualizar();
-        return;
+    } else if (watchdogAnteriorExpirado) {
+        // Comunicação restaurada → liberar emergência
+        setEmergencia(false);
+        LOG_INFO("WDOG", "Watchdog recuperado — emergencia CLP liberada");
     }
+    watchdogAnteriorExpirado = watchdogExpirado;
 
-    // Saindo do modo manual — sincronizar estado do freio pela microchave
-    if (modoManualFreioAnterior && !modoManualFreio) {
-        freio.manualParar();
-        modoManualFreioAnterior = false;
-    }
-
-    // 2. Verificar rearme (antes da máquina de estados)
-    EstadoSistema estadoAntesRearme = maquinaEstados.estadoAtual();
-    EstadoSistema estadoAtual = estadoAntesRearme;
-    rearme.verificar(
-        &estadoAtual,
-        comunicacao.ultimoPacote().emergencia,
-        emergencia
-    );
-
-    if (estadoAtual != estadoAntesRearme) {
-        maquinaEstados.definirEstado(estadoAtual);
-
-        if (estadoAntesRearme == ESTADO_FALHA_COMUNICACAO && estadoAtual == ESTADO_PARADO) {
-            maquinaEstados.habilitarControleLocalSemRemote();
-            LOG_WARN("MAQEST", "Modo degradado ativo — controle local liberado sem Remote apos rearme");
-        }
-    }
-
-    // Log de botões de direção (transições)
-    if (btn.subir_hold && !subirAnterior) {
-        LOG_INFO("BOTAO", "Botao SUBIR pressionado (hold)");
-    } else if (!btn.subir_hold && subirAnterior) {
-        LOG_INFO("BOTAO", "Botao SUBIR solto");
-    }
-    if (btn.descer_hold && !descerAnterior) {
-        LOG_INFO("BOTAO", "Botao DESCER pressionado (hold)");
-    } else if (!btn.descer_hold && descerAnterior) {
-        LOG_INFO("BOTAO", "Botao DESCER solto");
-    }
-    subirAnterior  = btn.subir_hold;
-    descerAnterior = btn.descer_hold;
-
-    // Log de botões de velocidade (pulso)
-    if (btn.vel1_pulso) LOG_INFO("BOTAO", "Botao VEL1 pressionado");
-    if (btn.vel2_pulso) LOG_INFO("BOTAO", "Botao VEL2 pressionado");
-    if (btn.vel3_pulso) LOG_INFO("BOTAO", "Botao VEL3 pressionado");
-
-    // 3. Atualizar máquina de estados (prioridade sequencial)
-    EstadoSistema novoEstado = maquinaEstados.atualizar(
-        emergencia,
-        monitorRede,
-        watchdog,
-        sensores,
-        motor,
-        freio,
-        btn,
-        comunicacao.ultimoPacote(),
-        rearme.isRearmeAtivo()
-    );
-
-    // Log de transição de estado
-    if (novoEstado != estadoAnterior) {
-        LOG_INFO_VAL("ESTADO", "Transicao: ", String(estadoParaString(estadoAnterior)) + " -> " + estadoParaString(novoEstado));
-    }
-
-    // Log de watchdog
-    bool watchdogAtualExpirado = watchdog.expirado();
-    if (watchdogAtualExpirado && !watchdogAnteriorExpirado) {
-        LOG_ERROR("WDOG", "Watchdog EXPIRADO — sem comunicacao com Remote");
-    } else if (!watchdogAtualExpirado && watchdogAnteriorExpirado) {
-        LOG_INFO("WDOG", "Watchdog recuperado — comunicacao restabelecida");
-    }
-    watchdogAnteriorExpirado = watchdogAtualExpirado;
-
-    // 4. Processar velocidade (pulsos de VEL1/VEL2/VEL3)
-    if (btn.vel1_pulso) velocidade.selecionar(1);
-    if (btn.vel2_pulso) velocidade.selecionar(2);
-    if (btn.vel3_pulso) velocidade.selecionar(3);
-
-    // Processar velocidade do Remote (se novo pacote com comando de velocidade)
+    // 2. Processar novo pacote do Remote
     if (comunicacao.novoPacoteRecebido()) {
         const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
-        uint8_t cmd = pkt.comando;
-        if (cmd == CMD_VEL1 || cmd == CMD_VEL2 || cmd == CMD_VEL3) {
-            LOG_INFO_VAL("REMOTO", "Comando de velocidade recebido do Remote: ", comandoParaString(cmd));
+
+        // Emergência (nível contínuo)
+        bool emergencia = (pkt.emergencia == 1);
+        if (!watchdogExpirado) {
+            // Watchdog expirado já setou emergência — não sobrescrever
+            setEmergencia(emergencia);
+        }
+        if (emergencia) {
+            LOG_WARN("CLP", "Emergencia ATIVA — sinal enviado ao CLP");
         }
 
-        if (cmd == CMD_VEL1) velocidade.selecionar(1);
-        if (cmd == CMD_VEL2) velocidade.selecionar(2);
-        if (cmd == CMD_VEL3) velocidade.selecionar(3);
+        // Fim de curso de descida (nível contínuo)
+        digitalWrite(PIN_CLP_FIM_CURSO, (pkt.fim_curso_descida == 1) ? LOW : HIGH);
 
-        if (cmd == CMD_SUBIR || cmd == CMD_DESCER) {
-            bool emergenciaPrincipalAtiva = emergencia.isAtiva();
-            bool emergenciaRemoteAtiva = (pkt.emergencia == 1);
-            bool comandoBloqueado = emergenciaPrincipalAtiva || emergenciaRemoteAtiva;
-            uint8_t origemBloqueio = 0;
-            if (emergenciaPrincipalAtiva && emergenciaRemoteAtiva) {
-                origemBloqueio = 3;
-            } else if (emergenciaPrincipalAtiva) {
-                origemBloqueio = 1;
-            } else if (emergenciaRemoteAtiva) {
-                origemBloqueio = 2;
-            }
+        // Movimento (hold): SUBIR ou DESCER enquanto botão pressionado
+        uint8_t cmd        = pkt.comando;
+        bool    botaoHold  = (pkt.botao_hold == 1);
 
-            bool deveLogarMovimento =
-                !comandoMovRemotoAnteriorAtivo ||
-                (cmd != ultimoComandoMovRemoto) ||
-                (comandoBloqueado != ultimoComandoMovRemotoBloqueado) ||
-                (origemBloqueio != ultimaOrigemBloqueioMovRemoto);
-
-            if (deveLogarMovimento) {
-                if (comandoBloqueado) {
-                    String origemBloqueioTxt = "principal";
-                    if (origemBloqueio == 3) {
-                        origemBloqueioTxt = "principal+remote";
-                    } else if (origemBloqueio == 2) {
-                        origemBloqueioTxt = "remote";
-                    }
-
-                    LOG_WARN_VAL(
-                        "REMOTO",
-                        "Comando de movimentacao bloqueado por emergencia (origem: ",
-                        origemBloqueioTxt + "): " + comandoParaString(cmd)
-                    );
-                } else {
-                    LOG_INFO_VAL("REMOTO", "Comando de movimentacao recebido do Remote: ", comandoParaString(cmd));
-                }
-            }
-
-            comandoMovRemotoAnteriorAtivo = true;
-            ultimoComandoMovRemoto = cmd;
-            ultimoComandoMovRemotoBloqueado = comandoBloqueado;
-            ultimaOrigemBloqueioMovRemoto = origemBloqueio;
-        } else {
-            comandoMovRemotoAnteriorAtivo = false;
+        if (cmd == CMD_SUBIR && botaoHold) {
+            digitalWrite(PIN_CLP_SUBIR,  LOW);
+            digitalWrite(PIN_CLP_DESCER, HIGH);
+            LOG_INFO("CLP", "Sinal SUBIR enviado ao CLP");
+        } else if (cmd == CMD_DESCER && botaoHold) {
+            digitalWrite(PIN_CLP_DESCER, LOW);
+            digitalWrite(PIN_CLP_SUBIR,  HIGH);
+            LOG_INFO("CLP", "Sinal DESCER enviado ao CLP");
+        } else if (cmd == CMD_HEARTBEAT || !botaoHold) {
+            // Botão solto ou heartbeat sem movimento → parar
+            pararMovimento();
         }
 
-        if (pkt.emergencia == 1 && !emergenciaRemotaAnterior) {
-            LOG_WARN("REMOTO", "Comando de EMERGENCIA recebido do Remote");
-        } else if (pkt.emergencia == 0 && emergenciaRemotaAnterior) {
-            LOG_INFO("REMOTO", "Sinal de EMERGENCIA liberado no Remote");
+        // VEL1 (pulso)
+        if (cmd == CMD_VEL1) {
+            digitalWrite(PIN_CLP_VEL2, HIGH);  // garante exclusividade
+            iniciarPulso(PIN_CLP_VEL1, pulsoVel1Inicio, pulsoVel1Ativo);
+            LOG_INFO("CLP", "Pulso VEL1 enviado ao CLP");
         }
-        emergenciaRemotaAnterior = (pkt.emergencia == 1);
+
+        // VEL2 (pulso)
+        if (cmd == CMD_VEL2) {
+            digitalWrite(PIN_CLP_VEL1, HIGH);  // garante exclusividade
+            iniciarPulso(PIN_CLP_VEL2, pulsoVel2Inicio, pulsoVel2Ativo);
+            LOG_INFO("CLP", "Pulso VEL2 enviado ao CLP");
+        }
+
+        // RESET (pulso)
+        if (cmd == CMD_RESET) {
+            iniciarPulso(PIN_CLP_RESET, pulsoResetInicio, pulsoResetAtivo);
+            LOG_INFO("CLP", "Pulso RESET enviado ao CLP");
+        }
 
         comunicacao.limparNovoPacote();
     }
 
-    // 5. Montar e enviar PacoteStatus
-    bool estadoMudou = (novoEstado != estadoAnterior);
-    bool envioPeriodicoVencido = (millis() - ultimoEnvioStatusMs >= STATUS_INTERVALO_MS);
+    // Encerrar pulsos vencidos
+    atualizarPulsos();
 
-    if (estadoMudou || envioPeriodicoVencido) {
+    // 3. Enviar PacoteStatus ao Remote (heartbeat 200ms)
+    if (agora - ultimoEnvioStatusMs >= STATUS_INTERVALO_MS) {
         PacoteStatus status;
-        status.estado_sistema = novoEstado;
-        status.velocidade     = velocidade.atual();
-        status.trava_logica   = (novoEstado == ESTADO_EMERGENCIA   ||
-                                 novoEstado == ESTADO_FALHA_ENERGIA ||
-                                 novoEstado == ESTADO_FALHA_COMUNICACAO) ? 1 : 0;
-        status.rearme_ativo   = rearme.isRearmeAtivo() ? 1 : 0;
-        status.checksum       = 0; // Será calculado em enviarStatus()
-
+        status.link_ok  = 1;
+        status.checksum = 0;
         comunicacao.enviarStatus(status);
-        ultimoEnvioStatusMs = millis();
+        ultimoEnvioStatusMs = agora;
     }
 
-    estadoAnterior = novoEstado;
-
-    // Limpar flag rearme_ativo quando Remote soltar emergência
-    if (rearme.isRearmeAtivo() && comunicacao.ultimoPacote().emergencia == 0) {
-        rearme.limparRearmeAtivo();
-    }
-
-    // 6. Atualizar LED LINK (watchdog OK = aceso, expirado = apagado)
-    //    Relé ativo em LOW: desligar() = LOW = relé acionado = LED aceso
-    if (!watchdog.expirado()) {
-        ledLink.desligar();
-    } else {
+    // 4. Atualizar LED LINK
+    if (!watchdogExpirado) {
         ledLink.ligar();
+    } else {
+        ledLink.piscar(250);  // 2 Hz quando sem link
     }
     ledLink.atualizar();
 }

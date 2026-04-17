@@ -31,7 +31,7 @@
 #define PIN_BTN_DESCER      39  // Hold (nível) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL1        34  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL2        35  // Pulso (borda) — input-only, pull-up externo obrigatório
-#define PIN_BTN_VEL3        32  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
+#define PIN_BTN_RESET       32  // Pulso (borda) — pull-up interno (INPUT_PULLUP)
 #define PIN_BTN_EMERGENCIA  33  // NC: repouso LOW, pressionado HIGH — pull-up interno (INPUT_PULLUP)
 
 // ============================================================
@@ -45,11 +45,11 @@
 // ============================================================
 
 #define PIN_LED_LINK        4   // Status de comunicação com Principal
-#define PIN_LED_MOTOR       16  // Motor em operação (SUBINDO ou DESCENDO)
-#define PIN_LED_VEL1        17  // Velocidade 1 ativa
-#define PIN_LED_VEL2        5   // Velocidade 2 ativa
-#define PIN_LED_VEL3        18  // Velocidade 3 ativa
-#define PIN_LED_EMERGENCIA  19  // Emergência ou falha de comunicação
-#define PIN_LED_ALARME      21  // Rearme com botão local ainda travado
+#define PIN_LED_MOTOR       16  // Motor em operação (SUBIR ou DESCER hold ativo)
+#define PIN_LED_VEL1        17  // Velocidade 1 selecionada
+#define PIN_LED_VEL2        5   // Velocidade 2 selecionada
+// GPIO 18 (antes VEL3): não utilizado nesta arquitetura
+#define PIN_LED_EMERGENCIA  19  // Emergência ativa ou link perdido
+#define PIN_LED_ALARME      21  // Link com Principal perdido (aviso ao operador)
 
 #endif // PINOUT_H

@@ -1,7 +1,7 @@
 # Design Specification — Controle Remoto para Carrinho de Jet Ski
 
-**Versão:** 3.5
-**Data:** 2026-03-22
+**Versão:** 4.0
+**Data:** 2026-04-17
 **Status:** Em execução
 
 ---
@@ -10,62 +10,91 @@
 
 O sistema moderniza o controle de um carrinho de transporte de jet skis movido por guincho motorizado. A operação, antes restrita a um painel fixo no depósito, passa a ser realizada por controle remoto sem fio, permitindo que o operador acompanhe o equipamento ao longo de todo o trajeto entre o depósito e a margem do rio.
 
-A **prioridade absoluta do sistema é a segurança (Fail-Safe):** qualquer falha de comunicação, queda de energia ou acionamento de emergência resulta no freio mecânico sendo aplicado imediatamente.
+A **prioridade absoluta do sistema é a segurança (Fail-Safe):** qualquer falha de comunicação ou acionamento de emergência resulta no sinal de emergência sendo enviado imediatamente ao CLP, que aplica o freio mecânico.
+
+> **Nota arquitetural (v4.0):** interferência eletromagnética do motor e do inversor (VFD) comprometia a operação dos ESP32 como controladores. A partir desta versão, um **CLP programado em Ladder** gerencia toda a lógica de controle (motor, freio, estados, segurança). Os ESP32 atuam exclusivamente como **pontes de comunicação** sem fio.
 
 ---
 
 ## 2. Arquitetura do Sistema
 
-O sistema adota uma arquitetura **Mestre-Escravo** com dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem roteador).
+O sistema utiliza dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem roteador), com um **CLP** como controlador central de segurança e lógica de motor.
 
 ```
-┌──────────────────────────────────┐     ESP-NOW (bidirecional)     ┌─────────────────────────────────┐
-│     MÓDULO PRINCIPAL             │  ────────────────────────────► │     MÓDULO REMOTE               │
-│  (Painel Central / Mestre)       │  ◄────────────────────────────  │  (Carrinho / Escravo)           │
-│                                  │   Cmds ←→ Heartbeat / Status   │                                 │
-│  - ESP32                         │                                 │  - ESP32                        │
-│  - Botões do painel fixo         │                                 │  - Botões do operador           │
-│  - Botão de emergência c/ trava  │                                 │  - Botão de emergência c/ trava │
-│  - Relés: direção, velocidade,   │                                 │  - LEDs de status (cor física)  │
-│    freio                         │                                 │  - Bateria                      │
-│  - Fim de curso estacionamento   │                                 │  - Enclosure IP54               │
-│  - LEDs compartilhados c/ relés  │                                 │                                 │
-│  - Alimentação rede elétrica     │                                 │                                 │
-└──────────────────────────────────┘                                 └─────────────────────────────────┘
-                │
-                │ Circuito elétrico direto (sem ESP32)
-                ▼
-    ┌───────────────────────┐
-    │  MICROCHAVE DO FREIO  │
-    │  Acionamento hardware │
-    │  direto no circuito   │
-    │  do freio mecânico    │
-    └───────────────────────┘
+┌─────────────────────────────────┐
+│     MÓDULO REMOTE               │
+│  (Carrinho / Escravo)           │
+│                                 │
+│  - ESP32                        │
+│  - Botões: SUBIR, DESCER,       │
+│    VEL1, VEL2, RESET,           │
+│    EMERGÊNCIA (c/ trava),       │
+│    fim de curso descida         │
+│  - LEDs de status               │
+│  - Bateria + Enclosure IP54     │
+└─────────────────────────────────┘
+              │ ESP-NOW
+              │ PacoteRemote (comandos + heartbeat)
+              ▼
+┌──────────────────────────────────┐
+│     MÓDULO PRINCIPAL             │
+│  (Bridge ESP→CLP)                │
+│                                  │
+│  - ESP32 (somente saídas GPIO)   │
+│  - Sem botões físicos            │
+│  - 7 saídas GPIO → CLP inputs    │
+│  - LED LINK                      │
+│  - Alimentação rede elétrica     │
+└──────────────────────────────────┘
+              │ GPIO outputs (ativo em LOW/GND)
+              ▼
+┌──────────────────────────────────┐
+│     CLP (Ladder)                 │
+│                                  │
+│  - Lógica de controle completa   │
+│  - Motor, freio, velocidade      │
+│  - Máquina de estados            │
+│  - Segurança e emergência        │
+└──────────────────────────────────┘
 ```
 
-### 2.1 Hierarquia de Controle
+### 2.1 Fluxo de Comunicação
 
-O Módulo Principal possui **autoridade máxima** sobre o sistema:
+```
+Botão pressionado no Remote
+  → PacoteRemote via ESP-NOW
+    → ESP Principal recebe
+      → GPIO LOW (GND) → Entrada digital do CLP
+        → CLP executa lógica Ladder
+```
 
-- Comandos de direção e velocidade do Painel Central têm prioridade sobre os do Remote.
-- O Painel Central pode ativar emergência e executar o REARME quando o Remote estiver com botão travado.
-- Quando o Remote solta seu botão de emergência, o Principal auto-libera o estado sem necessidade de REARME.
+**Lógica de nível GPIO → CLP:** ativo em LOW (GND)
+- LOW = sinal ativo → CLP lê como entrada acionada
+- HIGH = sinal inativo (repouso)
+- Inicialização: todos os GPIOs em HIGH
+
+### 2.2 Fail-Safe
+
+Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
+1. `PIN_CLP_EMERGENCIA` vai a LOW imediatamente → CLP recebe emergência
+2. Todos os sinais de movimento voltam a HIGH (inativos)
+3. Comunicação restaurada → `PIN_CLP_EMERGENCIA` volta a HIGH
 
 ---
 
 ## 3. Descrição dos Módulos
 
-### 3.1 Módulo Principal (Painel Central)
+### 3.1 Módulo Principal (Bridge ESP→CLP)
 
 | Item | Descrição |
 |---|---|
 | Microcontrolador | ESP32 |
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
-| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava), REARME; fim de curso do estacionamento |
-| Saídas relés/LEDs | 1 GPIO por canal — aciona relé **e** LED simultaneamente via ligação física: DIREÇÃO A, DIREÇÃO B, VEL1, VEL2, VEL3, FREIO_ON, FREIO_OFF. O LED de freio está associado apenas ao canal `FREIO_ON` — aceso quando o freio está aplicado, apagado quando liberado. |
-| LEDs exclusivos | LINK REMOTE (sem relé associado — GPIO dedicado) |
-| Comunicação | ESP-NOW — recebe pacotes do Remote, envia status de retorno |
+| Entradas físicas | **Nenhuma** — somente via ESP-NOW |
+| Saídas GPIO → CLP | 7 GPIOs (ativo em LOW/GND): SUBIR, DESCER, VEL1, VEL2, EMERGÊNCIA, RESET, FIM_CURSO |
+| LED | LINK (GPIO 21) — indica link ativo com Remote |
+| Comunicação | ESP-NOW — recebe `PacoteRemote` do Remote; envia `PacoteStatus` (link_ok) |
 
 ### 3.2 Módulo Remote (Carrinho)
 
@@ -74,138 +103,74 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 | Microcontrolador | ESP32 |
 | Localização | Embarcado no carrinho de transporte |
 | Alimentação | Bateria recarregável (ex: Li-Ion 18650 + regulador 3.3V) |
-| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava) |
-| Saídas LEDs | GPIOs dedicados: LINK, MOTOR, VEL1, VEL2, VEL3, EMERGÊNCIA, ALARME |
-| Comunicação | ESP-NOW — transmite comandos e heartbeat para o Principal |
+| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, RESET, EMERGÊNCIA (c/ trava); fim de curso descida |
+| Saídas LEDs | GPIOs dedicados: LINK, MOTOR, VEL1, VEL2, EMERGÊNCIA, ALARME |
+| Comunicação | ESP-NOW — transmite `PacoteRemote` e heartbeat para o Principal |
 
-> O Remote não possui relés. Todos os seus LEDs são GPIOs dedicados.
+> O Remote não possui relés. Todos os seus LEDs são GPIOs dedicados. VEL3 foi substituído por RESET.
 
 ---
 
-## 4. Arquitetura de Hardware — GPIOs e Ligações Físicas
+## 4. Arquitetura de Hardware — GPIOs e Ligações
 
-### 4.1 Compartilhamento GPIO: Relé + LED (Módulo Principal)
+### 4.1 Saídas GPIO do Principal → Entradas do CLP
 
-No Módulo Principal, cada saída de relé possui um LED indicativo conectado **em paralelo** na mesma saída GPIO. Quando o ESP32 aciona o GPIO (HIGH), ele energiza simultaneamente o relé e o LED. Quando desaciona (LOW), ambos apagam.
+O ESP Principal conecta suas saídas GPIO diretamente às entradas digitais do CLP via GND:
 
 ```
-GPIO ESP32
+GPIO ESP32 (OUTPUT)
     │
-    ├──► Bobina do relé (via transistor/driver)
-    │
-    └──► LED 3V (com resistor em série 220Ω)
+    └──► Entrada digital do CLP
+         (GND compartilhado entre ESP32 e CLP)
 ```
 
-> **Atenção de hardware:** a corrente total do GPIO deve suportar o LED (tipicamente ~10 mA) mais a corrente de controle do driver do relé. Recomenda-se usar um transistor ou driver de relé (ex: ULN2003) para não sobrecarregar o GPIO diretamente. O LED pode ser ligado entre o coletor do transistor e VCC, ou diretamente no GPIO se a corrente total for segura.
+**Lógica:** LOW (GND) = sinal ativo; HIGH = inativo.
 
-**Canais com GPIO compartilhado (relé + LED) no Principal:**
+| Sinal | GPIO ESP | Pino CLP | Tipo | Comportamento |
+|---|---|---|---|---|
+| SUBIR | 4 | Entrada CLP | Nível | LOW enquanto botão hold no Remote |
+| DESCER | 16 | Entrada CLP | Nível | LOW enquanto botão hold no Remote |
+| VEL1 | 17 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL1 |
+| VEL2 | 5 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL2 |
+| EMERGÊNCIA | 18 | Entrada CLP | Nível | LOW se emergência Remote OU watchdog expirado |
+| RESET | 19 | Entrada CLP | Pulso | LOW por 50 ms ao pressionar RESET |
+| FIM_CURSO | 22 | Entrada CLP | Nível | LOW quando carrinho na posição final de descida |
 
-| Canal | Relé aciona | LED indica |
-|---|---|---|
-| DIREÇÃO A | Motor sentido SUBIDA | Motor ativo — sentido subida |
-| DIREÇÃO B | Motor sentido DESCIDA | Motor ativo — sentido descida |
-| VEL1 | Potenciômetro velocidade 1 | Velocidade 1 selecionada |
-| VEL2 | Potenciômetro velocidade 2 | Velocidade 2 selecionada |
-| VEL3 | Potenciômetro velocidade 3 | Velocidade 3 selecionada |
-| FREIO_ON  | Bobina de aplicação (cilindro avança — freio trava) | Freio aplicado |
-| FREIO_OFF | Bobina de liberação (cilindro recua — freio libera)  | (sem LED)      |
+### 4.2 Fim de Curso de Descida
 
-> O freio é composto por um cilindro com solenoide de dupla bobina. `FREIO_ON` e `FREIO_OFF` nunca ficam ativos simultaneamente. O firmware garante a troca sequencial com dead-time de ~10 ms entre desacionar uma bobina e acionar a outra.
+O sensor de fim de curso de descida está conectado ao **ESP32 Remote** (GPIO 13). Quando acionado:
+- O Remote inclui `fim_curso_descida = 1` no `PacoteRemote`
+- O Principal replica o sinal em `PIN_CLP_FIM_CURSO` (LOW) para o CLP
+- O CLP trata a lógica de bloqueio de descida
 
-**Canal com GPIO exclusivo (sem relé) no Principal:**
+### 4.3 Fail-Safe de Comunicação
 
-| Canal | Função |
-|---|---|
-| LINK REMOTE | LED indicando comunicação ativa com o Remote |
-
-### 4.2 Microchave do Freio — Lógica e Temporização
-
-O freio é um **cilindro solenoide de dupla bobina**. A microchave (GPIO 27, NA + pull-up interno) indica a posição do cilindro:
-
-| GPIO 27 | Microchave | Cilindro | Estado do freio |
-|---|---|---|---|
-| HIGH | Aberta | Avançado | **Engatado** (ativo) — modo padrão |
-| LOW | Pressionada | Retraído | **Liberado** (inativo) — motor permitido |
-
-**O cilindro leva aproximadamente 10 segundos para completar o curso em cada sentido.**
-
-Os relés das bobinas operam de forma assimétrica:
-- **FREIO_ON (GPIO 19 — aplicação):** permanece **ativo continuamente** enquanto o freio está engatado. O cilindro possui fim de curso mecânico próprio; o relé não é desativado após a microchave confirmar.
-- **FREIO_OFF (GPIO 22 — liberação):** funciona como **pulso** — é ativado para retrair o cilindro e desativado automaticamente quando a microchave confirma o freio liberado (GPIO 27 = LOW), evitando pressão contínua desnecessária.
-
-**Sequência ao solicitar movimento (SUBIR/DESCER):**
-1. Firmware ativa FREIO_OFF (GPIO 22 LOW) — cilindro começa a retrair.
-2. Durante ~10s, o motor fica **bloqueado** e o estado permanece `PARADO`.
-3. Quando GPIO 27 = LOW, o firmware confirma freio liberado e desativa o relé FREIO_OFF.
-4. Motor é acionado. FREIO_ON permanece LOW (ativo) durante toda a movimentação.
-
-**Fail-safe:** cabo partido → GPIO HIGH → motor bloqueado por hardware de pull-up.
-
-O Remote **não recebe** o estado do freio. O operador percebe a espera pela ausência de resposta do motor durante a transição.
-
-> A microchave também pode estar conectada diretamente ao circuito elétrico do freio como camada de hardware independente (redundância).
-
-### 4.2.1 Modo Manual de Recuperação do Freio
-
-Para situações onde o cilindro para no meio do curso (microchave não ativada, sistema travado):
-
-| Combinação de botões | Ação |
-|---|---|
-| Segurar **REARME** + pressionar **SUBIR** | Força cilindro avançar (freio engata) |
-| Segurar **REARME** + pressionar **DESCER** | Força cilindro retrair (freio libera) |
-
-- Motor permanece desligado durante o modo manual.
-- A máquina de estados principal é ignorada.
-- Ao soltar REARME **ou** a direção (SUBIR/DESCER), o sistema ressincroniza o estado pela leitura da microchave.
-
-### 4.3 Fim de Curso do Estacionamento
-
-Sensor instalado no estacionamento que é acionado quando o carrinho chega à posição final de subida. Este sensor **está conectado ao ESP32 Principal** como entrada digital.
-
-**Comportamento ao acionar:**
-- O Principal detecta o sinal do fim de curso (com debounce de 20 ms).
-- O motor é cortado imediatamente (desaciona relés de direção).
-- O relé de freio é acionado.
-- O sistema entra no estado `PARADO` — não é emergência, não requer rearme.
-- **Bloqueio pós-acionamento:** o movimento permanece bloqueado por **10 s** após o sensor ser confirmado, mesmo que ele já tenha sido liberado fisicamente. Proteção contra reacionamento acidental imediato.
-- Após o bloqueio de 10 s expirar, o operador pode retomar a operação normalmente.
+Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
+1. `PIN_CLP_EMERGENCIA` = LOW → CLP aplica freio imediatamente
+2. `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` = HIGH (movimento inativo)
+3. Quando comunicação é restaurada: `PIN_CLP_EMERGENCIA` = HIGH automaticamente
 
 ---
 
 ## 5. Pinout Resumido
 
-### 5.1 Módulo Principal
+### 5.1 Módulo Principal (somente saídas)
 
-| Função | Tipo | GPIO | Observação |
+| Função | Tipo | GPIO | Lógica |
 |---|---|---|---|
-| Botão SUBIR | Entrada | 36 (VP) | Input-only, pull-up externo obrigatório |
-| Botão DESCER | Entrada | 39 (VN) | Input-only, pull-up externo obrigatório |
-| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo obrigatório |
-| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
-| Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
-| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
-| Botão REARME | Entrada | 25 | Pull-up interno (INPUT_PULLUP) |
-| Fim de curso | Entrada | 26 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
-| Microchave freio | Entrada | 27 | Pull-up interno (INPUT_PULLUP) — NA, HIGH = freio engatado |
-| Monitor rede elétrica | Entrada | 13 | HIGH = rede presente; LOW = rede ausente — pull-down externo + debounce 50 ms |
-| Relé + LED DIREÇÃO A | Saída | 4 | HIGH = motor sentido SUBIR |
-| Relé + LED DIREÇÃO B | Saída | 16 | HIGH = motor sentido DESCER |
-| Relé + LED VEL1 | Saída | 17 | HIGH = velocidade 1 |
-| Relé + LED VEL2 | Saída | 5 | HIGH = velocidade 2 |
-| Relé + LED VEL3 | Saída | 18 | HIGH = velocidade 3 |
-| Relé + LED FREIO_ON  | Saída | 19 | HIGH = bobina de aplicação energizada (freio trava) |
-| Relé FREIO_OFF       | Saída | 22 | HIGH = bobina de liberação energizada (freio libera) — sem LED |
-| LED LINK REMOTE | Saída | 21 | Comunicação ativa com Remote |
-| **Total** | | **18** | **10 entradas + 8 saídas** |
+| CLP — SUBIR | Saída | 4 | LOW = ativo (SUBIR hold) |
+| CLP — DESCER | Saída | 16 | LOW = ativo (DESCER hold) |
+| CLP — VEL1 | Saída | 17 | LOW = pulso 50 ms |
+| CLP — VEL2 | Saída | 5 | LOW = pulso 50 ms |
+| CLP — EMERGÊNCIA | Saída | 18 | LOW = emergência ativa |
+| CLP — RESET | Saída | 19 | LOW = pulso 50 ms |
+| CLP — FIM_CURSO | Saída | 22 | LOW = fim de curso descida ativo |
+| LED LINK | Saída | 21 | HIGH = aceso (link com Remote OK) |
+| **Total** | | **8** | **0 entradas + 8 saídas** |
 
-> GPIOs confirmados fisicamente na placa ESP32 WROOM-32U utilizada.
-> GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
-> GPIOs 32, 33, 25, 26 e 27 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
-> GPIO 27 (microchave freio): NA com pull-up interno — HIGH = freio engatado, LOW = freio liberado. Cabo partido lê HIGH e bloqueia motor (fail-safe).
-> GPIO 13 (monitor rede): pull-down externo (divisor resistivo 5V→2,5V ou optoacoplador); HIGH = rede presente, LOW = rede ausente. Debounce 50 ms no firmware.
-> GPIO 22 (FREIO_OFF): saída digital, sem restrições de boot. Sem LED associado. `FREIO_ON` e `FREIO_OFF` nunca ficam HIGH simultaneamente — garantido por firmware.
+> Todos os GPIOs inicializados em HIGH (inativo) no boot.
 > GPIOs 0, 2, 12 e 15 evitados (strapping pins de boot).
-> Pinos de flash SPI interna (D0, D1, D2, D3, CLK, CMD) não utilizados.
+> GPIOs 34, 35, 36, 39 (input-only no ESP32) não utilizados.
 
 ### 5.2 Módulo Remote
 
@@ -215,23 +180,21 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 | Botão DESCER | Entrada | 39 (VN) | Input-only, pull-up externo obrigatório |
 | Botão VEL1 | Entrada | 34 | Input-only, pull-up externo obrigatório |
 | Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
-| Botão VEL3 | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
-| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — não usa strapping pin |
-| Fim de curso descida | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — LOW = carrinho na posição final de descida; debounce 20 ms + bloqueio 10 s pós-liberação |
+| Botão RESET | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
+| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — NC, HIGH = ativo |
+| Fim de curso descida | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — LOW = carrinho na posição final |
 | LED LINK | Saída | 4 | Comunicação com Principal |
-| LED MOTOR | Saída | 16 | Motor em operação |
-| LED VEL1 | Saída | 17 | Velocidade 1 ativa |
-| LED VEL2 | Saída | 5 | Velocidade 2 ativa |
-| LED VEL3 | Saída | 18 | Velocidade 3 ativa |
-| LED EMERGÊNCIA | Saída | 19 | Emergência ou falha de comunicação |
-| LED ALARME | Saída | 21 | Rearme com botão local ainda travado |
-| **Total** | | **14** | **7 entradas + 7 saídas** |
+| LED MOTOR | Saída | 16 | Motor em operação (SUBIR/DESCER hold ativo) |
+| LED VEL1 | Saída | 17 | Velocidade 1 selecionada |
+| LED VEL2 | Saída | 5 | Velocidade 2 selecionada |
+| (não utilizado) | — | 18 | Antes VEL3 |
+| LED EMERGÊNCIA | Saída | 19 | Emergência ativa ou link perdido |
+| LED ALARME | Saída | 21 | Link com Principal perdido |
+| **Total** | | **14** | **7 entradas + 6 LEDs ativos** |
 
-> GPIOs de ambos os módulos definidos. Mapeamento de entradas consistente entre Principal e Remote (mesmos GPIOs para botões com funções idênticas).
-> GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V) — não suportam INPUT_PULLUP.
-> GPIOs 32, 33 e 13 usam pull-up interno ativado via INPUT_PULLUP no firmware — sem resistor externo necessário.
-> GPIO 13 (fim de curso descida): LOW = carrinho na posição final; bloqueio de 10 s pós-liberação bloqueia apenas DESCER; SUBIR permanece permitido.
-> Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados para entradas críticas.
+> GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V).
+> GPIOs 32, 33 e 13 usam pull-up interno via INPUT_PULLUP.
+> Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados.
 
 ---
 
@@ -239,141 +202,80 @@ Sensor instalado no estacionamento que é acionado quando o carrinho chega à po
 
 ### 6.1 Controle de Velocidade
 
-- O sistema possui **3 níveis de velocidade**, selecionados por botões de **pulso**.
-- A velocidade selecionada é armazenada em memória de estado no firmware do Principal.
-- Cada nível aciona um relé correspondente (e seu LED em paralelo), que comuta a tensão para um potenciômetro físico externo pré-ajustado.
-- Apenas **um** relé de velocidade pode estar ativo por vez. Ao selecionar um novo nível, o relé anterior é desacionado antes de acionar o novo.
-- **Sincronização de LEDs:** o campo `velocidade` do `PacoteStatus` permite ao Remote atualizar seus próprios LEDs de velocidade, espelhando o estado do Painel.
+- O sistema possui **2 níveis de velocidade** (VEL1, VEL2), selecionados por botões de **pulso** no Remote.
+- O ESP Principal envia um pulso de 50 ms para a entrada CLP correspondente ao selecionar.
+- O CLP gerencia qual nível está ativo e a comutação entre eles.
+- Os LEDs VEL1/VEL2 no Remote refletem a velocidade selecionada **localmente** (sem confirmação do CLP).
 
 ### 6.2 Acionamento do Motor — Regra "Homem-Morto"
 
-- O motor **só permanece em operação enquanto SUBIR ou DESCER estiver mantido pressionado.**
-- Ao soltar: corte do motor (relés de direção) → acionamento do freio (relé de freio).
-- Aplica-se ao Painel Central e ao Remote.
-- O Remote transmite o estado do botão continuamente; o Principal executa a lógica.
+- O motor **só permanece em operação enquanto SUBIR ou DESCER estiver mantido pressionado** no Remote.
+- O Remote transmite `botao_hold = 1` enquanto o botão está pressionado.
+- Ao soltar: `PIN_CLP_SUBIR` ou `PIN_CLP_DESCER` volta a HIGH → CLP corta motor e aplica freio.
+- A lógica de execução (dead-time, freio) é inteira responsabilidade do CLP.
 
-### 6.3 Trava Lógica de Software
+### 6.3 Emergência
 
-- Quando a trava lógica está ativa no firmware (emergência ou falha de comunicação), os comandos de movimentação do Remote são ignorados.
-- A microchave do freio atua em paralelo como camada de segurança de hardware, independente da trava lógica.
+- Botão EMERGÊNCIA no Remote (NC com trava): HIGH = emergência ativa.
+- `PIN_CLP_EMERGENCIA` vai a LOW enquanto `emergencia == 1` no pacote.
+- Watchdog timeout também ativa `PIN_CLP_EMERGENCIA` (Remote silencioso = emergência).
+- O CLP aplica freio e bloqueia movimento ao receber o sinal de emergência.
+
+### 6.4 RESET
+
+- Botão RESET no Remote: envia `CMD_RESET` ao Principal.
+- Principal gera pulso de 50 ms em `PIN_CLP_RESET`.
+- O CLP define o comportamento do RESET (ex: rearme após emergência).
 
 ---
 
 ## 7. Protocolos de Segurança e Emergência (Fail-Safe)
 
-### 7.1 Condições de Acionamento do Freio
+### 7.1 Condições de Acionamento de Emergência no CLP
 
-| # | Condição | Camada | Estado resultante |
+| # | Condição | Origem | Sinal para CLP |
 |---|---|---|---|
-| 1 | Microchave do freio (circuito direto) | **Hardware** | Freio acionado independente do firmware |
-| 2 | Perda de heartbeat do Remote (watchdog) | Firmware | `FALHA_COMUNICACAO` |
-| 3 | Queda de energia / desligamento do Remote | Firmware | `FALHA_COMUNICACAO` |
-| 4 | Queda de energia da rede elétrica (GPIO 13 LOW) | Firmware | `FALHA_ENERGIA` |
-| 5 | Botão EMERGÊNCIA no Painel Central | Firmware | `EMERGENCIA_ATIVA` |
-| 6 | Botão EMERGÊNCIA no Remote | Firmware | `EMERGENCIA_ATIVA` |
-| 7 | Soltura do botão de acionamento (Homem-Morto) | Firmware | `PARADO` |
-| 8 | Fim de curso do estacionamento (Principal GPIO 26) | Firmware | `PARADO` (bloqueia SUBIR e DESCER) |
-| 9 | Fim de curso de descida (Remote GPIO 13) | Firmware | `PARADO` (bloqueia apenas DESCER; SUBIR permitido) |
+| 1 | Botão EMERGÊNCIA no Remote | Remote → ESP-NOW → Principal | `PIN_CLP_EMERGENCIA` LOW |
+| 2 | Remote silencioso > 500 ms (watchdog) | Principal (watchdog) | `PIN_CLP_EMERGENCIA` LOW |
+| 3 | Desligamento / queda de bateria do Remote | Principal (watchdog) | `PIN_CLP_EMERGENCIA` LOW |
+| 4 | Soltura do botão de direção (Homem-Morto) | Remote → Principal | `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` HIGH |
+
+> O CLP decide como reagir a cada sinal — corte de motor, aplicação de freio, bloqueio de movimento, etc.
 
 ### 7.2 Botão de Emergência NC com Trava Mecânica
 
 Botões de emergência são do tipo **NC (normalmente fechado) com trava**: em repouso o contato está fechado (pino LOW); ao pressionar, o contato abre e o pull-up puxa o pino para HIGH (emergência ativa), permanecendo assim até destravar manualmente. O firmware lê o nível contínuo do pino.
 
-> **Fail-safe:** cabo partido ou desconexão resulta em pino HIGH → emergência ativada automaticamente.
+> **Fail-safe:** cabo partido ou desconexão resulta em pino HIGH → `emergencia = 1` no pacote → `PIN_CLP_EMERGENCIA` LOW.
 
-**Auto-liberação (caso normal):**
+**Liberação da emergência:**
+- Operador destravar o botão de emergência no Remote → `emergencia = 0` → `PIN_CLP_EMERGENCIA` HIGH
+- Se watchdog estava expirado: restaurar comunicação → `PIN_CLP_EMERGENCIA` HIGH automaticamente
+- RESET no Remote pode ser usado para solicitar rearme ao CLP (lógica definida no Ladder)
 
-A emergência é limpa automaticamente quando **todas** as fontes ficam inativas:
-- Botão local do Painel Central está **solto/destravado**; **E**
-- Remote envia `emergencia == 0`.
+### 7.3 Watchdog de Comunicação (Principal)
 
-**Rearme manual (remote travado):**
-
-Quando o botão do Remote está **mecanicamente travado** ou o Remote está inacessível:
-1. Botão local do Painel Central deve estar solto; **e**
-2. Operador pressiona **REARME** no Painel Central.
-
-O sinal de emergência do Remote é ignorado enquanto `rearme_ativo == 1`.
-
-```
-Botão Remote travado + Painel pressiona REARME:
-  → Principal: EMERGENCIA_ATIVA = false, rearme_ativo = 1
-  → Remote recebe status: LED ALARME pisca (2 Hz)
-  → Operador solta botão no Remote: rearme_ativo = 0, LED ALARME apaga
-```
-
-### 7.3 Prioridade da Emergência
-
-Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do relé de freio → `EMERGENCIA_ATIVA = true`. Com flag ativa, todos os comandos de movimentação do Remote são ignorados.
-
-### 7.4 Desativação de Emergência
-
-**Auto-liberação:** quando todas as fontes ficam inativas (botão local solto + remote sem emergência), `EMERGENCIA_ATIVA` é limpa automaticamente e o estado retorna a `PARADO`.
-
-**REARME manual:** necessário somente quando o Remote mantém `emergencia == 1` e não é possível acessá-lo. O REARME no Painel Central sobrepõe o sinal do Remote. Após rearme: estado `PARADO`.
-
-### 7.5 Watchdog de Comunicação
-
-- Timeout: **500 ms** (configurável).
-- Sem pacote no timeout: freio acionado, motor cortado, `FALHA_COMUNICACAO`.
-- Remote envia heartbeat a cada **100 ms**.
-- `FALHA_COMUNICACAO` exige rearme manual.
-- Após REARME em `FALHA_COMUNICACAO`, o Principal entra em **modo degradado local**: comandos locais (Painel Central) são permitidos mesmo sem link com Remote.
-- Durante modo degradado, comandos do Remote permanecem bloqueados até a comunicação ser restabelecida.
+- Timeout: **500 ms** (`WATCHDOG_TIMEOUT_MS`)
+- Remote envia heartbeat a cada **100 ms**
+- Ao expirar: `PIN_CLP_EMERGENCIA` LOW + todos os sinais de movimento HIGH
+- Ao restaurar: `PIN_CLP_EMERGENCIA` HIGH automaticamente (sem necessidade de RESET manual no ESP)
+- O CLP define se exige RESET após watchdog — configurado no Ladder
 
 ---
 
-## 8. Máquina de Estados do Sistema (Módulo Principal)
+## 8. Máquina de Estados (CLP)
 
-```
-                    ┌──────────────────────────────────────────┐
-                    │           EMERGENCIA_ATIVA               │◄─── Emergência (Painel ou Remote)
-                    │  Relés direção: OFF                      │
-                    │  Relé freio: ON                          │
-                    │  Remote: ignorado                        │
-                    └────────────────┬─────────────────────────┘
-                                     │ Auto-libera (fontes inativas) OU
-                                     │ Rearme MANUAL (se remote travado)
-                                     ▼
-                    ┌──────────────────────────────────────────┐
-                    │           FALHA_ENERGIA                  │◄─── Queda de energia (GPIO 13 LOW)
-                    │  Relés direção: OFF                      │
-                    │  Relé freio: ON                          │
-                    │  Remote: ignorado                        │
-                    └────────────────┬─────────────────────────┘
-                                     │ Rearme MANUAL (Painel Central)
-                                     ▼
-                    ┌──────────────────────────────────────────┐
-                    │           FALHA_COMUNICACAO              │◄─── Watchdog timeout
-                    │  Relés direção: OFF                      │
-                    │  Relé freio: ON                          │
-                    └────────────────┬─────────────────────────┘
-                                     │ Rearme MANUAL (Painel Central)
-                                     │ habilita modo degradado local
-                                     ▼
-          ┌──────────┐  hold SUBIR  ┌───────────┐  hold DESCER  ┌──────────┐
-          │  SUBINDO │◄─────────── │  PARADO   │──────────────►│ DESCENDO │
-          │ Dir A:ON │             │ Dir:OFF   │               │ Dir B:ON │
-          │ Freio:OFF│────────────►│ Freio:ON  │◄──────────────│ Freio:OFF│
-          └──────────┘  solto      └─────▲─────┘  solto        └──────────┘
-                                         │
-                              Fim de curso → PARADO (sem rearme)
+A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal apenas replica os sinais recebidos do Remote:
 
-* Microchave do freio: camada de hardware paralela, independente dos estados acima.
-```
-
-### Tabela de Condições de Acionamento do Motor (camada firmware)
-
-| Emergência Ativa | Falha Energia | Falha Comun. | Fim de Curso | GPIO 27 | Botão Hold | Resultado |
-|---|---|---|---|---|---|---|
-| Não | Não | Não | Não acionado | LOW (freio liberado) | Pressionado | Motor ON |
-| Não | Não | Não | Não acionado | HIGH (freio engatado/transição) | Pressionado | Motor AGUARDA (~10s para freio liberar) |
-| Não | Não | Não | Não acionado | Qualquer | Solto | Motor OFF → Freio ON → PARADO |
-| Não | Não | Não | Acionado | Qualquer | Qualquer | Motor OFF → Freio ON → PARADO |
-| Não | Não | Sim | Qualquer | Qualquer | Qualquer | FALHA_COMUNICACAO → Freio ON |
-| Não | Não | Sim | Qualquer | Qualquer | Pressionado (Painel local, após REARME) | Motor ON (modo degradado local, se GPIO 27 LOW) |
-| Não | Sim | Qualquer | Qualquer | Qualquer | Qualquer | FALHA_ENERGIA → Freio ON |
-| Sim | Qualquer | Qualquer | Qualquer | Qualquer | Qualquer | EMERGENCIA_ATIVA → Freio ON |
+| Sinal ESP → CLP | Nível | Significado para o CLP |
+|---|---|---|
+| `PIN_CLP_SUBIR` | LOW | Operador mantendo SUBIR pressionado |
+| `PIN_CLP_DESCER` | LOW | Operador mantendo DESCER pressionado |
+| `PIN_CLP_VEL1` | Pulso LOW 50ms | Selecionar velocidade 1 |
+| `PIN_CLP_VEL2` | Pulso LOW 50ms | Selecionar velocidade 2 |
+| `PIN_CLP_EMERGENCIA` | LOW | Emergência ativa (botão ou watchdog) |
+| `PIN_CLP_RESET` | Pulso LOW 50ms | Reset / rearme |
+| `PIN_CLP_FIM_CURSO` | LOW | Carrinho na posição final de descida |
 
 ---
 
@@ -383,12 +285,12 @@ Prioridade máxima no firmware. Ao entrar: corte do motor → acionamento do rel
 
 Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer inicial. O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido, e o peer é registrado automaticamente via `esp_now_add_peer()`.
 
-### 9.2 Pacote Remote → Principal
+### 9.2 Pacote Remote → Principal (9 bytes)
 
 ```c
 typedef struct {
     uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
-                                 // 3=VEL1, 4=VEL2, 5=VEL3
+                                 // 3=VEL1, 4=VEL2, 5=RESET
     uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1=botão com trava ativo no Remote
     uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
@@ -397,20 +299,16 @@ typedef struct {
 } PacoteRemote;
 ```
 
-### 9.3 Pacote Principal → Remote (Status)
+### 9.3 Pacote Principal → Remote (Status) (2 bytes)
+
+O CLP não fornece feedback ao ESP. O Principal informa apenas se está ativo.
 
 ```c
 typedef struct {
-    uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
-                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO, 5=FALHA_ENERGIA
-    uint8_t  velocidade;     // 1, 2 ou 3 — sincroniza LEDs de velocidade no Remote
-    uint8_t  trava_logica;   // 1=trava ativa
-    uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão Remote ainda travado
-    uint8_t  checksum;
+    uint8_t  link_ok;   // 1=Principal ativo e recebendo pacotes do Remote
+    uint8_t  checksum;  // XOR de todos os bytes anteriores
 } PacoteStatus;
 ```
-
-> O campo `estado_freio` foi removido do `PacoteStatus`: o Remote não exibe estado do freio. O estado `FALHA_ENERGIA` (valor 5) foi adicionado. O firmware DO lê a microchave (GPIO 27) — a leitura é usada internamente pela classe `Freio` para controle da máquina de estados.
 
 ### 9.4 Frequência de Envio
 
@@ -426,32 +324,28 @@ typedef struct {
 
 Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor definida fisicamente. O firmware controla apenas o estado lógico do GPIO.
 
-### 10.1 LEDs no Módulo Principal (compartilhados com relés)
+### 10.1 LEDs no Módulo Principal
 
-| LED | GPIO compartilhado com | Aceso quando |
+| LED | GPIO | Aceso quando |
 |---|---|---|
-| DIREÇÃO A | Relé DIREÇÃO A | Motor ativo no sentido subida |
-| DIREÇÃO B | Relé DIREÇÃO B | Motor ativo no sentido descida |
-| VEL1 | Relé VEL1 | Velocidade 1 selecionada |
-| VEL2 | Relé VEL2 | Velocidade 2 selecionada |
-| VEL3 | Relé VEL3 | Velocidade 3 selecionada |
-| FREIO_ON | Relé FREIO_ON | Bobina de aplicação energizada — freio aplicado |
-| LINK REMOTE | — (GPIO exclusivo) | Comunicação ativa com o Remote |
+| LINK | 21 | Link ativo com Remote (watchdog OK) — pisca 2 Hz se sem link |
+
+> Os GPIOs de saída ao CLP (4, 16, 17, 5, 18, 19, 22) não possuem LEDs associados nesta arquitetura.
 
 ### 10.2 LEDs no Módulo Remote (GPIOs dedicados)
 
-| LED | Comportamento | Condição |
-|---|---|---|
-| LINK | Piscando 1 Hz | Sem status recebido há > 1000 ms |
-| LINK | Ligado fixo | Comunicação ativa |
-| MOTOR | Ligado fixo | `estado_sistema == SUBINDO` ou `DESCENDO` |
-| VEL1 | Ligado fixo | `velocidade == 1` |
-| VEL2 | Ligado fixo | `velocidade == 2` |
-| VEL3 | Ligado fixo | `velocidade == 3` |
-| EMERGÊNCIA | Piscando 4 Hz | `estado_sistema == EMERGENCIA_ATIVA` |
-| EMERGÊNCIA | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` |
-| EMERGÊNCIA | Piscando 2 Hz | `estado_sistema == FALHA_ENERGIA` |
-| ALARME | Piscando 2 Hz | `rearme_ativo == 1` e botão emergência local travado |
+LEDs baseados em **estado local** (sem feedback do CLP):
+
+| LED | GPIO | Comportamento | Condição |
+|---|---|---|---|
+| LINK | 4 | Ligado fixo | `link_ok == 1` e status recebido há < 1000 ms |
+| LINK | 4 | Piscando 1 Hz | Timeout > 1000 ms sem resposta do Principal |
+| MOTOR | 16 | Ligado fixo | SUBIR ou DESCER hold ativo + sem emergência local |
+| VEL1 | 17 | Ligado fixo | Velocidade 1 selecionada localmente |
+| VEL2 | 5 | Ligado fixo | Velocidade 2 selecionada localmente |
+| EMERGÊNCIA | 19 | Piscando 4 Hz | Botão emergência local ativo |
+| EMERGÊNCIA | 19 | Ligado fixo | Link perdido há > 500 ms (sem comunicação) |
+| ALARME | 21 | Piscando 2 Hz | Link com Principal perdido |
 
 ---
 
@@ -471,45 +365,24 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 
 | Tag | Eventos logados |
 |---|---|
-| `BOTAO` | Pressionar/soltar SUBIR, DESCER; pulsos VEL1/2/3 |
-| `EMERG` | Emergência ativada (botão local ou sinal Remote) |
-| `FREIO` | Acionamento e liberação do freio (transição) |
-| `MOTOR` | Ativação, desligamento, inversão com dead-time |
-| `VELOC` | Alteração de velocidade (nível 1/2/3) |
-| `REARM` | Rearme executado, bloqueado, ou com Remote travado |
-| `SENSOR` | Fim de curso acionado/liberado |
-| `MAQEST` | Bloqueio de movimentação (emergência/falha comunicação) |
-| `ESTADO` | Transição de estado (ex: PARADO → SUBINDO) |
+| `CLP` | Sinais enviados ao CLP (SUBIR, DESCER, VEL1/2, EMERGÊNCIA, RESET, FIM_CURSO) |
 | `WDOG` | Watchdog expirado/recuperado |
-| `REMOTO` | Comandos recebidos do Remote (velocidade, movimentação, emergência) e bloqueios associados |
 
 ### 11.3 Módulos Monitorados — Remote
 
 | Tag | Eventos logados |
 |---|---|
-| `BOTAO` | Pressionar/soltar SUBIR, DESCER, VEL1/2/3, EMERGÊNCIA |
-| `STATUS` | Estado recebido do Principal (transições) |
-| `LINK` | Comunicação perdida/restabelecida |
+| `BOTAO` | Pressionar/soltar SUBIR, DESCER, VEL1/2, RESET, EMERGÊNCIA |
+| `LINK` | Comunicação perdida/restabelecida com o Principal |
 
-### 11.4 Exemplo de Saída Serial
+### 11.4 Exemplo de Saída Serial — Principal
 
 ```
-[1523] [INFO] [BOTAO] Botao SUBIR pressionado (hold)
-[1523] [INFO] [FREIO] Iniciando liberacao do freio
-[~8500] [INFO] [FREIO] Microchave confirmou freio liberado — desativando rele FREIO_OFF
-[~8500] [INFO] [MOTOR] Motor ativado — direcao SUBIR
-[~8500] [INFO] [ESTADO] Transicao: PARADO -> SUBINDO
-[12000] [INFO] [BOTAO] Botao SUBIR solto
-[12000] [INFO] [MOTOR] Motor desligado
-[12000] [INFO] [FREIO] Iniciando engate do freio
-[~19000] [INFO] [FREIO] Microchave confirmou freio engatado — desativando rele FREIO_ON
-[~19000] [INFO] [ESTADO] Transicao: SUBINDO -> PARADO
-[25000] [WARN] [EMERG] Emergencia ATIVADA — botao local pressionado
-[25000] [WARN] [MAQEST] Movimentacao BLOQUEADA — emergencia ativa
-[25000] [INFO] [ESTADO] Transicao: PARADO -> EMERGENCIA
+[1523] [INFO] [CLP] Sinal SUBIR enviado ao CLP
+[5012] [INFO] [CLP] Sinal SUBIR — GPIO voltou a HIGH (botao solto)
+[9100] [ERRO] [WDOG] Watchdog EXPIRADO — emergencia ativada no CLP
+[9600] [INFO] [WDOG] Watchdog recuperado — emergencia CLP liberada
 ```
-
-> Note o atraso de ~10s entre pressionar o botão e o motor iniciar — é o tempo do cilindro completar o curso e acionar a microchave.
 
 ### 11.5 Desabilitar em Produção
 
@@ -523,20 +396,19 @@ Com `LOG_DISABLED`, todas as macros de logging compilam como no-op (zero overhea
 
 ### 11.6 Arquivo Compartilhado
 
-O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros de logging e funções auxiliares `estadoParaString()` e `comandoParaString()` para saída legível.
+O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros de logging e função auxiliar `comandoParaString()` para saída legível.
 
 ---
 
 ## 12. Requisitos Não-Funcionais
 
-- **Latência:** < 100 ms entre botão e resposta do motor.
-- **Watchdog:** Timeout padrão 500 ms, configurável.
+- **Latência ESP:** < 100 ms entre botão pressionado e sinal chegando ao CLP.
+- **Watchdog:** Timeout padrão 500 ms — emergência ao CLP se Remote silencioso.
 - **Alcance:** Mínimo 50 metros em linha de visada.
 - **Robustez:** Enclosure Remote mínimo IP54.
-- **Segurança elétrica:** Relés com fator de segurança 2x sobre corrente de partida do motor. Isolação galvânica entre rede elétrica e GPIOs. Usar driver (transistor/ULN2003) entre GPIO e bobina do relé.
-- **Anti-colisão de direção:** Dead-time mínimo de 100 ms ao inverter sentido.
-- **Rearme:** Jamais automático.
-- **Fim de curso:** Debounce mínimo 20 ms; bloqueio pós-acionamento de 10 s.
+- **Segurança elétrica:** CLP e ESP32 com GND comum; isolação galvânica recomendada entre rede elétrica e lógica de controle.
+- **Pulso CLP:** 50 ms mínimo para garantir leitura de sinais VEL1/VEL2/RESET pelo CLP.
+- **Fim de curso descida:** Debounce mínimo 20 ms no Remote.
 
 ---
 
@@ -555,14 +427,12 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 | Termo | Definição |
 |---|---|
 | ESP-NOW | Protocolo de comunicação sem fio da Espressif, direto entre dispositivos, sem roteador |
-| Microchave do Freio | Chave mecânica que atua diretamente no circuito do freio, sem passar pelo ESP32 |
-| Fim de Curso | Sensor de posição conectado ao ESP32 que detecta a chegada do carrinho ao estacionamento |
-| Watchdog | Timer de supervisão que aciona segurança se comunicação é perdida |
-| Dead-time | Intervalo obrigatório entre desligar um relé de direção e ligar o oposto |
+| CLP | Controlador Lógico Programável — executa a lógica de controle em Ladder |
+| Bridge ESP→CLP | Papel do ESP Principal: recebe ESP-NOW do Remote e replica sinais para entradas do CLP via GPIO |
+| Watchdog | Timer de supervisão no ESP Principal — se Remote ficar silencioso > 500 ms, aciona emergência no CLP |
 | Homem-Morto | Regra que exige botão mantido pressionado para o motor permanecer ativo |
-| Fail-Safe | Qualquer falha leva ao estado seguro (freio aplicado) |
-| Rearme | Ato manual de desativar emergência e retornar à operação |
-| Trava Lógica | Flag de software que bloqueia movimentação independente de entradas físicas |
-| Botão NC com Trava | Botão normalmente fechado (NC) com trava: repouso = LOW (contato fecha, drena GND); pressionado = HIGH (contato abre, pull-up ativa). Mantém HIGH até destravar. Cabo partido também ativa emergência (fail-safe). |
-| LED ALARME | Indicador no Remote: Painel fez rearme mas botão local ainda travado |
-| GPIO Compartilhado | GPIO que aciona relé e LED simultaneamente via ligação física em paralelo |
+| Fail-Safe | Qualquer falha de comunicação resulta em emergência ativa no CLP |
+| Ativo em LOW | Lógica de comunicação ESP→CLP: GPIO LOW (GND) = sinal ativo para o CLP |
+| Botão NC com Trava | Botão normalmente fechado (NC) com trava: repouso = LOW; pressionado = HIGH (contato abre, pull-up ativa). Cabo partido = HIGH = emergência (fail-safe). |
+| LED ALARME | Indicador no Remote: link com Principal perdido |
+| Pulso CLP | Sinal LOW de 50 ms enviado ao CLP para comandos de pulso (VEL1, VEL2, RESET) |

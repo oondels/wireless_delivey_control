@@ -4,6 +4,52 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### Refatoração de Arquitetura — ESP32 como Bridge para CLP
+
+**Motivação:** interferência eletromagnética do motor e do inversor (VFD) comprometia a operação
+dos ESP32. Um CLP programado em Ladder passou a gerenciar toda a lógica de controle
+(motor, freio, estados, segurança). Os ESP32 tornaram-se pontes de comunicação.
+
+#### Módulo Principal — alterações
+
+**Removido:**
+- Toda a lógica de controle direto: classes `Motor`, `Freio`, `Velocidade`, `MaquinaEstados`,
+  `Sensores`, `MonitorRede`, `Emergencia`, `Rearme`, `Botoes`
+- Todas as entradas de GPIO: botões (SUBIR, DESCER, VEL1-3, EMERGÊNCIA, REARME)
+  e sensores (fim de curso, microchave freio, monitor rede)
+
+**Adicionado:**
+- Bridge ESP→CLP: recebe `PacoteRemote` via ESP-NOW e replica sinais para entradas digitais do CLP
+- Sete saídas GPIO para o CLP (lógica ativa em LOW/GND): `PIN_CLP_SUBIR` (GPIO 4),
+  `PIN_CLP_DESCER` (GPIO 16), `PIN_CLP_VEL1` (GPIO 17), `PIN_CLP_VEL2` (GPIO 5),
+  `PIN_CLP_EMERGENCIA` (GPIO 18), `PIN_CLP_RESET` (GPIO 19), `PIN_CLP_FIM_CURSO` (GPIO 22)
+- Pulsos de `PULSO_CLP_MS` (50 ms) para sinais VEL1, VEL2 e RESET
+
+**Alterado:**
+- Fail-safe: watchdog timeout → `PIN_CLP_EMERGENCIA` LOW imediato (emergência enviada ao CLP);
+  todos os sinais de movimento vão a HIGH (inativo)
+- `PacoteStatus` simplificado: de 5 bytes para 2 bytes — campo único `link_ok`
+  (CLP não fornece feedback ao ESP)
+
+#### Módulo Remote — alterações
+
+**Adicionado:**
+- Botão RESET em GPIO 32 (substituiu VEL3); envia `CMD_RESET` ao Principal
+
+**Removido:**
+- Botão VEL3 e campo `vel3_pulso` em `EstadoBotoes`
+- LED VEL3 (GPIO 18) — não utilizado nesta arquitetura
+
+**Alterado:**
+- LEDs agora refletem **estado local** (sem feedback do CLP):
+  - MOTOR: aceso se SUBIR ou DESCER hold ativo + sem emergência local
+  - VEL1/VEL2: velocidade selecionada localmente
+  - EMERGÊNCIA: pisca 4 Hz se botão emergência ativo; fixo se link perdido > 500 ms
+  - ALARME: pisca 2 Hz se link com Principal perdido
+- `CMD_VEL3` renomeado para `CMD_RESET` (valor 5) no protocolo
+
+---
+
 ### Adicionado
 - Projeto PlatformIO do Módulo Principal (`principal/`) com estrutura de diretórios e build funcional para ESP32
 - Projeto PlatformIO do Módulo Remote (`remote/`) com estrutura de diretórios e build funcional para ESP32
