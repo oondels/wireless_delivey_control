@@ -190,7 +190,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | (não utilizado) | — | 18 | Antes VEL3 |
 | LED EMERGÊNCIA | Saída | 19 | Emergência ativa ou link perdido |
 | LED ALARME | Saída | 21 | Link com Principal perdido |
-| **Total** | | **14** | **7 entradas + 6 LEDs ativos** |
+| **Total** | | **13** | **7 entradas + 6 LEDs ativos** |
 
 > GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V).
 > GPIOs 32, 33 e 13 usam pull-up interno via INPUT_PULLUP.
