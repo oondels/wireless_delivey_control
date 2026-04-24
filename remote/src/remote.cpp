@@ -88,12 +88,12 @@ void loop() {
     const volatile PacoteStatus& st = comunicacao.ultimoStatus();
     bool statusPrincipalValido = (st.link_ok == 1) &&
                                  (millis() - comunicacao.ultimoStatusRecebidoMs() <= WATCHDOG_TIMEOUT_MS);
-    bool bloqueioMovimento = !statusPrincipalValido || (st.emergencia_ativa == 1);
+    bool bloqueioMovimento = !statusPrincipalValido || btn.emergencia || (st.emergencia_ativa == 1);
 
     if (bloqueioMovimento && !bloqueioMovimentoAnterior) {
-        LOG_WARN("BLOQUEIO", "Comandos SUBIR/DESCER bloqueados pelo status do Principal");
+        LOG_WARN("BLOQUEIO", "Comandos SUBIR/DESCER bloqueados por emergencia local, emergencia do Principal ou falta de link");
     } else if (!bloqueioMovimento && bloqueioMovimentoAnterior) {
-        LOG_INFO("BLOQUEIO", "Comandos SUBIR/DESCER liberados pelo Principal");
+        LOG_INFO("BLOQUEIO", "Comandos SUBIR/DESCER liberados");
     }
     bloqueioMovimentoAnterior = bloqueioMovimento;
 

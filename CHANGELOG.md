@@ -10,6 +10,8 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 - Quando a partida é confirmada pelo Principal, o LED `MOTOR` passa de piscando para ligado fixo
 - Logs do Remote foram ajustados para tratar `micro_freio_ativa` como estado do freio (`ativo` ou `liberado`)
 - `README.md` e specs correlatas atualizados com a nova lógica visual do LED `MOTOR`, a semântica de `micro_freio_ativa` e o pinout real do módulo Remote
+- LED `EMERGÊNCIA` do Remote agora pisca tanto para emergência local quanto para `emergencia_ativa` reportada pelo Principal
+- O Remote passa a bloquear `SUBIR` e `DESCER` também quando a emergência local está ativa
 
 ### feat(principal): adiciona log nas entradas de feedback do CLP
 

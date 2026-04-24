@@ -238,7 +238,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | LED VEL1 | Saída | 17 | Velocidade 1 reportada pelo CLP |
 | LED VEL2 | Saída | 5 | Velocidade 2 reportada pelo CLP |
 | (não utilizado) | — | 18 | Antes VEL3 |
-| LED EMERGÊNCIA | Saída | 19 | Emergência ativa |
+| LED EMERGÊNCIA | Saída | 19 | Emergência ativa piscando |
 | **Total** | | **11** | **6 entradas ativas + 5 LEDs ativos** |
 
 > GPIOs 34, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V).
@@ -259,7 +259,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 ### 6.2 Acionamento do Motor — Regra "Homem-Morto"
 
 - O motor **só permanece em operação enquanto SUBIR ou DESCER estiver mantido pressionado** no Remote.
-- O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido e o CLP não está reportando emergência ativa.
+- O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido, a emergência local não está ativa e o CLP não está reportando emergência ativa.
 - O Remote transmite `botao_hold = 1` enquanto o botão está pressionado.
 - Ao pressionar SUBIR ou DESCER, o LED `MOTOR` do Remote pisca enquanto o freio ainda está aplicado (`micro_freio_ativa == 1`) ou enquanto o CLP ainda não reportou `motor_ativo == 1`.
 - O LED `MOTOR` só passa a ficar aceso fixo quando o Principal reporta simultaneamente `micro_freio_ativa == 0` e `motor_ativo == 1`.
@@ -403,7 +403,7 @@ LEDs baseados no `PacoteStatus` recebido do Principal:
 | VEL1 | 17 | Ligado fixo | `vel1_ativa == 1` |
 | VEL2 | 5 | Ligado fixo | `vel2_ativa == 1` |
 | EMERGÊNCIA | 19 | Piscando 4 Hz | Botão emergência local ativo |
-| EMERGÊNCIA | 19 | Ligado fixo | `emergencia_ativa == 1` |
+| EMERGÊNCIA | 19 | Piscando 4 Hz | `emergencia_ativa == 1` |
 
 ---
 

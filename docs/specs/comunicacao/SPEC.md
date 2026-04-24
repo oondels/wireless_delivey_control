@@ -199,6 +199,7 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 - O Remote pode sempre enviar heartbeat, emergência, fim de curso e comandos de pulso.
 - O Remote **bloqueia** `SUBIR` e `DESCER` localmente quando:
   - o status do Principal expira, ou
+  - o botão de emergência local está ativo, ou
   - `emergencia_ativa == 1` no `PacoteStatus`
 
 ---

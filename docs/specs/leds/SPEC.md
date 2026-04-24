@@ -49,7 +49,7 @@ Não há controle de cor por software.
 | VEL1 | Ligado fixo | `vel1_ativa == 1` | — |
 | VEL2 | Ligado fixo | `vel2_ativa == 1` | — |
 | EMERGÊNCIA | Piscando | Botão de emergência local ativo | 4 Hz (125 ms) |
-| EMERGÊNCIA | Ligado fixo | `emergencia_ativa == 1` | — |
+| EMERGÊNCIA | Piscando | `emergencia_ativa == 1` | 4 Hz (125 ms) |
 | EMERGÊNCIA | Desligado | Estado normal e link válido | — |
 
 ### 3.2 Lógica de Atualização
@@ -72,8 +72,7 @@ void atualizarLeds(const PacoteStatus& status) {
     if (status.vel1_ativa == 1) ledVel1.ligar();
     if (status.vel2_ativa == 1) ledVel2.ligar();
 
-    if (emergenciaLocal) ledEmergencia.piscar(125);
-    else if (status.emergencia_ativa == 1) ledEmergencia.ligar();
+    if (emergenciaLocal || status.emergencia_ativa == 1) ledEmergencia.piscar(125);
     else ledEmergencia.desligar();
 }
 ```
