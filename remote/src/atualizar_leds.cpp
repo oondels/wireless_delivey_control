@@ -5,7 +5,7 @@
  * - LINK:       fixo se Principal respondeu recentemente; pisca 1Hz se timeout > 500ms
  * - MOTOR:      pisca enquanto aguarda freio liberar e CLP reportar motor ativo; fixo quando motor ativo
  * - VEL1/VEL2:  fixo conforme feedback do CLP
- * - EMERGÊNCIA: pisca 4Hz se botão emergência ativo; fixo se CLP reporta emergencia ou link perdido
+ * - EMERGÊNCIA: pisca 4Hz se botão emergência ativo; fixo se CLP reporta emergencia
  *
  * Ref: leds/SPEC.md §3.2
  */
@@ -53,12 +53,11 @@ void atualizarLeds(
 
     // EMERGÊNCIA
     // - pisca 4Hz se botão emergência local ativo
-    // - fixo se link com Principal perdido há mais de 500ms
-    bool linkPerdido = !linkOk;
+    // - fixo se o CLP reportar emergência ativa
     if (emergenciaLocal) {
         ledEmergencia.piscar(125);  // 4 Hz
-    } else if (status.emergencia_ativa == 1 || linkPerdido) {
-        ledEmergencia.ligar();      // fixo: emergencia ativa ou sem link com Principal
+    } else if (status.emergencia_ativa == 1) {
+        ledEmergencia.ligar();      // fixo: emergencia ativa reportada pelo CLP
     } else {
         ledEmergencia.desligar();
     }

@@ -49,6 +49,6 @@
 #define PIN_LED_VEL1        17  // Velocidade 1 selecionada
 #define PIN_LED_VEL2        5   // Velocidade 2 selecionada
 // GPIO 18 (antes VEL3): não utilizado nesta arquitetura
-#define PIN_LED_EMERGENCIA  19  // Emergência ativa ou link perdido
+#define PIN_LED_EMERGENCIA  19  // Emergência ativa
 
 #endif // PINOUT_H

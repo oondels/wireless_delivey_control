@@ -30,7 +30,7 @@ Não há controle de cor por software.
 | MOTOR | 16 | Reflete `motor_ativo` |
 | VEL1 | 17 | Reflete `vel1_ativa` |
 | VEL2 | 5 | Reflete `vel2_ativa` |
-| EMERGÊNCIA | 19 | Emergência local, emergência do CLP ou perda de link |
+| EMERGÊNCIA | 19 | Emergência local ou emergência do CLP |
 
 **Total com abstração `Led`: 6 GPIOs**
 
@@ -49,7 +49,7 @@ Não há controle de cor por software.
 | VEL1 | Ligado fixo | `vel1_ativa == 1` | — |
 | VEL2 | Ligado fixo | `vel2_ativa == 1` | — |
 | EMERGÊNCIA | Piscando | Botão de emergência local ativo | 4 Hz (125 ms) |
-| EMERGÊNCIA | Ligado fixo | `emergencia_ativa == 1` ou sem status válido do Principal | — |
+| EMERGÊNCIA | Ligado fixo | `emergencia_ativa == 1` | — |
 | EMERGÊNCIA | Desligado | Estado normal e link válido | — |
 
 ### 3.2 Lógica de Atualização
@@ -73,7 +73,7 @@ void atualizarLeds(const PacoteStatus& status) {
     if (status.vel2_ativa == 1) ledVel2.ligar();
 
     if (emergenciaLocal) ledEmergencia.piscar(125);
-    else if (status.emergencia_ativa == 1 || !linkOk) ledEmergencia.ligar();
+    else if (status.emergencia_ativa == 1) ledEmergencia.ligar();
     else ledEmergencia.desligar();
 }
 ```
@@ -137,4 +137,4 @@ Regras:
 | MOTOR aceso | CLP reporta motor ativo |
 | VEL1 ou VEL2 aceso | CLP reporta velocidade ativa correspondente |
 | EMERGÊNCIA piscando 4 Hz | Botão de emergência local ativo |
-| EMERGÊNCIA aceso fixo | Emergência reportada pelo CLP ou link perdido |
+| EMERGÊNCIA aceso fixo | Emergência reportada pelo CLP |
