@@ -81,14 +81,14 @@ Todos configurados com `INPUT_PULLUP`.
 
 ### 5.1 Saídas para o CLP
 
-Todas as saídas para o CLP operam em **ativo LOW**:
+Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **módulo de relé 5V comandado pelo ESP32**:
 - `LOW` = sinal ativo para o CLP
 - `HIGH` = sinal inativo
 
 | Sinal | GPIO | Tipo | Descrição |
 |---|---|---|---|
-| SUBIR | 4 | Saída | Nível LOW enquanto comando de subida estiver ativo |
-| DESCER | 16 | Saída | Nível LOW enquanto comando de descida estiver ativo |
+| SUBIR | 4 | Saída | Nível LOW estável enquanto comando remoto de subida permanecer válido |
+| DESCER | 16 | Saída | Nível LOW estável enquanto comando remoto de descida permanecer válido |
 | VEL1 | 17 | Saída | Pulso LOW de 50 ms |
 | VEL2 | 5 | Saída | Pulso LOW de 50 ms |
 | EMERGÊNCIA | 18 | Saída | LOW quando emergência remota ou watchdog expirado |
@@ -205,7 +205,8 @@ Lógicas importantes:
 
 Na arquitetura atual, o Principal não aciona diretamente o motor nem o freio. Ele apenas:
 
-- envia sinais digitais ao CLP por GPIO
+- envia sinais digitais para um módulo de relé 5V por GPIO
+- usa os contatos desse módulo para acionar as entradas do CLP
 - lê feedbacks digitais do CLP por GPIO
 
 Os relés e a lógica de potência ficam sob responsabilidade do CLP e do circuito externo.

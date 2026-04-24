@@ -68,6 +68,21 @@ static bool     pulsoVel2Ativo    = false;
 static bool     pulsoResetAtivo   = false;
 
 // ============================================================
+// Estado persistente do último comando remoto válido
+// ============================================================
+
+enum DirecaoRemota {
+    DIRECAO_REMOTA_NENHUMA = 0,
+    DIRECAO_REMOTA_SUBIR,
+    DIRECAO_REMOTA_DESCER
+};
+
+static DirecaoRemota direcaoRemotaAtual = DIRECAO_REMOTA_NENHUMA;
+static bool          holdRemotoAtivo    = false;
+static bool          emergenciaRemotaAtiva = false;
+static bool          fimCursoRemotoAtivo   = false;
+
+// ============================================================
 // Instâncias globais
 // ============================================================
 
@@ -88,6 +103,9 @@ bool           fbMotorAnteriorAtivo     = false;
 bool           fbEmergenciaAnteriorAtiva = false;
 bool           fbVel1AnteriorAtiva      = false;
 bool           fbVel2AnteriorAtiva      = false;
+bool           sinalSubirAnteriorAtivo  = false;
+bool           sinalDescerAnteriorAtivo = false;
+bool           bloqueioRemotoAnterior   = false;
 
 static bool statusMudou(const PacoteStatus& atual, const PacoteStatus& anterior) {
     return memcmp(&atual, &anterior, sizeof(PacoteStatus) - 1) != 0;
@@ -123,6 +141,11 @@ static void pararMovimento() {
     digitalWrite(PIN_CLP_DESCER, HIGH);
 }
 
+static void aplicarMovimento(bool subirAtivo, bool descerAtivo) {
+    digitalWrite(PIN_CLP_SUBIR,  subirAtivo ? LOW : HIGH);
+    digitalWrite(PIN_CLP_DESCER, descerAtivo ? LOW : HIGH);
+}
+
 /** Seta emergência no CLP (LOW = ativo). */
 static void setEmergencia(bool ativa) {
     digitalWrite(PIN_CLP_EMERGENCIA, ativa ? LOW : HIGH);
@@ -150,6 +173,26 @@ static void atualizarPulsos() {
     if (pulsoResetAtivo && (agora - pulsoResetInicio >= PULSO_CLP_MS)) {
         digitalWrite(PIN_CLP_RESET, HIGH);
         pulsoResetAtivo = false;
+    }
+}
+
+static void registrarMudancaSaidaMovimento(bool subirAtivo, bool descerAtivo) {
+    if (subirAtivo != sinalSubirAnteriorAtivo) {
+        if (subirAtivo) {
+            LOG_INFO("CLP", "Sinal SUBIR enviado ao CLP");
+        } else {
+            LOG_INFO("CLP", "Sinal SUBIR desativado");
+        }
+        sinalSubirAnteriorAtivo = subirAtivo;
+    }
+
+    if (descerAtivo != sinalDescerAnteriorAtivo) {
+        if (descerAtivo) {
+            LOG_INFO("CLP", "Sinal DESCER enviado ao CLP");
+        } else {
+            LOG_INFO("CLP", "Sinal DESCER desativado");
+        }
+        sinalDescerAnteriorAtivo = descerAtivo;
     }
 }
 
@@ -248,6 +291,10 @@ void loop() {
         // Fail-safe: Remote silencioso → emergência no CLP, movimento parado
         pararMovimento();
         setEmergencia(true);
+        holdRemotoAtivo       = false;
+        direcaoRemotaAtual    = DIRECAO_REMOTA_NENHUMA;
+        emergenciaRemotaAtiva = false;
+        fimCursoRemotoAtivo   = false;
 
         if (!watchdogAnteriorExpirado) {
             LOG_ERROR("WDOG", "Watchdog EXPIRADO — emergencia ativada no CLP");
@@ -260,39 +307,24 @@ void loop() {
     watchdogAnteriorExpirado = watchdogExpirado;
 
     // 2. Processar novo pacote do Remote
-    bool pacoteProcessado = false;
     if (comunicacao.novoPacoteRecebido()) {
-        pacoteProcessado = true;
         const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
 
-        // Emergência (nível contínuo)
-        bool emergencia = (pkt.emergencia == 1);
-        if (!watchdogExpirado) {
-            // Watchdog expirado já setou emergência — não sobrescrever
-            setEmergencia(emergencia);
+        emergenciaRemotaAtiva = (pkt.emergencia == 1);
+        fimCursoRemotoAtivo   = (pkt.fim_curso_descida == 1);
+
+        uint8_t cmd       = pkt.comando;
+        bool    botaoHold = (pkt.botao_hold == 1);
+        holdRemotoAtivo   = botaoHold && (cmd == CMD_SUBIR || cmd == CMD_DESCER);
+
+        if (holdRemotoAtivo) {
+            direcaoRemotaAtual = (cmd == CMD_SUBIR) ? DIRECAO_REMOTA_SUBIR : DIRECAO_REMOTA_DESCER;
+        } else {
+            direcaoRemotaAtual = DIRECAO_REMOTA_NENHUMA;
         }
-        if (emergencia) {
+
+        if (emergenciaRemotaAtiva) {
             LOG_WARN("CLP", "Emergencia ATIVA — sinal enviado ao CLP");
-        }
-
-        // Fim de curso de descida (nível contínuo)
-        digitalWrite(PIN_CLP_FIM_CURSO, (pkt.fim_curso_descida == 1) ? LOW : HIGH);
-
-        // Movimento (hold): SUBIR ou DESCER enquanto botão pressionado
-        uint8_t cmd        = pkt.comando;
-        bool    botaoHold  = (pkt.botao_hold == 1);
-
-        if (cmd == CMD_SUBIR && botaoHold) {
-            digitalWrite(PIN_CLP_SUBIR,  LOW);
-            digitalWrite(PIN_CLP_DESCER, HIGH);
-            LOG_INFO("CLP", "Sinal SUBIR enviado ao CLP");
-        } else if (cmd == CMD_DESCER && botaoHold) {
-            digitalWrite(PIN_CLP_DESCER, LOW);
-            digitalWrite(PIN_CLP_SUBIR,  HIGH);
-            LOG_INFO("CLP", "Sinal DESCER enviado ao CLP");
-        } else if (cmd == CMD_HEARTBEAT || !botaoHold) {
-            // Botão solto ou heartbeat sem movimento → parar
-            pararMovimento();
         }
 
         // VEL1 (pulso)
@@ -318,29 +350,56 @@ void loop() {
         comunicacao.limparNovoPacote();
     }
 
-    // 2b. Botões de teste local (apenas quando sem pacote do Remote neste ciclo)
-    if (!pacoteProcessado && !watchdogExpirado) {
+    bool operacaoRemotaPermitida = !watchdogExpirado &&
+                                   !emergenciaRemotaAtiva &&
+                                   !fbEmergenciaAtiva &&
+                                   !microFreioAtiva &&
+                                   fbMotorAtivo;
+    bool demandaRemotaSubir  = holdRemotoAtivo && (direcaoRemotaAtual == DIRECAO_REMOTA_SUBIR);
+    bool demandaRemotaDescer = holdRemotoAtivo && (direcaoRemotaAtual == DIRECAO_REMOTA_DESCER);
+    bool bloqueioRemoto = (demandaRemotaSubir || demandaRemotaDescer) && !operacaoRemotaPermitida;
+
+    if (bloqueioRemoto && !bloqueioRemotoAnterior) {
+        LOG_WARN("CLP", "Comando remoto bloqueado por link, emergencia ou feedbacks de operacao");
+    } else if (!bloqueioRemoto && bloqueioRemotoAnterior) {
+        LOG_INFO("CLP", "Comando remoto liberado");
+    }
+    bloqueioRemotoAnterior = bloqueioRemoto;
+
+    bool subirAtivo  = false;
+    bool descerAtivo = false;
+
+    if (operacaoRemotaPermitida && demandaRemotaSubir) {
+        subirAtivo = true;
+    } else if (operacaoRemotaPermitida && demandaRemotaDescer) {
+        descerAtivo = true;
+    } else if (!holdRemotoAtivo && !watchdogExpirado) {
         if (btnSubirLocal) {
-            digitalWrite(PIN_CLP_SUBIR,  LOW);
-            digitalWrite(PIN_CLP_DESCER, HIGH);
+            subirAtivo = true;
             if (!testeSubirAnterior) {
                 LOG_INFO("TESTE", "Botao SUBIR local pressionado — sinal enviado ao CLP");
             }
         } else if (btnDescerLocal) {
-            digitalWrite(PIN_CLP_DESCER, LOW);
-            digitalWrite(PIN_CLP_SUBIR,  HIGH);
+            descerAtivo = true;
             if (!testeDescerAnterior) {
                 LOG_INFO("TESTE", "Botao DESCER local pressionado — sinal enviado ao CLP");
             }
-        } else {
-            pararMovimento();
         }
     }
+
+    aplicarMovimento(subirAtivo, descerAtivo);
+    registrarMudancaSaidaMovimento(subirAtivo, descerAtivo);
     testeSubirAnterior  = btnSubirLocal;
     testeDescerAnterior = btnDescerLocal;
 
     // Encerrar pulsos vencidos
     atualizarPulsos();
+
+    // Sinais sustentados para o CLP
+    if (!watchdogExpirado) {
+        setEmergencia(emergenciaRemotaAtiva);
+    }
+    digitalWrite(PIN_CLP_FIM_CURSO, fimCursoRemotoAtivo ? LOW : HIGH);
 
     // 3. Enviar PacoteStatus ao Remote (heartbeat 200ms + imediato em mudança)
     PacoteStatus status = {};

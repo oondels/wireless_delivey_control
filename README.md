@@ -135,21 +135,23 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 
 ### 4.1 Saídas GPIO do Principal → Entradas do CLP
 
-O ESP Principal conecta suas saídas GPIO diretamente às entradas digitais do CLP via GND:
+O ESP Principal conecta suas saídas GPIO a um **módulo de relé 5V**; os contatos desse módulo então acionam as entradas digitais do CLP via GND:
 
 ```
 GPIO ESP32 (OUTPUT)
     │
-    └──► Entrada digital do CLP
-         (GND compartilhado entre ESP32 e CLP)
+    └──► IN do módulo de relé 5V
+         │
+         └──► Contato do relé → Entrada digital do CLP
+              (GND compartilhado entre ESP32, relé e CLP)
 ```
 
 **Lógica:** LOW (GND) = sinal ativo; HIGH = inativo.
 
 | Sinal | GPIO ESP | Pino CLP | Tipo | Comportamento |
 |---|---|---|---|---|
-| SUBIR | 4 | Entrada CLP | Nível | LOW enquanto botão hold no Remote |
-| DESCER | 16 | Entrada CLP | Nível | LOW enquanto botão hold no Remote |
+| SUBIR | 4 | Entrada CLP | Nível | LOW estável enquanto hold remoto SUBIR permanecer válido |
+| DESCER | 16 | Entrada CLP | Nível | LOW estável enquanto hold remoto DESCER permanecer válido |
 | VEL1 | 17 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL1 |
 | VEL2 | 5 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL2 |
 | EMERGÊNCIA | 18 | Entrada CLP | Nível | LOW se emergência Remote OU watchdog expirado |
@@ -260,6 +262,9 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 
 - O motor **só permanece em operação enquanto SUBIR ou DESCER estiver mantido pressionado** no Remote.
 - O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido, a emergência local não está ativa e o CLP não está reportando emergência ativa.
+- No Principal, `SUBIR` ou `DESCER` remotos só energizam a saída correspondente enquanto o hold permanecer válido e as condições de bloqueio estiverem liberadas.
+- Ordem de prioridade no Principal: perda de link/watchdog e emergência sempre impedem operação remota.
+- Além disso, operação remota de `SUBIR` ou `DESCER` só é permitida quando `micro_freio_ativa == 0` e `motor_ativo == 1`.
 - O Remote transmite `botao_hold = 1` enquanto o botão está pressionado.
 - Ao pressionar SUBIR ou DESCER, o LED `MOTOR` do Remote pisca enquanto o freio ainda está aplicado (`micro_freio_ativa == 1`) ou enquanto o CLP ainda não reportou `motor_ativo == 1`.
 - O LED `MOTOR` só passa a ficar aceso fixo quando o Principal reporta simultaneamente `micro_freio_ativa == 0` e `motor_ativo == 1`.
@@ -321,8 +326,8 @@ A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal
 
 | Sinal ESP → CLP | Nível | Significado para o CLP |
 |---|---|---|
-| `PIN_CLP_SUBIR` | LOW | Operador mantendo SUBIR pressionado |
-| `PIN_CLP_DESCER` | LOW | Operador mantendo DESCER pressionado |
+| `PIN_CLP_SUBIR` | LOW | Operador mantendo SUBIR pressionado e condições remotas liberadas |
+| `PIN_CLP_DESCER` | LOW | Operador mantendo DESCER pressionado e condições remotas liberadas |
 | `PIN_CLP_VEL1` | Pulso LOW 50ms | Selecionar velocidade 1 |
 | `PIN_CLP_VEL2` | Pulso LOW 50ms | Selecionar velocidade 2 |
 | `PIN_CLP_EMERGENCIA` | LOW | Emergência ativa (botão ou watchdog) |
