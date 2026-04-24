@@ -76,7 +76,7 @@ flowchart LR
     REM -->|PacoteRemote via ESP-NOW\nheartbeat 100 ms| PRI
     PRI -->|GPIO de saída para CLP\nLOW = ativo| CLP
     CLP -->|Feedbacks LOW = ativo:\nmotor emergência vel1 vel2| PRI
-    MFR -->|NC com INPUT_PULLUP\nHIGH = ativa/anormal| PRI
+    MFR -->|NC com INPUT_PULLUP\nHIGH = freio ativo| PRI
     PRI -->|PacoteStatus via ESP-NOW\nlink + feedbacks + micro do freio| REM
     REM -->|usa status do Principal| LEDS
 ```
@@ -123,7 +123,7 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 | Microcontrolador | ESP32 |
 | Localização | Embarcado no carrinho de transporte |
 | Alimentação | Bateria recarregável (ex: Li-Ion 18650 + regulador 3.3V) |
-| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, RESET, EMERGÊNCIA (c/ trava); fim de curso descida |
+| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, EMERGÊNCIA (c/ trava); fim de curso descida |
 | Saídas LEDs | GPIOs dedicados: LINK, MOTOR, VEL1, VEL2, EMERGÊNCIA |
 | Comunicação | ESP-NOW — transmite `PacoteRemote` e heartbeat para o Principal |
 
@@ -166,7 +166,7 @@ O ESP Principal lê feedbacks digitais do CLP e a micro do freio com `INPUT_PULL
 | EMERGÊNCIA_ATIVA | 25 | CLP | LOW = ativo | CLP informa emergência ativa |
 | VEL1_ATIVA | 26 | CLP | LOW = ativo | CLP informa velocidade 1 ativa |
 | VEL2_ATIVA | 27 | CLP | LOW = ativo | CLP informa velocidade 2 ativa |
-| MICRO_FREIO | 14 | Micro NC | HIGH = ativa/anormal | Micro do freio aberta/acionada ou cabo rompido |
+| MICRO_FREIO | 14 | Micro NC | HIGH = freio ativo | Micro do freio indica freio aplicado; LOW = freio liberado |
 
 ### 4.3 Entradas de Teste Local (sem Remote)
 
@@ -181,7 +181,7 @@ Botões físicos no Principal para acionar o CLP diretamente durante testes, sem
 
 ### 4.4 Fim de Curso de Descida
 
-O sensor de fim de curso de descida está conectado ao **ESP32 Remote** (GPIO 13). Quando acionado:
+O sensor de fim de curso de descida está conectado ao **ESP32 Remote** (GPIO 36). Quando acionado:
 - O Remote inclui `fim_curso_descida = 1` no `PacoteRemote`
 - O Principal replica o sinal em `PIN_CLP_FIM_CURSO` (LOW) para o CLP
 - O CLP trata a lógica de bloqueio de descida
@@ -215,7 +215,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | FB EMERGÊNCIA_ATIVA | Entrada | 25 | INPUT_PULLUP — LOW = ativo |
 | FB VEL1_ATIVA | Entrada | 26 | INPUT_PULLUP — LOW = ativo |
 | FB VEL2_ATIVA | Entrada | 27 | INPUT_PULLUP — LOW = ativo |
-| MICRO_FREIO | Entrada | 14 | INPUT_PULLUP — HIGH = ativa/anormal |
+| MICRO_FREIO | Entrada | 14 | INPUT_PULLUP — HIGH = freio ativo |
 | **Total** | | **15** | **7 entradas + 8 saídas** |
 
 > Todos os GPIOs inicializados em HIGH (inativo) no boot.
@@ -226,23 +226,23 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 
 | Função | Tipo | GPIO | Observação |
 |---|---|---|---|
-| Botão SUBIR | Entrada | 36 (VP) | Input-only, pull-up externo obrigatório |
-| Botão DESCER | Entrada | 39 (VN) | Input-only, pull-up externo obrigatório |
-| Botão VEL1 | Entrada | 34 | Input-only, pull-up externo obrigatório |
-| Botão VEL2 | Entrada | 35 | Input-only, pull-up externo obrigatório |
-| Botão RESET | Entrada | 32 | Pull-up interno (INPUT_PULLUP) |
-| Botão EMERGÊNCIA (trava) | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — NC, HIGH = ativo |
-| Fim de curso descida | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — LOW = carrinho na posição final |
+| Botão SUBIR | Entrada | 32 | Pull-up interno (INPUT_PULLUP) — LOW = pressionado |
+| Botão DESCER | Entrada | 33 | Pull-up interno (INPUT_PULLUP) — LOW = pressionado |
+| Botão VEL1 | Entrada | 39 (VN) | Input-only, pull-up externo obrigatório |
+| Botão VEL2 | Entrada | 34 | Input-only, pull-up externo obrigatório |
+| Botão RESET | Entrada | 255 | Desabilitado nesta versão |
+| Botão EMERGÊNCIA (trava) | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — NC, HIGH = ativo |
+| Fim de curso descida | Entrada | 36 (VP) | Input-only, pull-up externo obrigatório — LOW = carrinho na posição final |
 | LED LINK | Saída | 4 | Comunicação com Principal |
-| LED MOTOR | Saída | 16 | Motor em operação (SUBIR/DESCER hold ativo) |
-| LED VEL1 | Saída | 17 | Velocidade 1 selecionada |
-| LED VEL2 | Saída | 5 | Velocidade 2 selecionada |
+| LED MOTOR | Saída | 16 | Pisca enquanto aguarda liberação do freio e partida; fixo com `motor_ativo == 1` |
+| LED VEL1 | Saída | 17 | Velocidade 1 reportada pelo CLP |
+| LED VEL2 | Saída | 5 | Velocidade 2 reportada pelo CLP |
 | (não utilizado) | — | 18 | Antes VEL3 |
 | LED EMERGÊNCIA | Saída | 19 | Emergência ativa ou link perdido |
 | **Total** | | **11** | **6 entradas ativas + 5 LEDs ativos** |
 
-> GPIOs 34, 35, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V).
-> GPIOs 32, 33 e 13 usam pull-up interno via INPUT_PULLUP.
+> GPIOs 34, 36 e 39 requerem pull-up externo obrigatório (10kΩ para 3.3V).
+> GPIOs 13, 32 e 33 usam pull-up interno via INPUT_PULLUP.
 > Restrições de boot do ESP32 respeitadas: GPIOs 0, 2, 12 e 15 evitados.
 
 ---
@@ -261,6 +261,8 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 - O motor **só permanece em operação enquanto SUBIR ou DESCER estiver mantido pressionado** no Remote.
 - O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido e o CLP não está reportando emergência ativa.
 - O Remote transmite `botao_hold = 1` enquanto o botão está pressionado.
+- Ao pressionar SUBIR ou DESCER, o LED `MOTOR` do Remote pisca enquanto o freio ainda está aplicado (`micro_freio_ativa == 1`) ou enquanto o CLP ainda não reportou `motor_ativo == 1`.
+- O LED `MOTOR` só passa a ficar aceso fixo quando o Principal reporta simultaneamente `micro_freio_ativa == 0` e `motor_ativo == 1`.
 - Ao soltar: `PIN_CLP_SUBIR` ou `PIN_CLP_DESCER` volta a HIGH → CLP corta motor e aplica freio.
 - A lógica de execução (dead-time, freio) é inteira responsabilidade do CLP.
 
@@ -273,9 +275,9 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 
 ### 6.4 RESET
 
-- Botão RESET no Remote: envia `CMD_RESET` ao Principal.
-- Principal gera pulso de 50 ms em `PIN_CLP_RESET`.
-- O CLP define o comportamento do RESET (ex: rearme após emergência).
+- O comando `RESET` permanece previsto no protocolo para compatibilidade com o CLP.
+- No pinout atual do Remote, `PIN_BTN_RESET = 255`, ou seja, não há botão físico dedicado a RESET nesta versão.
+- Se esse comando voltar a existir no hardware do Remote, o Principal já está preparado para gerar pulso de 50 ms em `PIN_CLP_RESET`.
 
 ---
 
@@ -360,7 +362,7 @@ typedef struct {
     uint8_t  emergencia_ativa;    // 1=CLP reporta emergencia ativa
     uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
     uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
-    uint8_t  micro_freio_ativa;   // 1=micro do freio NC abriu
+    uint8_t  micro_freio_ativa;   // 1=freio ativo; 0=freio liberado
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } PacoteStatus;
 ```
@@ -396,10 +398,13 @@ LEDs baseados no `PacoteStatus` recebido do Principal:
 | LINK | 4 | Ligado fixo | `link_ok == 1` e status recebido há <= 500 ms |
 | LINK | 4 | Piscando 1 Hz | Timeout > 500 ms sem resposta do Principal |
 | MOTOR | 16 | Ligado fixo | `motor_ativo == 1` |
+| MOTOR | 16 | Piscando 2 Hz | SUBIR/DESCER pressionado e ainda aguardando `micro_freio_ativa == 0` com `motor_ativo == 1` |
+| MOTOR | 16 | Desligado | Sem solicitação de movimento e `motor_ativo == 0` |
 | VEL1 | 17 | Ligado fixo | `vel1_ativa == 1` |
 | VEL2 | 5 | Ligado fixo | `vel2_ativa == 1` |
 | EMERGÊNCIA | 19 | Piscando 4 Hz | Botão emergência local ativo |
 | EMERGÊNCIA | 19 | Ligado fixo | `emergencia_ativa == 1` ou link perdido há > 500 ms |
+
 ---
 
 ## 11. Sistema de Logging (Debug/Testes)
@@ -467,7 +472,7 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 
 ## 13. Fora de Escopo (v1.0)
 
-- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 13)
+- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 36)
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
 - Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).

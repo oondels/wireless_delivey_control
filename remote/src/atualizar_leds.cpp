@@ -3,7 +3,7 @@
  *
  * Lógica baseada no feedback recebido do Principal:
  * - LINK:       fixo se Principal respondeu recentemente; pisca 1Hz se timeout > 500ms
- * - MOTOR:      fixo se CLP reporta motor ativo
+ * - MOTOR:      pisca enquanto aguarda freio liberar e CLP reportar motor ativo; fixo quando motor ativo
  * - VEL1/VEL2:  fixo conforme feedback do CLP
  * - EMERGÊNCIA: pisca 4Hz se botão emergência ativo; fixo se CLP reporta emergencia ou link perdido
  *
@@ -16,6 +16,7 @@ void atualizarLeds(
     const volatile PacoteStatus& status,
     uint32_t ultimoStatusMs,
     bool emergenciaLocal,
+    bool aguardandoPartida,
     Led& ledLink,
     Led& ledMotor,
     Led& ledVel1,
@@ -32,9 +33,14 @@ void atualizarLeds(
         ledLink.piscar(500);  // 1 Hz
     }
 
-    // MOTOR — reflete feedback do CLP
+    // MOTOR
+    // - pisca enquanto existe solicitacao de movimento aguardando o freio liberar
+    //   e o CLP confirmar motor ativo
+    // - fica fixo quando o motor esta efetivamente ativo
     if (status.motor_ativo == 1) {
         ledMotor.ligar();
+    } else if (aguardandoPartida) {
+        ledMotor.piscar(250);  // 2 Hz
     } else {
         ledMotor.desligar();
     }

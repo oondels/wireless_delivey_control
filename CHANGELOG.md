@@ -4,6 +4,13 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(remote): adiciona espera visual de partida no LED do motor
+
+- LED `MOTOR` do Remote passa a piscar em 2 Hz enquanto SUBIR ou DESCER estiver pressionado e o sistema ainda aguardar `micro_freio_ativa == 0` junto com `motor_ativo == 1`
+- Quando a partida é confirmada pelo Principal, o LED `MOTOR` passa de piscando para ligado fixo
+- Logs do Remote foram ajustados para tratar `micro_freio_ativa` como estado do freio (`ativo` ou `liberado`)
+- `README.md` e specs correlatas atualizados com a nova lógica visual do LED `MOTOR`, a semântica de `micro_freio_ativa` e o pinout real do módulo Remote
+
 ### feat(principal): adiciona log nas entradas de feedback do CLP
 
 - Módulo Principal passa a registrar em nível informativo as transições dos feedbacks `MOTOR_ATIVO`, `EMERGENCIA_ATIVA`, `VEL1_ATIVA` e `VEL2_ATIVA`

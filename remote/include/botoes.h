@@ -4,7 +4,7 @@
  * Debounce 50ms para todos os botões.
  * SUBIR/DESCER: hold (nível) — true enquanto pressionado.
  * VEL1/VEL2/RESET: pulso (borda descida) — true apenas no momento da pressão.
- * EMERGÊNCIA: nível contínuo (trava mecânica) — true enquanto travado.
+ * EMERGÊNCIA: contato NC com trava mecânica — true enquanto o contato estiver aberto.
  *
  * Ref: hardware_io/SPEC.md §6
  */
@@ -28,6 +28,8 @@ class Botoes {
 public:
     static constexpr uint32_t DEBOUNCE_MS = 50;
     static constexpr int NUM_BOTOES = 6;
+    static constexpr uint8_t NIVEL_ATIVO_EMERGENCIA = HIGH;
+    static constexpr uint8_t NIVEL_REPOUSO_EMERGENCIA = LOW;
 
     void init();
 

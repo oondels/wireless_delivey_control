@@ -32,8 +32,8 @@ void Botoes::init() {
             pinMode(_pinos[i], INPUT);
         }
         // Botão NC (emergência) em repouso: contato fechado → LOW; demais botões: HIGH
-        _ultimaLeitura[i]  = (i == IDX_EMERGENCIA) ? LOW : HIGH;
-        _estadoFiltrado[i] = (i == IDX_EMERGENCIA) ? LOW : HIGH;
+        _ultimaLeitura[i]  = (i == IDX_EMERGENCIA) ? NIVEL_REPOUSO_EMERGENCIA : HIGH;
+        _estadoFiltrado[i] = (i == IDX_EMERGENCIA) ? NIVEL_REPOUSO_EMERGENCIA : HIGH;
         _ultimoCambio[i]   = 0;
     }
 }
@@ -67,8 +67,8 @@ EstadoBotoes Botoes::ler() {
     resultado.vel2_pulso  = (estadoAnterior[IDX_VEL2]  == HIGH && _estadoFiltrado[IDX_VEL2]  == LOW);
     resultado.reset_pulso = (estadoAnterior[IDX_RESET]  == HIGH && _estadoFiltrado[IDX_RESET] == LOW);
 
-    // EMERGÊNCIA: nível contínuo (NC: HIGH = botão pressionado, contato aberto)
-    resultado.emergencia = (_estadoFiltrado[IDX_EMERGENCIA] == HIGH);
+    // EMERGÊNCIA: nível contínuo (NC: HIGH = contato aberto/ativo)
+    resultado.emergencia = (_estadoFiltrado[IDX_EMERGENCIA] == NIVEL_ATIVO_EMERGENCIA);
 
     return resultado;
 }

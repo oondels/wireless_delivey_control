@@ -19,6 +19,7 @@
  * @param status           Último PacoteStatus recebido do Principal
  * @param ultimoStatusMs   Timestamp (millis()) do último status recebido
  * @param emergenciaLocal  true = botão emergência com trava ativo
+ * @param aguardandoPartida true = comando SUBIR/DESCER ativo aguardando freio liberar e motor partir
  * @param ledLink          LED de comunicação
  * @param ledMotor         LED de motor ativo
  * @param ledVel1          LED velocidade 1
@@ -29,6 +30,7 @@ void atualizarLeds(
     const volatile PacoteStatus& status,
     uint32_t ultimoStatusMs,
     bool emergenciaLocal,
+    bool aguardandoPartida,
     Led& ledLink,
     Led& ledMotor,
     Led& ledVel1,

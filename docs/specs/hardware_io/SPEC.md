@@ -71,7 +71,7 @@ Todos configurados com `INPUT_PULLUP`.
 
 | Sinal | GPIO | Tipo | Pull-up | Leitura | Descrição |
 |---|---|---|---|---|---|
-| MICRO_FREIO | 14 | NC | Interno (`INPUT_PULLUP`) | LOW = normal, HIGH = ativa/anormal | Micro do freio aberta/acionada ou cabo rompido |
+| MICRO_FREIO | 14 | NC | Interno (`INPUT_PULLUP`) | LOW = freio liberado, HIGH = freio ativo | Micro do freio indica freio aplicado; abertura do circuito também resulta em HIGH |
 
 **Total de entradas no Principal: 7 GPIOs**
 

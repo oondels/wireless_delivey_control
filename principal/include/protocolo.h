@@ -38,7 +38,7 @@ typedef struct {
     uint8_t  comando;            // Comando enum (0-5)
     uint8_t  botao_hold;         // 1 = SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1 = botão emergência com trava ativo no Remote
-    uint8_t  fim_curso_descida;  // 1 = carrinho na posição final de descida (GPIO 13)
+    uint8_t  fim_curso_descida;  // 1 = carrinho na posição final de descida (GPIO 36)
     uint32_t timestamp;          // millis() do Remote
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteRemote;
@@ -51,7 +51,7 @@ typedef struct {
     uint8_t  emergencia_ativa;    // 1 = CLP reporta emergencia ativa
     uint8_t  vel1_ativa;          // 1 = CLP reporta velocidade 1 ativa
     uint8_t  vel2_ativa;          // 1 = CLP reporta velocidade 2 ativa
-    uint8_t  micro_freio_ativa;   // 1 = micro do freio NC abriu (HIGH)
+    uint8_t  micro_freio_ativa;   // 1 = freio ativo; 0 = freio liberado
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteStatus;
 

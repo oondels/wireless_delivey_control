@@ -76,7 +76,7 @@ typedef struct {
     uint8_t  emergencia_ativa;    // 1=CLP reporta emergência ativa
     uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
     uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
-    uint8_t  micro_freio_ativa;   // 1=micro do freio NC abriu (HIGH)
+    uint8_t  micro_freio_ativa;   // 1=freio ativo; 0=freio liberado
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } PacoteStatus;
 ```
@@ -90,7 +90,7 @@ typedef struct {
 | `emergencia_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 25` |
 | `vel1_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 26` |
 | `vel2_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 27` |
-| `micro_freio_ativa` | `uint8_t` | 0 ou 1 | 1 = micro do freio NC abriu no `GPIO 14` |
+| `micro_freio_ativa` | `uint8_t` | 0 ou 1 | 1 = freio ativo reportado pela micro no `GPIO 14`; 0 = freio liberado |
 | `checksum` | `uint8_t` | calculado | XOR de todos os bytes anteriores do pacote |
 
 ---
@@ -212,4 +212,4 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 | Pacote fora de ordem | Processado normalmente |
 | Perda total de comunicação | Watchdog do Principal aciona em 500 ms |
 | Remote fora de alcance | Watchdog do Principal aciona em 500 ms |
-| Micro do freio abre ou cabo rompe | `micro_freio_ativa = 1` no status enviado ao Remote |
+| Freio ativo ou circuito NC aberto | `micro_freio_ativa = 1` no status enviado ao Remote |

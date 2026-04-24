@@ -44,6 +44,7 @@ bool    linkAnteriorOk          = false;
 bool    fimCursoDescidaAnterior = false;
 bool    bloqueioMovimentoAnterior = false;
 bool    microFreioAnteriorAtiva   = false;
+bool    aguardandoPartidaAnterior = false;
 
 void setup() {
     Serial.begin(115200);
@@ -79,9 +80,9 @@ void loop() {
     if (btn.vel2_pulso)  LOG_INFO("BOTAO", "Botao VEL2 pressionado");
     if (btn.reset_pulso) LOG_INFO("BOTAO", "Botao RESET pressionado");
     if (btn.emergencia && !btnAnterior.emergencia) {
-        LOG_WARN("BOTAO", "Botao EMERGENCIA ativado (trava)");
+        LOG_WARN("BOTAO", "Botao EMERGENCIA ativado (NC aberto)");
     } else if (!btn.emergencia && btnAnterior.emergencia) {
-        LOG_INFO("BOTAO", "Botao EMERGENCIA liberado");
+        LOG_INFO("BOTAO", "Botao EMERGENCIA liberado (NC fechado)");
     }
 
     const volatile PacoteStatus& st = comunicacao.ultimoStatus();
@@ -99,12 +100,23 @@ void loop() {
     bool microFreioAtiva = (st.micro_freio_ativa == 1);
     if (microFreioAtiva != microFreioAnteriorAtiva) {
         if (microFreioAtiva) {
-            LOG_WARN("FREIO", "Micro do freio reportada como ativa pelo Principal");
+            LOG_INFO("FREIO", "Freio reportado como ativo pelo Principal");
         } else {
-            LOG_INFO("FREIO", "Micro do freio reportada como normal pelo Principal");
+            LOG_INFO("FREIO", "Freio reportado como liberado pelo Principal");
         }
         microFreioAnteriorAtiva = microFreioAtiva;
     }
+
+    bool solicitacaoMovimento = (btn.subir_hold || btn.descer_hold) && !bloqueioMovimento;
+    bool aguardandoPartida = solicitacaoMovimento &&
+                             !((st.motor_ativo == 1) && (st.micro_freio_ativa == 0));
+
+    if (aguardandoPartida && !aguardandoPartidaAnterior) {
+        LOG_INFO("MOTOR", "Aguardando freio liberar e feedback de motor ativo");
+    } else if (!aguardandoPartida && aguardandoPartidaAnterior) {
+        LOG_INFO("MOTOR", "Partida concluida ou solicitacao de movimento encerrada");
+    }
+    aguardandoPartidaAnterior = aguardandoPartida;
 
     // 2. Montar PacoteRemote
     PacoteRemote pacote = {};
@@ -164,6 +176,7 @@ void loop() {
         comunicacao.ultimoStatus(),
         comunicacao.ultimoStatusRecebidoMs(),
         btn.emergencia,
+        aguardandoPartida,
         ledLink, ledMotor,
         ledVel1, ledVel2,
         ledEmergencia

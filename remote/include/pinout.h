@@ -10,7 +10,7 @@
  * - GPIOs 34, 35, 36, 39: pull-up externo 10kΩ obrigatório (input-only, sem pull-up interno)
  * - GPIOs 13, 32, 33: pull-up interno via INPUT_PULLUP (sem resistor externo)
  * - Lógica botões NO: HIGH = solto, LOW = pressionado
- * - Lógica botão NC (emergência): LOW = repouso (fechado), HIGH = pressionado (aberto)
+ * - Lógica botão NC (emergência): LOW = repouso (fechado), HIGH = contato aberto/ativo
  * - Saídas: HIGH = LED aceso
  *
  * Mapeamento consistente com o Módulo Principal onde as funções coincidem.
@@ -24,7 +24,7 @@
 // GPIOs 34-39: pull-up externo obrigatório (input-only)
 // GPIOs 32, 33: pull-up interno (INPUT_PULLUP)
 // NO (normalmente aberto): LOW = pressionado
-// NC (normalmente fechado, emergência): HIGH = pressionado (contato aberto)
+// NC (normalmente fechado, emergência): HIGH = contato aberto/ativo
 // ============================================================
 
 #define PIN_BTN_SUBIR       32  // Hold (nível) — pull-up interno (INPUT_PULLUP)
@@ -32,7 +32,7 @@
 #define PIN_BTN_VEL1        39  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_VEL2        34  // Pulso (borda) — input-only, pull-up externo obrigatório
 #define PIN_BTN_RESET       255 // Desabilitado nesta versão do controle remoto
-#define PIN_BTN_EMERGENCIA  13  // NC: repouso LOW, pressionado HIGH — pull-up interno (INPUT_PULLUP)
+#define PIN_BTN_EMERGENCIA  13  // NC: repouso LOW, ativo HIGH — pull-up interno (INPUT_PULLUP)
 
 // ============================================================
 // ENTRADAS — Sensores

@@ -30,7 +30,7 @@
 #define PIN_CLP_VEL2        5   // VEL2 selecionada (pulso PULSO_CLP_MS ms)
 #define PIN_CLP_EMERGENCIA  18  // Emergência: botão Remote travado OU watchdog expirado
 #define PIN_CLP_RESET       19  // RESET: pulso de PULSO_CLP_MS ms
-#define PIN_CLP_FIM_CURSO   22  // Fim de curso de descida (Remote GPIO 13)
+#define PIN_CLP_FIM_CURSO   22  // Fim de curso de descida (Remote GPIO 36)
 
 // ============================================================
 // SAÍDAS — LED exclusivo
