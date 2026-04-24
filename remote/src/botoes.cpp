@@ -18,8 +18,15 @@ const uint8_t Botoes::_pinos[NUM_BOTOES] = {
 
 void Botoes::init() {
     for (int i = 0; i < NUM_BOTOES; i++) {
-        // GPIOs 32, 33: pull-up interno; GPIOs 34-39: pull-up externo (input-only)
-        if (_pinos[i] == 32 || _pinos[i] == 33) {
+        if (_pinos[i] == PINO_DESABILITADO) {
+            _ultimaLeitura[i]  = HIGH;
+            _estadoFiltrado[i] = HIGH;
+            _ultimoCambio[i]   = 0;
+            continue;
+        }
+
+        // GPIOs 13, 32, 33: pull-up interno; GPIOs 34-39: pull-up externo (input-only)
+        if (_pinos[i] == 13 || _pinos[i] == 32 || _pinos[i] == 33) {
             pinMode(_pinos[i], INPUT_PULLUP);
         } else {
             pinMode(_pinos[i], INPUT);
@@ -39,7 +46,7 @@ EstadoBotoes Botoes::ler() {
     for (int i = 0; i < NUM_BOTOES; i++) {
         estadoAnterior[i] = _estadoFiltrado[i];
 
-        bool leitura = digitalRead(_pinos[i]);
+        bool leitura = (_pinos[i] == PINO_DESABILITADO) ? HIGH : digitalRead(_pinos[i]);
         if (leitura != _ultimaLeitura[i]) {
             _ultimoCambio[i] = agora;
             _ultimaLeitura[i] = leitura;

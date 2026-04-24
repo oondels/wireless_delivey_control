@@ -4,6 +4,27 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(comunicacao): adiciona feedback do CLP e micro do freio ao status do remote
+
+- `PacoteStatus` ampliado para carregar `link_ok`, `motor_ativo`, `emergencia_ativa`, `vel1_ativa`, `vel2_ativa` e `micro_freio_ativa`
+- Módulo Principal passa a ler 4 feedbacks do CLP via `INPUT_PULLUP`: `GPIO 23` (motor), `25` (emergência), `26` (VEL1) e `27` (VEL2)
+- Módulo Principal passa a ler a micro do freio NC no `GPIO 14`, com `HIGH` representando micro aberta/acionada
+- Status do Principal agora é enviado ao Remote a cada `200 ms` e também imediatamente quando algum feedback muda
+- Remote passa a bloquear `SUBIR` e `DESCER` quando o status do Principal expira ou quando o CLP reporta emergência ativa
+- LEDs `MOTOR`, `VEL1` e `VEL2` do Remote passam a refletir o feedback do CLP, não mais o estado local
+- `README.md` atualizado com diagrama Mermaid do fluxo de comunicação, novo protocolo e novo pinout do Principal
+
+### feat(principal): botões de teste local para acionar CLP sem Remote
+
+- Adicionados dois botões de teste físico no Módulo Principal (GPIO 32 = TESTE SUBIR, GPIO 33 = TESTE DESCER), configurados com `INPUT_PULLUP`
+- Quando pressionados, resetam o watchdog interno para evitar emergência por timeout
+- Acionam diretamente `PIN_CLP_SUBIR` / `PIN_CLP_DESCER` LOW enquanto mantidos pressionados
+- Pacote do Remote tem prioridade — botões de teste só atuam quando nenhum pacote foi processado no ciclo
+- Log via Serial com tag `[TESTE]` apenas na borda de pressionar (anti-spam)
+- Documentação atualizada: `README.md` (§4.3 e §5.1), `docs/specs/hardware_io/SPEC.md` (§4, v1.5)
+
+
+
 ### Refatoração de Arquitetura — ESP32 como Bridge para CLP
 
 **Motivação:** interferência eletromagnética do motor e do inversor (VFD) comprometia a operação

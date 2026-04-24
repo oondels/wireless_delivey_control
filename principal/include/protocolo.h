@@ -43,11 +43,16 @@ typedef struct {
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteRemote;
 
-// Principal → Remote (2 bytes)
-// CLP não fornece feedback; Principal informa apenas se está ativo.
+// Principal → Remote (7 bytes)
+// Principal propaga ao Remote o status atual do CLP e da micro do freio.
 typedef struct {
-    uint8_t  link_ok;   // 1 = Principal ativo e recebendo pacotes do Remote
-    uint8_t  checksum;  // XOR de todos os bytes anteriores
+    uint8_t  link_ok;             // 1 = Principal ativo e recebendo pacotes do Remote
+    uint8_t  motor_ativo;         // 1 = CLP reporta motor ativo
+    uint8_t  emergencia_ativa;    // 1 = CLP reporta emergencia ativa
+    uint8_t  vel1_ativa;          // 1 = CLP reporta velocidade 1 ativa
+    uint8_t  vel2_ativa;          // 1 = CLP reporta velocidade 2 ativa
+    uint8_t  micro_freio_ativa;   // 1 = micro do freio NC abriu (HIGH)
+    uint8_t  checksum;            // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteStatus;
 
 // ============================================================

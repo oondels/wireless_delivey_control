@@ -82,30 +82,9 @@ Usado quando o botão de emergência do Remote está **travado mecanicamente** (
 1. O botão de emergência **local** (Painel Central) deve estar **fisicamente solto**; **e**
 2. O operador pressiona **REARME** no Painel Central.
 
-O sinal de emergência do Remote é **ignorado** enquanto `rearme_ativo == 1`.
-
 ### 3.5 Rearme com Botão Remote Ainda Travado (Caso Especial)
 
-Se o operador do Painel Central pressionar REARME enquanto o botão de emergência do Remote ainda estiver travado:
-
-1. O Principal **aceita** o rearme e limpa `emergencia.ativa()`.
-2. O campo `rearme_ativo = 1` é incluído no `PacoteStatus` enviado ao Remote.
-3. O Remote acende o **LED ALARME** (piscando 2 Hz) ao receber esse sinal com o botão local ainda ativo.
-4. O operador no carrinho é alertado visualmente para soltar o botão de emergência local.
-
-```
-Emergência Remote ativa (botão travado)
-        │
-        ├─ Operador Remote solta botão → emergencia = 0 no pacote
-        │                                 Principal aceita REARME normalmente
-        │
-        └─ Operador Painel pressiona REARME (botão Remote ainda travado)
-                   │
-                   ├─ Principal limpa emergencia.ativa()
-                   ├─ Principal seta rearme_ativo = 1 no PacoteStatus (rearme.isRearmeAtivo())
-                   └─ Remote recebe → acende LED ALARME (pisca 2 Hz)
-                      Operador deve soltar botão de emergência local
-```
+Se o operador do Painel Central pressionar REARME enquanto o botão de emergência do Remote ainda estiver travado, a liberação continua dependendo da lógica do CLP e do estado físico do botão. O firmware ESP32 atual **não** envia um campo dedicado de `rearme_ativo` ao Remote.
 
 ---
 
@@ -172,15 +151,13 @@ Sequência executada imediatamente:
 
 ## 6. Proteções de Hardware
 
-### 6.1 Microchave do Freio (GPIO 27)
+### 6.1 Micro do Freio (GPIO 14)
 
-- Conectada ao **GPIO 27** do ESP32 Principal (NA, `INPUT_PULLUP`).
-- Indica o estado mecânico do cilindro do freio:
-  - **HIGH** = cilindro avançado = freio engatado → motor bloqueado
-  - **LOW** = cilindro retraído = freio liberado → motor permitido
-- O firmware lê GPIO 27 continuamente em `Freio::atualizar()` e bloqueia o motor até receber confirmação LOW.
-- Fail-safe: cabo partido → HIGH → motor bloqueado (comportamento seguro por projeto).
-- Pode também estar conectada diretamente ao circuito do freio como camada de hardware independente (opcional, não depende do firmware).
+- Conectada ao **GPIO 14** do ESP32 Principal como contato **NC** com `INPUT_PULLUP`.
+- Em condição normal: contato fechado → GPIO LOW.
+- Ao abrir, acionar ou romper cabo: GPIO HIGH.
+- O firmware propaga esse estado ao Remote via `PacoteStatus.micro_freio_ativa`.
+- Fail-safe: cabo partido → HIGH → `micro_freio_ativa = 1`.
 
 ### 6.2 Fim de Curso do Estacionamento
 
@@ -216,10 +193,10 @@ Sequência executada imediatamente:
 | 4 | Botão EMERGÊNCIA no Painel Central | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar |
 | 5 | Botão EMERGÊNCIA no Remote | Operador | `EMERGENCIA_ATIVA` | Não — auto-libera ao soltar; REARME apenas se remote travado |
 | 6 | Soltura do botão de acionamento (Homem-Morto) | Operador | `PARADO` | Não |
-| 7 | Microchave indicando freio engatado | Hardware | Motor bloqueado | Não |
+| 7 | Micro do freio NC aberta/acionada | Hardware | Telemetria de anomalia no status | Não |
 | 8 | Fim de curso do estacionamento | Hardware | `PARADO` | Não |
 
-> Módulo relé **ativo em LOW**: "Freio acionado (FREIO_ON)" = GPIO 19 LOW + GPIO 22 HIGH. "Freio liberado (FREIO_OFF)" = GPIO 22 LOW + GPIO 19 HIGH. Após confirmação de liberação (GPIO 27 = LOW), FREIO_OFF vai para HIGH (pulso encerrado). FREIO_ON **permanece LOW** continuamente enquanto o freio está engatado — não é desativado após confirmação da microchave. O comportamento fail-safe (queda de energia → freio aplicado) é garantido pelo estado padrão do sistema ser FREIO_ENGATADO com FREIO_ON ativo.
+> Na arquitetura atual, o Principal não controla diretamente o freio. O estado do freio é tratado pelo CLP; o ESP32 apenas envia comandos, recebe feedbacks do CLP e telemetria da micro do freio.
 
 ---
 

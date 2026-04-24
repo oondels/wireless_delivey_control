@@ -10,7 +10,7 @@
  *   1. Ler botões (debounce interno)
  *   2. Montar PacoteRemote
  *   3. Enviar pacote (heartbeat 100ms + imediato em mudança)
- *   4. Atualizar LEDs com base em estado local e link com Principal
+ *   4. Atualizar LEDs e bloqueio local com base no status do Principal
  */
 
 #include <Arduino.h>
@@ -28,13 +28,12 @@ Botoes      botoes;
 Comunicacao comunicacao;
 FimCurso    fimCursoDescida(PIN_FIM_CURSO_DESCIDA);
 
-// LEDs dedicados do Remote (GPIO 18 não utilizado nesta arquitetura)
+// LEDs dedicados do Remote (GPIO 18 e GPIO 21 não utilizados nesta arquitetura)
 Led ledLink(PIN_LED_LINK);
 Led ledMotor(PIN_LED_MOTOR);
 Led ledVel1(PIN_LED_VEL1);
 Led ledVel2(PIN_LED_VEL2);
 Led ledEmergencia(PIN_LED_EMERGENCIA);
-Led ledAlarme(PIN_LED_ALARME);
 
 // Controle de envio periódico
 uint32_t ultimoEnvioMs = 0;
@@ -43,9 +42,8 @@ uint32_t ultimoEnvioMs = 0;
 EstadoBotoes btnAnterior = {};
 bool    linkAnteriorOk          = false;
 bool    fimCursoDescidaAnterior = false;
-
-// Velocidade selecionada localmente (1 ou 2)
-uint8_t velLocal = 1;
+bool    bloqueioMovimentoAnterior = false;
+bool    microFreioAnteriorAtiva   = false;
 
 void setup() {
     Serial.begin(115200);
@@ -86,9 +84,27 @@ void loop() {
         LOG_INFO("BOTAO", "Botao EMERGENCIA liberado");
     }
 
-    // Atualizar velocidade local (pulso seleciona)
-    if (btn.vel1_pulso) velLocal = 1;
-    if (btn.vel2_pulso) velLocal = 2;
+    const volatile PacoteStatus& st = comunicacao.ultimoStatus();
+    bool statusPrincipalValido = (st.link_ok == 1) &&
+                                 (millis() - comunicacao.ultimoStatusRecebidoMs() <= WATCHDOG_TIMEOUT_MS);
+    bool bloqueioMovimento = !statusPrincipalValido || (st.emergencia_ativa == 1);
+
+    if (bloqueioMovimento && !bloqueioMovimentoAnterior) {
+        LOG_WARN("BLOQUEIO", "Comandos SUBIR/DESCER bloqueados pelo status do Principal");
+    } else if (!bloqueioMovimento && bloqueioMovimentoAnterior) {
+        LOG_INFO("BLOQUEIO", "Comandos SUBIR/DESCER liberados pelo Principal");
+    }
+    bloqueioMovimentoAnterior = bloqueioMovimento;
+
+    bool microFreioAtiva = (st.micro_freio_ativa == 1);
+    if (microFreioAtiva != microFreioAnteriorAtiva) {
+        if (microFreioAtiva) {
+            LOG_WARN("FREIO", "Micro do freio reportada como ativa pelo Principal");
+        } else {
+            LOG_INFO("FREIO", "Micro do freio reportada como normal pelo Principal");
+        }
+        microFreioAnteriorAtiva = microFreioAtiva;
+    }
 
     // 2. Montar PacoteRemote
     PacoteRemote pacote = {};
@@ -97,10 +113,10 @@ void loop() {
     pacote.timestamp         = millis();
 
     // Determinar comando e botao_hold
-    if (btn.subir_hold) {
+    if (btn.subir_hold && !bloqueioMovimento) {
         pacote.comando    = CMD_SUBIR;
         pacote.botao_hold = 1;
-    } else if (btn.descer_hold) {
+    } else if (btn.descer_hold && !bloqueioMovimento) {
         pacote.comando    = CMD_DESCER;
         pacote.botao_hold = 1;
     } else if (btn.vel1_pulso) {
@@ -135,25 +151,21 @@ void loop() {
     fimCursoDescidaAnterior = fcDescida;
 
     // Log de link (comunicação)
-    const volatile PacoteStatus& st = comunicacao.ultimoStatus();
-    bool linkAtualOk = (st.link_ok == 1) && (millis() - comunicacao.ultimoStatusRecebidoMs() <= 1000);
+    bool linkAtualOk = statusPrincipalValido;
     if (linkAtualOk && !linkAnteriorOk) {
         LOG_INFO("LINK", "Comunicacao com Principal restabelecida");
     } else if (!linkAtualOk && linkAnteriorOk) {
-        LOG_WARN("LINK", "Comunicacao com Principal perdida (timeout > 1s)");
+        LOG_WARN("LINK", "Comunicacao com Principal perdida (timeout > 500ms)");
     }
     linkAnteriorOk = linkAtualOk;
 
-    // 4. Atualizar LEDs com base em estado local e link com Principal
+    // 4. Atualizar LEDs com base no status do Principal
     atualizarLeds(
         comunicacao.ultimoStatus(),
         comunicacao.ultimoStatusRecebidoMs(),
-        btn.subir_hold,
-        btn.descer_hold,
         btn.emergencia,
-        velLocal,
         ledLink, ledMotor,
         ledVel1, ledVel2,
-        ledEmergencia, ledAlarme
+        ledEmergencia
     );
 }

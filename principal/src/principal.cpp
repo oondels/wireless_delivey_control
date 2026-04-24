@@ -1,8 +1,9 @@
 /**
  * principal.cpp — Loop principal do Módulo Principal (Bridge ESP → CLP)
  *
- * O Principal não possui entradas físicas. Recebe comandos do Módulo Remote
- * via ESP-NOW e os repassa para as entradas digitais do CLP via GPIO.
+ * O Principal recebe comandos do Módulo Remote via ESP-NOW, repassa esses
+ * sinais para as entradas digitais do CLP via GPIO e lê feedbacks do CLP
+ * e da micro do freio para retransmitir ao Remote.
  * Toda a lógica de controle (motor, freio, estados, segurança) é executada
  * pelo CLP programado em Ladder.
  *
@@ -19,7 +20,7 @@
  *   2. Se novo pacote recebido:
  *      a. Resetar watchdog
  *      b. Mapear campos do PacoteRemote para GPIOs do CLP
- *   3. Enviar PacoteStatus ao Remote (heartbeat 200ms)
+ *   3. Enviar PacoteStatus ao Remote (heartbeat 200ms + imediato em mudança)
  *   4. Atualizar LED LINK
  */
 
@@ -46,6 +47,15 @@ static const uint8_t PINOS_CLP[] = {
 };
 static constexpr int NUM_PINOS_CLP = sizeof(PINOS_CLP) / sizeof(PINOS_CLP[0]);
 
+static const uint8_t PINOS_FEEDBACK[] = {
+    PIN_FB_MOTOR_ATIVO,
+    PIN_FB_EMERGENCIA_ATIVA,
+    PIN_FB_VEL1_ATIVA,
+    PIN_FB_VEL2_ATIVA,
+    PIN_MICRO_FREIO
+};
+static constexpr int NUM_PINOS_FEEDBACK = sizeof(PINOS_FEEDBACK) / sizeof(PINOS_FEEDBACK[0]);
+
 // ============================================================
 // Estado de pulso (VEL1, VEL2, RESET são pulsos, não níveis)
 // ============================================================
@@ -67,9 +77,17 @@ Led            ledLink(PIN_LED_LINK);
 
 // Controle de envio periódico de status
 uint32_t       ultimoEnvioStatusMs = 0;
+PacoteStatus   ultimoStatusEnviado = {};
 
 // Logging anti-spam
 bool           watchdogAnteriorExpirado = false;
+bool           testeSubirAnterior       = false;
+bool           testeDescerAnterior      = false;
+bool           microFreioAnteriorAtiva  = false;
+
+static bool statusMudou(const PacoteStatus& atual, const PacoteStatus& anterior) {
+    return memcmp(&atual, &anterior, sizeof(PacoteStatus) - 1) != 0;
+}
 
 // ============================================================
 // Funções auxiliares
@@ -125,6 +143,15 @@ void setup() {
         digitalWrite(PINOS_CLP[i], HIGH);
     }
 
+    // Botões de teste local
+    pinMode(PIN_BTN_TESTE_SUBIR,  INPUT_PULLUP);
+    pinMode(PIN_BTN_TESTE_DESCER, INPUT_PULLUP);
+
+    // Feedbacks do CLP e micro do freio
+    for (int i = 0; i < NUM_PINOS_FEEDBACK; i++) {
+        pinMode(PINOS_FEEDBACK[i], INPUT_PULLUP);
+    }
+
     watchdog.init();
     comunicacao.init(watchdog);
 
@@ -137,6 +164,29 @@ void setup() {
 
 void loop() {
     uint32_t agora = millis();
+
+    // Lê botões de teste local (LOW = pressionado com INPUT_PULLUP)
+    bool btnSubirLocal  = (digitalRead(PIN_BTN_TESTE_SUBIR)  == LOW);
+    bool btnDescerLocal = (digitalRead(PIN_BTN_TESTE_DESCER) == LOW);
+    bool fbMotorAtivo      = (digitalRead(PIN_FB_MOTOR_ATIVO) == LOW);
+    bool fbEmergenciaAtiva = (digitalRead(PIN_FB_EMERGENCIA_ATIVA) == LOW);
+    bool fbVel1Ativa       = (digitalRead(PIN_FB_VEL1_ATIVA) == LOW);
+    bool fbVel2Ativa       = (digitalRead(PIN_FB_VEL2_ATIVA) == LOW);
+    bool microFreioAtiva   = (digitalRead(PIN_MICRO_FREIO) == HIGH);
+
+    if (microFreioAtiva != microFreioAnteriorAtiva) {
+        if (microFreioAtiva) {
+            LOG_WARN("FREIO", "Micro do freio aberta/acionada");
+        } else {
+            LOG_INFO("FREIO", "Micro do freio voltou ao estado normal");
+        }
+        microFreioAnteriorAtiva = microFreioAtiva;
+    }
+
+    // Botão de teste ativo → resetar watchdog para evitar emergência por timeout
+    if (btnSubirLocal || btnDescerLocal) {
+        watchdog.resetar();
+    }
 
     // 1. Verificar watchdog
     bool watchdogExpirado = watchdog.expirado();
@@ -157,7 +207,9 @@ void loop() {
     watchdogAnteriorExpirado = watchdogExpirado;
 
     // 2. Processar novo pacote do Remote
+    bool pacoteProcessado = false;
     if (comunicacao.novoPacoteRecebido()) {
+        pacoteProcessado = true;
         const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
 
         // Emergência (nível contínuo)
@@ -213,16 +265,45 @@ void loop() {
         comunicacao.limparNovoPacote();
     }
 
+    // 2b. Botões de teste local (apenas quando sem pacote do Remote neste ciclo)
+    if (!pacoteProcessado && !watchdogExpirado) {
+        if (btnSubirLocal) {
+            digitalWrite(PIN_CLP_SUBIR,  LOW);
+            digitalWrite(PIN_CLP_DESCER, HIGH);
+            if (!testeSubirAnterior) {
+                LOG_INFO("TESTE", "Botao SUBIR local pressionado — sinal enviado ao CLP");
+            }
+        } else if (btnDescerLocal) {
+            digitalWrite(PIN_CLP_DESCER, LOW);
+            digitalWrite(PIN_CLP_SUBIR,  HIGH);
+            if (!testeDescerAnterior) {
+                LOG_INFO("TESTE", "Botao DESCER local pressionado — sinal enviado ao CLP");
+            }
+        } else {
+            pararMovimento();
+        }
+    }
+    testeSubirAnterior  = btnSubirLocal;
+    testeDescerAnterior = btnDescerLocal;
+
     // Encerrar pulsos vencidos
     atualizarPulsos();
 
-    // 3. Enviar PacoteStatus ao Remote (heartbeat 200ms)
-    if (agora - ultimoEnvioStatusMs >= STATUS_INTERVALO_MS) {
-        PacoteStatus status;
-        status.link_ok  = 1;
-        status.checksum = 0;
+    // 3. Enviar PacoteStatus ao Remote (heartbeat 200ms + imediato em mudança)
+    PacoteStatus status = {};
+    status.link_ok           = watchdogExpirado ? 0 : 1;
+    status.motor_ativo       = fbMotorAtivo ? 1 : 0;
+    status.emergencia_ativa  = fbEmergenciaAtiva ? 1 : 0;
+    status.vel1_ativa        = fbVel1Ativa ? 1 : 0;
+    status.vel2_ativa        = fbVel2Ativa ? 1 : 0;
+    status.micro_freio_ativa = microFreioAtiva ? 1 : 0;
+
+    bool envioPeriodicoStatus = (agora - ultimoEnvioStatusMs >= STATUS_INTERVALO_MS);
+    bool envioImediatoStatus  = statusMudou(status, ultimoStatusEnviado);
+    if (envioPeriodicoStatus || envioImediatoStatus) {
         comunicacao.enviarStatus(status);
         ultimoEnvioStatusMs = agora;
+        ultimoStatusEnviado = status;
     }
 
     // 4. Atualizar LED LINK

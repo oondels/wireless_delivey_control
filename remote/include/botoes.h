@@ -35,6 +35,8 @@ public:
     EstadoBotoes ler();
 
 private:
+    static constexpr uint8_t PINO_DESABILITADO = 255;
+
     enum { IDX_SUBIR = 0, IDX_DESCER, IDX_VEL1, IDX_VEL2, IDX_RESET, IDX_EMERGENCIA };
 
     static const uint8_t _pinos[NUM_BOTOES];

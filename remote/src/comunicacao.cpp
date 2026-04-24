@@ -64,6 +64,29 @@ void Comunicacao::atualizarPeerPrincipal(const uint8_t* mac) {
     );
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+void Comunicacao::onDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
+    if (len != sizeof(PacoteStatus)) {
+        return;
+    }
+
+    PacoteStatus status;
+    memcpy(&status, data, sizeof(PacoteStatus));
+
+    // Validar checksum
+    uint8_t cs = calcular_checksum((const uint8_t*)&status, sizeof(PacoteStatus) - 1);
+    if (cs != status.checksum) {
+        return;
+    }
+
+    const uint8_t* mac = (info != nullptr) ? info->src_addr : nullptr;
+    atualizarPeerPrincipal(mac);
+
+    // Pacote válido — atualizar estado local
+    memcpy((void*)&_ultimoStatus, &status, sizeof(PacoteStatus));
+    _ultimoStatusMs = millis();
+}
+#else
 void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
     if (len != sizeof(PacoteStatus)) {
         return;
@@ -84,6 +107,7 @@ void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
     memcpy((void*)&_ultimoStatus, &status, sizeof(PacoteStatus));
     _ultimoStatusMs = millis();
 }
+#endif
 
 void Comunicacao::init() {
     // WiFi em modo station (necessário para ESP-NOW)

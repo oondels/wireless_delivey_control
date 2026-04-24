@@ -1,11 +1,11 @@
 /**
  * pinout.h — Mapeamento de GPIOs do Módulo Principal
  *
- * O Principal não possui entradas físicas nesta arquitetura.
- * Recebe comandos via ESP-NOW do Remote e os repassa para as
- * entradas digitais do CLP via saídas GPIO.
+ * O Principal recebe comandos via ESP-NOW do Remote, repassa esses
+ * sinais para as entradas digitais do CLP via saídas GPIO e lê
+ * feedbacks do CLP e da micro do freio.
  *
- * Total: 8 saídas GPIO
+ * Total: 8 saídas GPIO + 7 entradas GPIO
  *
  * Lógica de comunicação com CLP: ativo em LOW (GND)
  * - LOW (GND) = sinal ativo → CLP lê entrada como acionada
@@ -37,5 +37,25 @@
 // ============================================================
 
 #define PIN_LED_LINK        21  // Comunicação ativa com Remote (aceso = link OK)
+
+// ============================================================
+// ENTRADAS — Botões de teste local (sem Remote conectado)
+// INPUT_PULLUP: LOW = pressionado, HIGH = solto
+// ============================================================
+
+#define PIN_BTN_TESTE_SUBIR    32
+#define PIN_BTN_TESTE_DESCER   33
+
+// ============================================================
+// ENTRADAS — Feedbacks do CLP e micro do freio
+// INPUT_PULLUP: LOW = feedback ativo do CLP
+// Micro do freio NC: LOW = normal, HIGH = aberta/acionada
+// ============================================================
+
+#define PIN_FB_MOTOR_ATIVO        23
+#define PIN_FB_EMERGENCIA_ATIVA   25
+#define PIN_FB_VEL1_ATIVA         26
+#define PIN_FB_VEL2_ATIVA         27
+#define PIN_MICRO_FREIO           14
 
 #endif // PINOUT_H
