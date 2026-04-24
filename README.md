@@ -340,7 +340,11 @@ A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal
 
 ### 9.1 Emparelhamento
 
-Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer inicial. O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido, e o peer é registrado automaticamente via `esp_now_add_peer()`.
+Em produção, o pareamento é **fixo**. Cada módulo registra apenas o MAC esperado do seu peer e usa ESP-NOW com criptografia habilitada.
+
+- `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do arquivo `.env` local no build
+- `.env` não deve ser versionado
+- `.env.example` documenta o formato esperado
 
 ### 9.2 Pacote Remote → Principal (9 bytes)
 
@@ -352,6 +356,9 @@ typedef struct {
     uint8_t  emergencia;         // 1=botão com trava ativo no Remote
     uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
     uint32_t timestamp;          // millis() do Remote
+    uint32_t seq;                // contador monotônico Remote -> Principal
+    uint32_t session_id;         // sessão do Remote
+    uint32_t auth_tag;           // autenticação do pacote
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
@@ -368,6 +375,9 @@ typedef struct {
     uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
     uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
     uint8_t  micro_freio_ativa;   // 1=freio ativo; 0=freio liberado
+    uint32_t seq;                 // contador monotônico Principal -> Remote
+    uint32_t session_id;          // sessão do Principal
+    uint32_t auth_tag;            // autenticação do pacote
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } PacoteStatus;
 ```

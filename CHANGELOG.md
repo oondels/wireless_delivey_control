@@ -4,6 +4,14 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(comunicacao): endurece seguranca do enlace ESP-NOW
+
+- Comunicação passa a usar peer fixo por MAC configurado via `.env`, sem descoberta automática por broadcast em produção
+- Build de `principal` e `remote` passa a carregar `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` a partir de `.env` local
+- ESP-NOW passa a operar com criptografia habilitada (`PMK` + `LMK`)
+- `PacoteRemote` e `PacoteStatus` passam a carregar `seq`, `session_id` e `auth_tag`
+- Principal e Remote passam a rejeitar pacote de MAC inesperado, autenticação inválida ou replay
+
 ### feat(remote): adiciona espera visual de partida no LED do motor
 
 - LED `MOTOR` do Remote passa a piscar em 2 Hz enquanto SUBIR ou DESCER estiver pressionado e o sistema ainda aguardar `micro_freio_ativa == 0` junto com `motor_ativo == 1`
