@@ -129,6 +129,8 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 
 > O Remote não possui relés. Todos os seus LEDs são GPIOs dedicados.
 
+> Detalhes operacionais específicos de firmware estão em [principal/README.md](/home/oendel/code/hendrius/automacao_rio/principal/README.md) e [remote/README.md](/home/oendel/code/hendrius/automacao_rio/remote/README.md).
+
 ---
 
 ## 4. Arquitetura de Hardware — GPIOs e Ligações
@@ -179,7 +181,7 @@ Botões físicos no Principal para acionar o CLP diretamente durante testes, sem
 | TESTE SUBIR | 32 | Táctil | INPUT_PULLUP (LOW = ativo) | Ativa `PIN_CLP_SUBIR` LOW enquanto pressionado |
 | TESTE DESCER | 33 | Táctil | INPUT_PULLUP (LOW = ativo) | Ativa `PIN_CLP_DESCER` LOW enquanto pressionado |
 
-> Prioridade: pacote Remote tem precedência. Botões de teste só atuam quando nenhum pacote foi recebido naquele ciclo de loop.
+> Prioridade: hold remoto tem precedência. Botões de teste só atuam quando não há hold remoto ativo e o watchdog de comunicação não está expirado.
 
 ### 4.4 Fim de Curso de Descida
 
@@ -340,9 +342,13 @@ A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal
 
 ### 9.1 Emparelhamento
 
-Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer inicial. O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido, e o peer é registrado automaticamente via `esp_now_add_peer()`.
+Em produção, o pareamento é **fixo**. Cada módulo registra apenas o MAC esperado do seu peer e usa ESP-NOW com criptografia habilitada.
 
-### 9.2 Pacote Remote → Principal (9 bytes)
+- `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do arquivo `.env` local no build
+- `.env` não deve ser versionado
+- `.env.example` documenta o formato esperado
+
+### 9.2 Pacote Remote → Principal (21 bytes)
 
 ```c
 typedef struct {
@@ -352,11 +358,14 @@ typedef struct {
     uint8_t  emergencia;         // 1=botão com trava ativo no Remote
     uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
     uint32_t timestamp;          // millis() do Remote
+    uint32_t seq;                // contador monotônico Remote -> Principal
+    uint32_t session_id;         // sessão do Remote
+    uint32_t auth_tag;           // autenticação do pacote
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
 
-### 9.3 Pacote Principal → Remote (Status) (7 bytes)
+### 9.3 Pacote Principal → Remote (Status) (19 bytes)
 
 O Principal informa ao Remote se o link está válido e replica os feedbacks atuais do CLP e da micro do freio.
 
@@ -368,6 +377,9 @@ typedef struct {
     uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
     uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
     uint8_t  micro_freio_ativa;   // 1=freio ativo; 0=freio liberado
+    uint32_t seq;                 // contador monotônico Principal -> Remote
+    uint32_t session_id;          // sessão do Principal
+    uint32_t auth_tag;            // autenticação do pacote
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } PacoteStatus;
 ```
@@ -392,7 +404,7 @@ Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor defini
 |---|---|---|
 | LINK | 21 | Link ativo com Remote (watchdog OK) — pisca 2 Hz se sem link |
 
-> Os GPIOs de saída ao CLP (4, 16, 17, 5, 18, 19, 22) não possuem LEDs associados nesta arquitetura.
+> Os GPIOs de saída ao CLP não possuem abstração de LED no firmware. Se houver LED físico no módulo de relé ou na fiação, ele acompanha o mesmo nível lógico da saída correspondente.
 
 ### 10.2 LEDs no Módulo Remote (GPIOs dedicados)
 
@@ -447,19 +459,33 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 [9600] [INFO] [WDOG] Watchdog recuperado — emergencia CLP liberada
 ```
 
-### 11.5 Desabilitar em Produção
+### 11.5 Modos de Logging
 
-Adicionar no `platformio.ini` do módulo desejado:
+O build trabalha em **produção por padrão**:
+
+- `prod` (padrão): mantém logs essenciais de boot, MAC local, avisos e erros
+- `dev`: mostra todos os logs de debug e transições detalhadas
+- `LOG_DISABLED`: desliga logs normais, mas preserva logs obrigatórios de boot e identificação
+
+Para habilitar modo desenvolvimento no `platformio.ini` do módulo desejado:
 
 ```ini
-build_flags = -DLOG_DISABLED
+build_flags =
+    -DAPP_ENV_DEV
 ```
 
-Com `LOG_DISABLED`, todas as macros de logging compilam como no-op (zero overhead em Flash e RAM).
+Para desligar os logs normais:
+
+```ini
+build_flags =
+    -DLOG_DISABLED
+```
+
+Com `LOG_DISABLED`, `LOG_INFO`, `LOG_WARN` e `LOG_ERROR` compilam como no-op. Os logs de boot e MAC continuam usando `LOG_ALWAYS`.
 
 ### 11.6 Arquivo Compartilhado
 
-O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros de logging e função auxiliar `comandoParaString()` para saída legível.
+O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros `LOG_INFO`, `LOG_WARN`, `LOG_ERROR`, `LOG_ALWAYS` e a função auxiliar `comandoParaString()` para saída legível.
 
 ---
 

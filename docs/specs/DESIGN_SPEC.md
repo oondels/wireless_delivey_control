@@ -2,7 +2,9 @@
 
 **Versão:** 3.3
 **Data:** 2026-03-22
-**Status:** Em execução
+**Status:** Documento histórico
+
+> **Nota:** este documento preserva contexto de versões anteriores. Quando houver divergência com o firmware atual, use `README.md`, `docs/specs/*.md` e os `README.md` de `principal/` e `remote/` como fonte autoritativa.
 
 ---
 
@@ -226,7 +228,7 @@ Transições globais → FALHA_COMUNICACAO (qualquer estado operacional):
 
 ### 8.1 Emparelhamento
 
-Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer inicial. O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido, e o peer é registrado automaticamente via `esp_now_add_peer()`.
+Em produção, cada módulo registra apenas o MAC esperado do seu peer. O pareamento é fixo por MAC, com criptografia ESP-NOW habilitada e chaves carregadas do `.env` local no build.
 
 ### 8.2 Pacote Remote → Principal
 
@@ -317,7 +319,7 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 
 ## 11. Sistema de Logging (Debug/Testes)
 
-O firmware inclui logging via Serial (115200 baud) para depuração pré-deploy. Implementado como header-only `logger.h` com macros que compilam como no-op quando desabilitadas (`-DLOG_DISABLED`). Registra apenas transições de estado e ações (não polled states). Formato: `[timestamp_ms] [NIVEL] [MODULO] mensagem`. Ver `README.md` §11 para detalhes completos.
+O firmware inclui logging via Serial (115200 baud) com modo `prod` por padrão e modo `dev` via `-DAPP_ENV_DEV`. O módulo `logger.h` mantém logs essenciais de boot, MAC local, avisos e erros em produção, e libera logs detalhados de debug em desenvolvimento. Ver `README.md` §11 para detalhes completos.
 
 ---
 

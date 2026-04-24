@@ -12,6 +12,7 @@ Os dois módulos ESP32 comunicam-se via **ESP-NOW**, protocolo peer-to-peer da E
 
 - O **Remote** envia comandos, heartbeat, estado do botão de emergência e fim de curso de descida.
 - O **Principal** responde com um `PacoteStatus` contendo validade do link, feedbacks digitais do CLP e o estado da micro do freio.
+- Em produção, o pareamento é fixo por MAC e usa criptografia ESP-NOW com PMK/LMK configuradas no build.
 
 A lógica de controle permanece no **CLP**. Os ESP32 funcionam como ponte de comunicação sem fio.
 
@@ -33,10 +34,11 @@ A lógica de controle permanece no **CLP**. Os ESP32 funcionam como ponte de com
 
 ## 3. Emparelhamento
 
-- Ambos os módulos iniciam em modo de descoberta usando **broadcast** (`FF:FF:FF:FF:FF:FF`) como peer inicial.
-- O MAC real do peer é detectado dinamicamente a partir do primeiro pacote válido recebido.
-- Ao detectar o MAC real, o módulo registra o peer via `esp_now_add_peer()` e passa a enviar diretamente para aquele endereço.
-- Não é necessário hardcodar MACs em firmware.
+- Cada módulo registra apenas o MAC esperado do seu peer.
+- O peer é cadastrado com `encrypt = true` e LMK configurada.
+- A PMK é configurada no boot via `esp_now_set_pmk()`.
+- `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados de `.env` no build.
+- Não há descoberta automática por broadcast em produção.
 
 ---
 
@@ -52,11 +54,14 @@ typedef struct {
     uint8_t  emergencia;         // 1=botão de emergência com trava ativo
     uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
     uint32_t timestamp;          // millis() do Remote
+    uint32_t seq;                // contador monotônico Remote -> Principal
+    uint32_t session_id;         // sessão do Remote
+    uint32_t auth_tag;           // autenticação do pacote
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
 
-**Tamanho:** 9 bytes
+**Tamanho:** 21 bytes
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
@@ -65,6 +70,9 @@ typedef struct {
 | `emergencia` | `uint8_t` | 0 ou 1 | 1 = botão de emergência com trava ativo no Remote |
 | `fim_curso_descida` | `uint8_t` | 0 ou 1 | 1 = carrinho na posição final de descida |
 | `timestamp` | `uint32_t` | millis() | Timestamp do Remote para diagnóstico |
+| `seq` | `uint32_t` | crescente | Contador monotônico para anti-replay |
+| `session_id` | `uint32_t` | boot atual | Identificador de sessão do Remote |
+| `auth_tag` | `uint32_t` | calculado | Tag de autenticação do pacote |
 | `checksum` | `uint8_t` | calculado | XOR de todos os bytes anteriores do pacote |
 
 ### 4.2 Pacote Principal → Remote (`PacoteStatus`)
@@ -77,11 +85,14 @@ typedef struct {
     uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
     uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
     uint8_t  micro_freio_ativa;   // 1=freio ativo; 0=freio liberado
+    uint32_t seq;                 // contador monotônico Principal -> Remote
+    uint32_t session_id;          // sessão do Principal
+    uint32_t auth_tag;            // autenticação do pacote
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } PacoteStatus;
 ```
 
-**Tamanho:** 7 bytes
+**Tamanho:** 19 bytes
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
@@ -91,6 +102,9 @@ typedef struct {
 | `vel1_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 26` |
 | `vel2_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 27` |
 | `micro_freio_ativa` | `uint8_t` | 0 ou 1 | 1 = freio ativo reportado pela micro no `GPIO 14`; 0 = freio liberado |
+| `seq` | `uint32_t` | crescente | Contador monotônico para anti-replay |
+| `session_id` | `uint32_t` | boot atual | Identificador de sessão do Principal |
+| `auth_tag` | `uint32_t` | calculado | Tag de autenticação do pacote |
 | `checksum` | `uint8_t` | calculado | XOR de todos os bytes anteriores do pacote |
 
 ---
@@ -137,6 +151,14 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 - Pacotes com checksum inválido são descartados silenciosamente.
 - Pacotes descartados não resetam watchdog nem timer de link.
 
+### 6.3 Autenticação e Anti-Replay
+
+- Ambos os lados validam `auth_tag` com a chave secreta do par.
+- Ambos os lados rejeitam pacotes vindos de MAC diferente do peer configurado.
+- Cada direção mantém `seq` monotônico e `session_id` por boot.
+- Pacotes com `seq` repetido ou regressivo são descartados.
+- Mudança de `session_id` só é aceita após timeout de link.
+
 ---
 
 ## 7. Frequência e Timing de Envio
@@ -182,14 +204,13 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 
 | Callback | Função |
 |---|---|
-| `OnDataSent` | Registrar confirmação de entrega para debug |
 | `OnDataRecv` | Validar checksum, atualizar `PacoteStatus`, atualizar timestamp do último status |
 
 ### 9.2 Principal
 
 | Callback | Função |
 |---|---|
-| `OnDataRecv` | Validar checksum, atualizar MAC do peer, resetar watchdog e armazenar o último `PacoteRemote` |
+| `OnDataRecv` | Validar MAC esperado, checksum, `auth_tag`, anti-replay, resetar watchdog e armazenar o último `PacoteRemote` |
 
 ---
 
@@ -209,8 +230,8 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 | Cenário | Comportamento |
 |---|---|
 | Pacote corrompido (checksum inválido) | Descartado; watchdog/timer não resetado |
-| Pacote duplicado | Processado normalmente |
-| Pacote fora de ordem | Processado normalmente |
+| Pacote duplicado | Descartado por `seq` repetido |
+| Pacote fora de ordem | Descartado por `seq` regressivo |
 | Perda total de comunicação | Watchdog do Principal aciona em 500 ms |
 | Remote fora de alcance | Watchdog do Principal aciona em 500 ms |
 | Freio ativo ou circuito NC aberto | `micro_freio_ativa = 1` no status enviado ao Remote |

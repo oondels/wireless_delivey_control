@@ -22,6 +22,8 @@ Não há controle de cor por software.
 |---|---|---|
 | LINK REMOTE | 21 | Indica se o watchdog do Remote está válido |
 
+> As saídas do Principal para o CLP podem acender LEDs físicos do módulo de relé ou da instalação elétrica, mas esses indicadores não têm controle lógico separado no firmware.
+
 ### 2.2 Remote
 
 | LED | GPIO | Função |
@@ -134,6 +136,6 @@ Regras:
 |---|---|
 | LINK do Remote piscando | Sem status válido do Principal |
 | MOTOR aceso | CLP reporta motor ativo |
+| MOTOR piscando 2 Hz | Solicitação de SUBIR/DESCER aguardando freio liberar e `motor_ativo` |
 | VEL1 ou VEL2 aceso | CLP reporta velocidade ativa correspondente |
-| EMERGÊNCIA piscando 4 Hz | Botão de emergência local ativo |
-| EMERGÊNCIA aceso fixo | Emergência reportada pelo CLP |
+| EMERGÊNCIA piscando 4 Hz | Emergência local ou `emergencia_ativa` reportada pelo CLP |

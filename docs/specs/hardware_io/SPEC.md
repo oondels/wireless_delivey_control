@@ -101,6 +101,8 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 |---|---|---|
 | LINK REMOTE | 21 | Indica comunicação ativa com o Remote |
 
+> Os canais de saída para o CLP podem acender LEDs físicos do módulo de relé ou da instalação externa, mas o firmware não controla esses indicadores separadamente.
+
 **Total de saídas no Principal: 8 GPIOs**
 
 **Total de GPIOs no Principal: 15** (7 entradas + 8 saídas)
@@ -135,10 +137,10 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 | LED | GPIO | Função |
 |---|---|---|
 | LINK | 4 | Status de comunicação |
-| MOTOR | 16 | Reflete `motor_ativo` recebido |
+| MOTOR | 16 | Pisca enquanto aguarda partida; fixo com `motor_ativo` |
 | VEL1 | 17 | Reflete `vel1_ativa` recebida |
 | VEL2 | 5 | Reflete `vel2_ativa` recebida |
-| EMERGÊNCIA | 19 | Emergência local, emergência do CLP ou perda de link |
+| EMERGÊNCIA | 19 | Emergência local ou emergência do CLP |
 
 **Total de saídas no Remote: 5 GPIOs**
 

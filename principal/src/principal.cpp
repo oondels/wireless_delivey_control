@@ -25,6 +25,7 @@
  */
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include "pinout.h"
 #include "protocolo.h"
 #include "comunicacao.h"
@@ -202,7 +203,7 @@ static void registrarMudancaSaidaMovimento(bool subirAtivo, bool descerAtivo) {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("=== Módulo Principal (Bridge ESP→CLP) — Inicializando ===");
+    LOG_ALWAYS("BOOT", "=== Modulo Principal (Bridge ESP->CLP) - Inicializando ===");
 
     // Inicializar todas as saídas CLP como HIGH (inativo)
     for (int i = 0; i < NUM_PINOS_CLP; i++) {
@@ -222,7 +223,8 @@ void setup() {
     watchdog.init();
     comunicacao.init(watchdog);
 
-    Serial.println("=== Módulo Principal — Pronto. Aguardando Remote... ===");
+    LOG_ALWAYS_VAL("BOOT", "MAC local: ", WiFi.macAddress());
+    LOG_ALWAYS("BOOT", "=== Modulo Principal - Pronto. Aguardando Remote... ===");
 }
 
 // ============================================================

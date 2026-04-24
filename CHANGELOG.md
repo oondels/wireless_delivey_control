@@ -4,6 +4,28 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### docs(modulos): revisa specs e adiciona readmes locais
+
+- Documentação foi revisada contra o código atual de `principal` e `remote`, com correções em protocolo, segurança, LEDs e hardware
+- Tamanhos reais de `PacoteRemote` e `PacoteStatus` foram corrigidos na documentação compartilhada
+- `docs/specs/seguranca/SPEC.md` foi reescrito para refletir a arquitetura bridge atual com CLP, watchdog, bloqueios remotos e fim de curso de descida
+- Foram adicionados `principal/README.md` e `remote/README.md` com responsabilidades, GPIOs, build e detalhes operacionais de cada ESP32
+
+### feat(logging): adiciona modos dev e prod para logs
+
+- Logging passa a operar em produção por padrão, ocultando `INFO` de debug e mantendo apenas logs essenciais de boot, avisos e erros
+- Novo modo de desenvolvimento via `-DAPP_ENV_DEV` mantém todos os logs detalhados nos módulos `principal` e `remote`
+- Logs obrigatórios de boot passam a usar macro própria e incluem o MAC local do ESP em ambos os módulos
+- Inicialização do ESP-NOW passa a respeitar a política de logging, mantendo falhas críticas visíveis em produção
+
+### feat(comunicacao): endurece seguranca do enlace ESP-NOW
+
+- Comunicação passa a usar peer fixo por MAC configurado via `.env`, sem descoberta automática por broadcast em produção
+- Build de `principal` e `remote` passa a carregar `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` a partir de `.env` local
+- ESP-NOW passa a operar com criptografia habilitada (`PMK` + `LMK`)
+- `PacoteRemote` e `PacoteStatus` passam a carregar `seq`, `session_id` e `auth_tag`
+- Principal e Remote passam a rejeitar pacote de MAC inesperado, autenticação inválida ou replay
+
 ### feat(remote): adiciona espera visual de partida no LED do motor
 
 - LED `MOTOR` do Remote passa a piscar em 2 Hz enquanto SUBIR ou DESCER estiver pressionado e o sistema ainda aguardar `micro_freio_ativa == 0` junto com `motor_ativo == 1`
