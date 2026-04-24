@@ -84,9 +84,33 @@ bool           watchdogAnteriorExpirado = false;
 bool           testeSubirAnterior       = false;
 bool           testeDescerAnterior      = false;
 bool           microFreioAnteriorAtiva  = false;
+bool           fbMotorAnteriorAtivo     = false;
+bool           fbEmergenciaAnteriorAtiva = false;
+bool           fbVel1AnteriorAtiva      = false;
+bool           fbVel2AnteriorAtiva      = false;
 
 static bool statusMudou(const PacoteStatus& atual, const PacoteStatus& anterior) {
     return memcmp(&atual, &anterior, sizeof(PacoteStatus) - 1) != 0;
+}
+
+static void registrarMudancaFeedbackClp(
+    bool estadoAtual,
+    bool& estadoAnterior,
+    const char* modulo,
+    const char* mensagemAtivo,
+    const char* mensagemInativo
+) {
+    if (estadoAtual == estadoAnterior) {
+        return;
+    }
+
+    if (estadoAtual) {
+        LOG_INFO(modulo, mensagemAtivo);
+    } else {
+        LOG_INFO(modulo, mensagemInativo);
+    }
+
+    estadoAnterior = estadoAtual;
 }
 
 // ============================================================
@@ -173,6 +197,35 @@ void loop() {
     bool fbVel1Ativa       = (digitalRead(PIN_FB_VEL1_ATIVA) == LOW);
     bool fbVel2Ativa       = (digitalRead(PIN_FB_VEL2_ATIVA) == LOW);
     bool microFreioAtiva   = (digitalRead(PIN_MICRO_FREIO) == HIGH);
+
+    registrarMudancaFeedbackClp(
+        fbMotorAtivo,
+        fbMotorAnteriorAtivo,
+        "CLP",
+        "Feedback MOTOR_ATIVO acionado",
+        "Feedback MOTOR_ATIVO desacionado"
+    );
+    registrarMudancaFeedbackClp(
+        fbEmergenciaAtiva,
+        fbEmergenciaAnteriorAtiva,
+        "CLP",
+        "Feedback EMERGENCIA_ATIVA acionado",
+        "Feedback EMERGENCIA_ATIVA desacionado"
+    );
+    registrarMudancaFeedbackClp(
+        fbVel1Ativa,
+        fbVel1AnteriorAtiva,
+        "CLP",
+        "Feedback VEL1_ATIVA acionado",
+        "Feedback VEL1_ATIVA desacionado"
+    );
+    registrarMudancaFeedbackClp(
+        fbVel2Ativa,
+        fbVel2AnteriorAtiva,
+        "CLP",
+        "Feedback VEL2_ATIVA acionado",
+        "Feedback VEL2_ATIVA desacionado"
+    );
 
     if (microFreioAtiva != microFreioAnteriorAtiva) {
         if (microFreioAtiva) {

@@ -4,6 +4,12 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(principal): adiciona log nas entradas de feedback do CLP
+
+- Módulo Principal passa a registrar em nível informativo as transições dos feedbacks `MOTOR_ATIVO`, `EMERGENCIA_ATIVA`, `VEL1_ATIVA` e `VEL2_ATIVA`
+- Logs são emitidos apenas em mudança de estado para evitar spam no loop principal
+- Log existente da micro do freio em `GPIO 14` foi preservado sem alteração
+
 ### feat(comunicacao): adiciona feedback do CLP e micro do freio ao status do remote
 
 - `PacoteStatus` ampliado para carregar `link_ok`, `motor_ativo`, `emergencia_ativa`, `vel1_ativa`, `vel2_ativa` e `micro_freio_ativa`
