@@ -61,7 +61,7 @@ typedef struct {
 } PacoteRemote;
 ```
 
-**Tamanho:** 9 bytes
+**Tamanho:** 21 bytes
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
@@ -92,7 +92,7 @@ typedef struct {
 } PacoteStatus;
 ```
 
-**Tamanho:** 7 bytes
+**Tamanho:** 19 bytes
 
 | Campo | Tipo | Valores | Descrição |
 |---|---|---|---|
@@ -204,14 +204,13 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 
 | Callback | Função |
 |---|---|
-| `OnDataSent` | Registrar confirmação de entrega para debug |
 | `OnDataRecv` | Validar checksum, atualizar `PacoteStatus`, atualizar timestamp do último status |
 
 ### 9.2 Principal
 
 | Callback | Função |
 |---|---|
-| `OnDataRecv` | Validar checksum, atualizar MAC do peer, resetar watchdog e armazenar o último `PacoteRemote` |
+| `OnDataRecv` | Validar MAC esperado, checksum, `auth_tag`, anti-replay, resetar watchdog e armazenar o último `PacoteRemote` |
 
 ---
 
@@ -231,8 +230,8 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 | Cenário | Comportamento |
 |---|---|
 | Pacote corrompido (checksum inválido) | Descartado; watchdog/timer não resetado |
-| Pacote duplicado | Processado normalmente |
-| Pacote fora de ordem | Processado normalmente |
+| Pacote duplicado | Descartado por `seq` repetido |
+| Pacote fora de ordem | Descartado por `seq` regressivo |
 | Perda total de comunicação | Watchdog do Principal aciona em 500 ms |
 | Remote fora de alcance | Watchdog do Principal aciona em 500 ms |
 | Freio ativo ou circuito NC aberto | `micro_freio_ativa = 1` no status enviado ao Remote |

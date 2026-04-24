@@ -4,6 +4,13 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### docs(modulos): revisa specs e adiciona readmes locais
+
+- Documentação foi revisada contra o código atual de `principal` e `remote`, com correções em protocolo, segurança, LEDs e hardware
+- Tamanhos reais de `PacoteRemote` e `PacoteStatus` foram corrigidos na documentação compartilhada
+- `docs/specs/seguranca/SPEC.md` foi reescrito para refletir a arquitetura bridge atual com CLP, watchdog, bloqueios remotos e fim de curso de descida
+- Foram adicionados `principal/README.md` e `remote/README.md` com responsabilidades, GPIOs, build e detalhes operacionais de cada ESP32
+
 ### feat(logging): adiciona modos dev e prod para logs
 
 - Logging passa a operar em produção por padrão, ocultando `INFO` de debug e mantendo apenas logs essenciais de boot, avisos e erros

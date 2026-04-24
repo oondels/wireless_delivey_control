@@ -35,7 +35,7 @@ typedef enum {
 // Structs de pacotes
 // ============================================================
 
-// Remote → Principal (9 bytes)
+// Remote → Principal (21 bytes)
 typedef struct {
     uint8_t  comando;            // Comando enum (0-5)
     uint8_t  botao_hold;         // 1 = SUBIR ou DESCER pressionado
@@ -48,7 +48,7 @@ typedef struct {
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteRemote;
 
-// Principal → Remote (7 bytes)
+// Principal → Remote (19 bytes)
 // Principal propaga ao Remote o status atual do CLP e da micro do freio.
 typedef struct {
     uint8_t  link_ok;             // 1 = Principal ativo e recebendo pacotes do Remote

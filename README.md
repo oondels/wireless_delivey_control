@@ -129,6 +129,8 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 
 > O Remote não possui relés. Todos os seus LEDs são GPIOs dedicados.
 
+> Detalhes operacionais específicos de firmware estão em [principal/README.md](/home/oendel/code/hendrius/automacao_rio/principal/README.md) e [remote/README.md](/home/oendel/code/hendrius/automacao_rio/remote/README.md).
+
 ---
 
 ## 4. Arquitetura de Hardware — GPIOs e Ligações
@@ -179,7 +181,7 @@ Botões físicos no Principal para acionar o CLP diretamente durante testes, sem
 | TESTE SUBIR | 32 | Táctil | INPUT_PULLUP (LOW = ativo) | Ativa `PIN_CLP_SUBIR` LOW enquanto pressionado |
 | TESTE DESCER | 33 | Táctil | INPUT_PULLUP (LOW = ativo) | Ativa `PIN_CLP_DESCER` LOW enquanto pressionado |
 
-> Prioridade: pacote Remote tem precedência. Botões de teste só atuam quando nenhum pacote foi recebido naquele ciclo de loop.
+> Prioridade: hold remoto tem precedência. Botões de teste só atuam quando não há hold remoto ativo e o watchdog de comunicação não está expirado.
 
 ### 4.4 Fim de Curso de Descida
 
@@ -346,7 +348,7 @@ Em produção, o pareamento é **fixo**. Cada módulo registra apenas o MAC espe
 - `.env` não deve ser versionado
 - `.env.example` documenta o formato esperado
 
-### 9.2 Pacote Remote → Principal (9 bytes)
+### 9.2 Pacote Remote → Principal (21 bytes)
 
 ```c
 typedef struct {
@@ -363,7 +365,7 @@ typedef struct {
 } PacoteRemote;
 ```
 
-### 9.3 Pacote Principal → Remote (Status) (7 bytes)
+### 9.3 Pacote Principal → Remote (Status) (19 bytes)
 
 O Principal informa ao Remote se o link está válido e replica os feedbacks atuais do CLP e da micro do freio.
 
@@ -402,7 +404,7 @@ Todos os LEDs são componentes discretos de **3V (padrão Arduino)**, cor defini
 |---|---|---|
 | LINK | 21 | Link ativo com Remote (watchdog OK) — pisca 2 Hz se sem link |
 
-> Os GPIOs de saída ao CLP (4, 16, 17, 5, 18, 19, 22) não possuem LEDs associados nesta arquitetura.
+> Os GPIOs de saída ao CLP não possuem abstração de LED no firmware. Se houver LED físico no módulo de relé ou na fiação, ele acompanha o mesmo nível lógico da saída correspondente.
 
 ### 10.2 LEDs no Módulo Remote (GPIOs dedicados)
 

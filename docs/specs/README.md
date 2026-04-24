@@ -15,7 +15,7 @@
 | invariantes de segurança | `seguranca/SPEC.md` | §9 |
 | ESP-NOW, pacote, PacoteRemote, PacoteStatus, checksum | `comunicacao/SPEC.md` | §4 (structs), §6 (checksum) |
 | comando, enum, CMD_SUBIR, CMD_DESCER, CMD_RESET | `comunicacao/SPEC.md` | §5 |
-| callback, OnDataRecv, OnDataSent | `comunicacao/SPEC.md` | §9 |
+| callback, OnDataRecv | `comunicacao/SPEC.md` | §9 |
 | frequência de envio, timing, 200 ms | `comunicacao/SPEC.md` | §7 |
 | hierarquia de comando, prioridade painel vs remote | `comunicacao/SPEC.md` | §10 |
 | motor, relé direção, SUBIR, DESCER, dead-time | `motor/SPEC.md` | §2 |
@@ -61,7 +61,7 @@ Hierarquia de prioridades de segurança, botões de emergência com trava, watch
 
 ### `comunicacao/SPEC.md` — Protocolo ESP-NOW
 
-Structs `PacoteRemote` (9 bytes) e `PacoteStatus` (7 bytes), enum `Comando`, checksum XOR, frequências de envio, callbacks, watchdog e tolerância a falhas.
+Structs `PacoteRemote` (21 bytes) e `PacoteStatus` (19 bytes), enum `Comando`, checksum XOR, autenticação, anti-replay, frequências de envio, callbacks, watchdog e tolerância a falhas.
 
 **Depende de:** `seguranca/SPEC.md` (watchdog, §4 para detalhes de timeout).
 
