@@ -1,237 +1,91 @@
 # Especificação da Máquina de Estados
 
-**Versão:** 1.3
-**Data:** 2026-03-22
-**Referência:** DESIGN_SPEC.md v3.3, README.md v3.4
+**Versão:** 1.4
+**Data:** 2026-04-24
+**Referência:** README.md v4.0
 
 ---
 
 ## 1. Visão Geral
 
-O Módulo Principal (Painel Central) opera sob uma máquina de estados finita que governa todo o comportamento do sistema. A máquina é avaliada a **cada ciclo do loop principal**, seguindo uma ordem estrita de prioridade.
+Na arquitetura atual, a máquina de estados operacional do sistema fica no **CLP em Ladder**.
+
+O firmware dos ESP32 **não** mantém mais uma máquina de estados própria para motor/freio. Ele apenas:
+
+- no **Remote**: lê botões, decide se `SUBIR`/`DESCER` podem ser enviados e atualiza LEDs
+- no **Principal**: recebe comandos, replica sinais ao CLP, monitora watchdog e retransmite feedbacks
 
 ---
 
-## 2. Estados do Sistema
+## 2. Estado Observado pelo Firmware
 
-```c
-typedef enum {
-    ESTADO_PARADO            = 0,
-    ESTADO_SUBINDO           = 1,
-    ESTADO_DESCENDO          = 2,
-    ESTADO_EMERGENCIA        = 3,
-    ESTADO_FALHA_COMUNICACAO = 4,
-    ESTADO_FALHA_ENERGIA     = 5   // queda de energia da rede elétrica (GPIO 13)
-} EstadoSistema;
-```
+O estado observado pelo firmware ESP32 é derivado de:
 
-| Estado | Motor | Freio | Descrição |
-|---|---|---|---|
-| `PARADO` | OFF | ON | Estado seguro padrão. Motor desligado, freio acionado. |
-| `SUBINDO` | ON (direção A) | OFF | Motor ativo no sentido SUBIR. Freio liberado. |
-| `DESCENDO` | ON (direção B) | OFF | Motor ativo no sentido DESCER. Freio liberado. |
-| `EMERGENCIA_ATIVA` | OFF | ON | Emergência. Motor desligado, freio acionado. Auto-libera ao soltar todos os botões; REARME apenas se remote travado. |
-| `FALHA_COMUNICACAO` | OFF | ON | Perda de link detectada. Motor desligado e freio acionado imediatamente. Requer REARME para liberar controle local em modo degradado. |
-| `FALHA_ENERGIA` | OFF | ON | Queda de energia da rede elétrica (GPIO 13 LOW). Motor desligado e freio acionado imediatamente. Requer REARME manual. |
+- validade do link (`link_ok`)
+- feedback do CLP (`motor_ativo`, `emergencia_ativa`, `vel1_ativa`, `vel2_ativa`)
+- micro do freio (`micro_freio_ativa`)
+
+Não existe enum `EstadoSistema` ativo no código atual do firmware.
 
 ---
 
-## 3. Diagrama de Transições
+## 3. Regras de Decisão no Remote
 
-```
-                    ┌──────────────────────────────────────────┐
-                    │           EMERGENCIA_ATIVA               │◄─── Emergência (Painel ou Remote)
-                    │  Motor: OFF | Freio: ON                  │     (de qualquer estado)
-                    │  Remote: ignorado                        │
-                    └────────────────┬─────────────────────────┘
-                                     │ Auto-libera (fontes inativas) OU
-                                     │ Rearme MANUAL (se remote travado)
-                                     ▼
-                    ┌──────────────────────────────────────────┐
-                    │           FALHA_ENERGIA                  │◄─── GPIO 13 LOW + debounce 50 ms
-                    │  Motor: OFF | Freio: ON                  │     (de qualquer estado)
-                    │  Remote: ignorado                        │
-                    └────────────────┬─────────────────────────┘
-                                     │ Rearme MANUAL (Painel Central)
-                                     ▼
-                    ┌──────────────────────────────────────────┐
-                    │           FALHA_COMUNICACAO              │◄─── Watchdog timeout / Remote off
-                    │  Motor: OFF | Freio: ON                  │     (de qualquer estado operacional)
-                    │  Remote: ignorado                        │
-                    └────────────────┬─────────────────────────┘
-                                     │ Rearme MANUAL (Painel Central)
-                                     ▼
-          ┌──────────┐  hold SUBIR  ┌───────────┐  hold DESCER  ┌──────────┐
-          │  SUBINDO │◄─────────── │  PARADO   │──────────────►│ DESCENDO │
-          │ Motor:ON │             │ Motor:OFF │               │ Motor:ON │
-          │ Freio:OFF│────────────►│ Freio:ON  │◄──────────────│ Freio:OFF│
-          └──────────┘  solto      └─────▲─────┘  solto        └──────────┘
-                                         │
-                              Fim de curso acionado
-                              Motor OFF → Freio ON → PARADO (sem rearme)
-```
+### 3.1 Bloqueio de Movimento
+
+O Remote bloqueia `SUBIR` e `DESCER` quando qualquer condição abaixo for verdadeira:
+
+1. `link_ok == 0`, ou
+2. o último `PacoteStatus` tem mais de `500 ms`, ou
+3. `emergencia_ativa == 1`
+
+Quando bloqueado:
+
+- `SUBIR` e `DESCER` não são enviados
+- heartbeat, `VEL1`, `VEL2`, `RESET`, `EMERGÊNCIA` e `fim_curso_descida` continuam podendo ser enviados
+
+### 3.2 LEDs do Remote
+
+- `LINK` reflete validade do status
+- `MOTOR` reflete `motor_ativo`
+- `VEL1` reflete `vel1_ativa`
+- `VEL2` reflete `vel2_ativa`
+- `EMERGÊNCIA` reflete botão local de emergência, emergência do CLP ou perda de link
 
 ---
 
-## 4. Prioridade de Avaliação
+## 4. Regras de Decisão no Principal
 
-A máquina é avaliada sequencialmente a cada ciclo. A **primeira condição verdadeira** determina o estado e a função retorna imediatamente.
+### 4.1 Watchdog
 
-| Prioridade | Condição | Transição |
-|---|---|---|
-| 1 (máxima) | `emergencia.verificar()` retorna true (botão local OU flag ativa) | → `EMERGENCIA_ATIVA` |
-| 2 | `!monitorRede.redePresente()` (GPIO 13 LOW com debounce 50 ms) | → `FALHA_ENERGIA` |
-| 3 | `watchdog.expirado()` (> 500ms sem pacote) e modo degradado local inativo | → `FALHA_COMUNICACAO` |
-| 4 | Fim de curso local acionado (bloqueia SUBIR e DESCER) | → `PARADO` |
-| 5 | Botão hold ativo + direção válida (DESCER bloqueado se `fim_curso_descida == 1`) | → `SUBINDO` ou `DESCENDO` |
-| 6 (padrão) | Nenhuma condição acima | → `PARADO` |
+Se nenhum `PacoteRemote` válido for recebido por mais de `500 ms`:
 
----
+1. `PIN_CLP_EMERGENCIA` vai para LOW
+2. `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` vão para HIGH
+3. `PacoteStatus.link_ok` passa a `0`
 
-## 5. Transições Detalhadas
+### 4.2 Replicação para o CLP
 
-### 5.1 Transições Globais (de Qualquer Estado)
+- `SUBIR` e `DESCER` são sinais de nível
+- `VEL1`, `VEL2` e `RESET` são pulsos de `50 ms`
+- `EMERGÊNCIA` e `FIM_CURSO` são sinais de nível
 
-| De | Para | Gatilho |
-|---|---|---|
-| Qualquer | `EMERGENCIA_ATIVA` | Botão emergência Painel ativo OU `emergencia == 1` no pacote Remote |
-| Qualquer | `FALHA_ENERGIA` | GPIO 13 LOW com debounce 50 ms (rede elétrica ausente) |
-| Qualquer (operacional) | `FALHA_COMUNICACAO` | Watchdog timeout (500 ms sem pacote) |
+### 4.3 Feedback para o Remote
 
-### 5.2 Transições Operacionais
+O Principal retransmite ao Remote:
 
-| De | Para | Gatilho |
-|---|---|---|
-| `PARADO` | `SUBINDO` | Botão SUBIR hold + sem bloqueios |
-| `PARADO` | `DESCENDO` | Botão DESCER hold + sem bloqueios |
-| `SUBINDO` | `PARADO` | Botão SUBIR solto (Homem-Morto) |
-| `SUBINDO` | `PARADO` | Fim de curso acionado |
-| `DESCENDO` | `PARADO` | Botão DESCER solto (Homem-Morto) |
-| `SUBINDO` | `DESCENDO` | Trocar de SUBIR para DESCER (via dead-time 100 ms) |
-| `DESCENDO` | `SUBINDO` | Trocar de DESCER para SUBIR (via dead-time 100 ms) |
-
-### 5.3 Transições de Recuperação
-
-| De | Para | Gatilho |
-|---|---|---|
-| `EMERGENCIA_ATIVA` | `PARADO` | Rearme manual no Painel Central |
-| `FALHA_ENERGIA` | `PARADO` | Rearme manual no Painel Central (rede deve ter sido restabelecida) |
-| `FALHA_COMUNICACAO` | `PARADO` | Rearme manual no Painel Central |
-| `PARADO` (modo degradado) | `SUBINDO`/`DESCENDO` | Botão hold local ativo mesmo com watchdog expirado |
+- `motor_ativo`
+- `emergencia_ativa`
+- `vel1_ativa`
+- `vel2_ativa`
+- `micro_freio_ativa`
 
 ---
 
-## 6. Pseudocódigo da Máquina de Estados
+## 5. Fonte de Verdade
 
-```cpp
-// Objetos instanciados no escopo global (principal.cpp):
-// Emergencia emergencia; Motor motor; Freio freio; Sensores sensores;
-// WatchdogComm watchdog; Botoes botoes; Velocidade velocidade;
+Para comportamento operacional do sistema, a fonte de verdade é:
 
-void atualizar_maquina_estados() {
-    // Prioridade 1: emergência
-    if (emergencia.verificar(pacoteRemote.emergencia)) {
-        freio.acionar();
-        motor.desligar();
-        estado = ESTADO_EMERGENCIA;
-        return;
-    }
-
-    // Prioridade 2: falha de energia da rede
-    if (!monitorRede.redePresente()) {
-        freio.acionar();
-        motor.desligar();
-        estado = ESTADO_FALHA_ENERGIA;
-        return;
-    }
-
-    // Prioridade 3: watchdog (bloqueio total enquanto nao houver rearme)
-    if (watchdog.expirado() && !controleLocalSemRemote) {
-        freio.acionar();
-        motor.desligar();
-        estado = ESTADO_FALHA_COMUNICACAO;
-        return;
-    }
-
-    // Prioridade 4: fim de curso local (bloqueia SUBIR e DESCER)
-    if (sensores.fimDeCursoAcionado()) {
-        motor.desligar();
-        freio.acionar();
-        estado = ESTADO_PARADO;
-        return;
-    }
-
-    // Prioridade 5: movimentação
-    bool hold = botao_hold_local || (pacoteRemote.botao_hold && !watchdog.expirado());
-    Direcao dir = obter_direcao_ativa();
-
-    // Fim de curso de descida do Remote — bloqueia apenas DESCER, SUBIR permitido
-    if (dir == DIR_DESCER && pacoteRemote.fim_curso_descida == 1) {
-        dir = DIR_NENHUMA;
-    }
-
-    if (hold && dir != DIR_NENHUMA) {
-        // Inicia liberação do freio (idempotente — só pulsa se não estiver já liberando/liberado)
-        freio.liberar();
-
-        // Motor só aciona após microchave confirmar freio liberado (GPIO 27 = LOW, ~10s de espera)
-        // Dupla verificação: estado interno E leitura direta do GPIO
-        bool freio_liberado = freio.isLiberado() && (digitalRead(PIN_MICROCHAVE_FREIO) == LOW);
-
-        if (freio_liberado) {
-            motor.acionar(dir);
-            estado = (dir == DIR_SUBIR) ? ESTADO_SUBINDO : ESTADO_DESCENDO;
-        } else {
-            // Freio ainda em transição (~10s) — aguardar sem acionar motor
-            motor.desligar();
-            estado = ESTADO_PARADO;
-        }
-    } else {
-        motor.desligar();
-        freio.acionar();  // Inicia engate (idempotente)
-        estado = ESTADO_PARADO;
-    }
-}
-```
-
----
-
-## 7. Rearme (Transição de Recuperação)
-
-### 7.1 Condições para Rearme
-
-O botão REARME no Painel Central (`rearme.verificar()`) limpa os estados `EMERGENCIA_ATIVA`, `FALHA_ENERGIA` e `FALHA_COMUNICACAO` quando:
-
-1. O botão de emergência que originou o estado está fisicamente solto; **ou**
-2. O Painel Central aceita o rearme mesmo com botão Remote travado (caso especial — ver seção 7.2).
-
-### 7.2 Rearme com Botão Remote Travado
-
-Se `pacote_remote.emergencia == 1` no momento do rearme:
-
-1. Principal limpa `emergencia.ativa()`.
-2. Principal seta `rearme_ativo = 1` no `PacoteStatus` (via `rearme.isRearmeAtivo()`).
-3. Remote acende LED ALARME (pisca 2 Hz).
-4. `rearme_ativo` é limpo quando `pacote_remote.emergencia` voltar a 0.
-
-### 7.3 Pós-Rearme
-
-- Estado → `PARADO`.
-- Motor permanece OFF.
-- Freio permanece ON.
-- Operador deve iniciar nova movimentação manualmente.
-- Se o estado anterior era `FALHA_COMUNICACAO`, o sistema habilita modo degradado local até o watchdog recuperar.
-- Se o estado anterior era `FALHA_ENERGIA`, o sistema retorna a operação normal assim que a rede for detectada (GPIO 13 HIGH).
-
----
-
-## 8. Invariantes da Máquina de Estados
-
-1. O estado `EMERGENCIA_ATIVA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`.
-2. O estado `FALHA_ENERGIA` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
-3. O estado `FALHA_COMUNICACAO` **nunca** transiciona diretamente para `SUBINDO` ou `DESCENDO`; a recuperação passa por `PARADO` com REARME.
-4. Os estados `SUBINDO` e `DESCENDO` **nunca** coexistem (dois relés de direção simultâneos).
-5. Motor ON implica `freio.isLiberado() == true` E `GPIO 27 == LOW`.
-6. Durante transição do freio (ENGATANDO/LIBERANDO), o motor permanece desligado e o estado é `PARADO`.
-7. A transição de recuperação **sempre** passa por `PARADO`.
-8. `emergencia.ativa()` é limpa automaticamente quando todas as fontes inativas. Nunca limpa automaticamente se Remote mantém `emergencia == 1` — exige REARME manual.
+1. **CLP** para estados de motor, freio, emergência e velocidade
+2. **Principal** para validade do link com o Remote
+3. **Remote** apenas para entrada do operador e bloqueio preventivo local

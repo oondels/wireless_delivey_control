@@ -47,17 +47,16 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 
 ## 3. Descrição dos Módulos
 
-### 3.1 Módulo Principal (Painel Central)
+### 3.1 Módulo Principal (Bridge ESP↔CLP)
 
 | Item | Descrição |
 |---|---|
 | Microcontrolador | ESP32 |
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
-| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava), REARME; microchave do freio; fim de curso do estacionamento |
-| Saídas relés | Relés 5V: direção do motor (2x), velocidade (3x), freio (2x — FREIO_ON e FREIO_OFF) |
-| Saídas LEDs | 1 GPIO por LED: VEL1, VEL2, VEL3, EMERGÊNCIA, LINK REMOTE — cor definida pelo LED físico instalado |
-| Comunicação | ESP-NOW — recebe pacotes do Remote, envia status de retorno |
+| Entradas | 2 botões de teste local, 4 feedbacks do CLP e 1 micro do freio |
+| Saídas | 7 sinais GPIO para entradas do CLP + 1 LED LINK |
+| Comunicação | ESP-NOW — recebe `PacoteRemote`, envia `PacoteStatus` com feedbacks |
 
 ### 3.2 Módulo Remote (Carrinho)
 
@@ -66,8 +65,8 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 | Microcontrolador | ESP32 |
 | Localização | Embarcado no carrinho de transporte |
 | Alimentação | Bateria recarregável (ex: Li-Ion 18650 + regulador 3.3V) |
-| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, VEL3, EMERGÊNCIA (c/ trava) |
-| Saídas LEDs | 1 GPIO por LED: LINK, MOTOR, VEL1, VEL2, VEL3, EMERGÊNCIA, ALARME — cor definida pelo LED físico instalado |
+| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, EMERGÊNCIA (c/ trava); fim de curso descida |
+| Saídas LEDs | 1 GPIO por LED: LINK, MOTOR, VEL1, VEL2, EMERGÊNCIA — cor definida pelo LED físico instalado |
 | Comunicação | ESP-NOW — transmite comandos e heartbeat para o Principal |
 
 > **Nota sobre LEDs:** todos os LEDs são componentes discretos de 3V (padrão Arduino) com cor física pré-definida externamente. O firmware controla apenas o estado lógico de cada GPIO (HIGH/LOW e frequência de piscar). Não há controle de cor por software.
@@ -76,16 +75,14 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 
 ## 4. Sensores de Hardware
 
-### 4.1 Microchave do Freio
+### 4.1 Micro do Freio
 
-Conectada ao GPIO 27 do Módulo Principal (NA + pull-up interno). Indica o estado mecânico do freio pelo posicionamento do cilindro:
+Conectada ao `GPIO 14` do Módulo Principal como contato **NC** com `INPUT_PULLUP`.
 
-- **GPIO 27 HIGH** (pull-up, sem GND) = microchave aberta = cilindro avançado = **freio engatado** (ativo)
-- **GPIO 27 LOW** (recebendo GND) = microchave pressionada = cilindro retraído = **freio liberado** (inativo)
+- **GPIO 14 LOW** = condição normal
+- **GPIO 14 HIGH** = micro aberta/acionada ou cabo rompido
 
-O modo padrão do freio é **engatado** (GPIO 27 HIGH). O motor só pode ser acionado após o freio ser liberado e a microchave confirmar (GPIO 27 LOW). O cilindro leva aproximadamente **10 segundos** para completar o curso em cada sentido.
-
-Fail-safe: cabo partido → GPIO flutua HIGH → interpretado como freio engatado → motor bloqueado.
+O Principal não usa esse sinal para controlar o freio diretamente; ele apenas o retransmite ao Remote via `PacoteStatus.micro_freio_ativa`.
 
 ### 4.2 Fim de Curso do Estacionamento
 
@@ -106,11 +103,9 @@ Sensor instalado no estacionamento/depósito que é acionado quando o carrinho c
 
 ### 5.1 Controle de Velocidade
 
-- O sistema possui **3 níveis de velocidade**, selecionados por botões de **pulso** (não precisam ser mantidos pressionados).
-- A velocidade selecionada é armazenada em memória de estado no firmware do Principal.
-- A atuação ocorre via relé: cada nível ativa um relé correspondente, que comuta a tensão para um potenciômetro físico externo pré-ajustado. **A definição real da velocidade é hardware; o software apenas seleciona qual relé ativar.**
-- Apenas **um** relé de velocidade pode estar ativo por vez. Ao selecionar um novo nível, o relé anterior é desacionado antes de acionar o novo.
-- **Sincronização de LEDs:** o estado de velocidade é incluído no `PacoteStatus` enviado pelo Principal ao Remote a cada 200 ms. O Remote atualiza seus LEDs de velocidade com base nesse valor, garantindo que ambos os painéis exibam sempre a mesma indicação.
+- O sistema possui **2 níveis de velocidade** (`VEL1`, `VEL2`), selecionados por botões de pulso no Remote.
+- O Principal apenas gera pulsos digitais para o CLP; a lógica de velocidade fica no Ladder.
+- Os LEDs `VEL1` e `VEL2` do Remote refletem o feedback do CLP recebido no `PacoteStatus`.
 
 ### 5.2 Acionamento do Motor — Regra "Homem-Morto"
 
@@ -123,22 +118,13 @@ Sensor instalado no estacionamento/depósito que é acionado quando o carrinho c
 
 ### 5.3 Sequência de Acionamento do Motor com Freio
 
-O freio é um cilindro solenoide de dupla bobina. O motor **não aciona imediatamente** ao pressionar o botão — há uma sequência obrigatória:
+O CLP executa toda a sequência de aplicação e liberação do freio. O papel do firmware ESP32 é:
 
-1. Operador pressiona e mantém SUBIR ou DESCER.
-2. Firmware dispara um pulso em `FREIO_OFF` (GPIO 22 LOW) para iniciar a retração do cilindro.
-3. O cilindro retrai ao longo de **~10 segundos** até acionar a microchave.
-4. Quando GPIO 27 = LOW (microchave pressionada), o freio está confirmado como liberado. O firmware desativa o relé `FREIO_OFF` (pulso encerrado). `FREIO_ON` permanece LOW (ativo continuamente).
-5. Somente então o motor é acionado (`FREIO_OFF` desativado; `FREIO_ON` ativo; motor ON).
-
-**O motor nunca aciona antes de GPIO 27 = LOW.** O firmware usa dupla verificação: estado interno da máquina do freio (`isLiberado()`) **E** leitura direta de GPIO 27.
-
-Ao soltar o botão, o processo inverso ocorre:
-1. Motor desligado imediatamente.
-2. Pulso em `FREIO_ON` (GPIO 19 LOW) para avançar o cilindro e engatá-lo.
-3. Quando GPIO 27 = HIGH (microchave abre), o freio está confirmado engatado. Firmware desativa `FREIO_ON`.
-
-Quando a trava lógica está ativa no software (emergência ou outra condição de bloqueio), os comandos de movimentação são ignorados independentemente do estado da microchave.
+1. O Remote lê os botões locais.
+2. O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido e `emergencia_ativa == 0`.
+3. O Principal replica os sinais ao CLP.
+4. O CLP aciona motor, freio e velocidades.
+5. O Principal lê os feedbacks do CLP e os retransmite ao Remote.
 
 ---
 
@@ -167,21 +153,7 @@ Os botões de emergência (Painel e Remote) são do tipo **com trava**: uma vez 
 
 **Caso especial — Rearme com emergência do Remote ainda travada:**
 
-Se o Painel Central acionar o REARME enquanto o botão de emergência do Remote ainda estiver travado, o Principal aceita o rearme e limpa `EMERGENCIA_ATIVA`. Para evitar inconsistência visual, o campo `rearme_ativo = 1` é incluído no `PacoteStatus` enviado ao Remote. O Remote acende o **LED de ALARME** ao receber esse sinal com o botão local ainda ativo, alertando o operador de que o sistema foi rearmaado externamente e que o botão local ainda está travado.
-
-```
-Emergência Remote ativa (botão travado)
-        │
-        ├─ Operador Remote solta botão ──► emergencia = 0 no pacote
-        │                                  Principal aceita REARME normalmente
-        │
-        └─ Operador Painel pressiona REARME (botão Remote ainda travado)
-                   │
-                   ├─ Principal limpa EMERGENCIA_ATIVA
-                   ├─ Principal seta rearme_ativo = 1 no PacoteStatus
-                   └─ Remote recebe → acende LED ALARME (pisca)
-                      Operador deve soltar botão de emergência local
-```
+Na arquitetura atual do firmware ESP32, não existe campo `rearme_ativo` no `PacoteStatus`. O ESP32 apenas retransmite o feedback atual do CLP e do hardware.
 
 ### 6.3 Prioridade da Emergência
 
@@ -260,12 +232,13 @@ Ambos os módulos iniciam em modo de descoberta usando **broadcast** como peer i
 
 ```c
 typedef struct {
-    uint8_t  comando;       // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
-                            // 3=VEL1, 4=VEL2, 5=VEL3
-    uint8_t  botao_hold;    // 1=SUBIR ou DESCER pressionado (Homem-Morto)
-    uint8_t  emergencia;    // 1=botão de emergência com trava ativo no Remote
-    uint32_t timestamp;     // millis() do Remote
-    uint8_t  checksum;      // XOR de todos os bytes anteriores
+    uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
+                                 // 3=VEL1, 4=VEL2, 5=RESET
+    uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
+    uint8_t  emergencia;         // 1=botão de emergência com trava ativo
+    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
+    uint32_t timestamp;          // millis() do Remote
+    uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
 ```
 
@@ -273,16 +246,15 @@ typedef struct {
 
 ```c
 typedef struct {
-    uint8_t  estado_sistema; // 0=PARADO, 1=SUBINDO, 2=DESCENDO,
-                             // 3=EMERGENCIA_ATIVA, 4=FALHA_COMUNICACAO, 5=FALHA_ENERGIA
-    uint8_t  velocidade;     // 1, 2 ou 3 — sincroniza LEDs de velocidade no Remote
-    uint8_t  trava_logica;   // 1=trava ativa (motor bloqueado)
-    uint8_t  rearme_ativo;   // 1=Painel fez rearme com botão emergência Remote ainda travado
+    uint8_t  link_ok;             // 1=Principal recebendo pacotes válidos do Remote
+    uint8_t  motor_ativo;         // 1=CLP reporta motor ativo
+    uint8_t  emergencia_ativa;    // 1=CLP reporta emergência ativa
+    uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
+    uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
+    uint8_t  micro_freio_ativa;   // 1=micro do freio NC abriu
     uint8_t  checksum;
 } PacoteStatus;
 ```
-
-> O campo `estado_freio` foi removido: o Remote não exibe estado do freio diretamente. O campo `FALHA_ENERGIA` (valor 5) foi adicionado para refletir o estado de queda de energia da rede elétrica.
 
 ### 8.4 Frequência de Envio
 
@@ -304,17 +276,15 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 
 | LED | GPIO | Comportamento | Condição |
 |---|---|---|---|
-| LINK | 4 | Piscando 1 Hz | Sem comunicação com o Principal (> 1000 ms sem status) |
-| LINK | 4 | Ligado fixo | Comunicação ativa |
-| MOTOR | 16 | Ligado fixo | `estado_sistema == SUBINDO` ou `DESCENDO` |
-| VEL1 | 17 | Ligado fixo | `velocidade == 1` (recebido no PacoteStatus) |
-| VEL2 | 5 | Ligado fixo | `velocidade == 2` (recebido no PacoteStatus) |
-| VEL3 | 18 | Ligado fixo | `velocidade == 3` (recebido no PacoteStatus) |
-| EMERGÊNCIA | 19 | Piscando 4 Hz | `estado_sistema == EMERGENCIA_ATIVA` |
-| EMERGÊNCIA | 19 | Ligado fixo | `estado_sistema == FALHA_COMUNICACAO` |
-| ALARME | 21 | Piscando 2 Hz | `rearme_ativo == 1` E botão emergência local ainda travado |
+| LINK | 4 | Piscando 1 Hz | Sem status válido do Principal |
+| LINK | 4 | Ligado fixo | `link_ok == 1` e último status <= 500 ms |
+| MOTOR | 16 | Ligado fixo | `motor_ativo == 1` |
+| VEL1 | 17 | Ligado fixo | `vel1_ativa == 1` |
+| VEL2 | 5 | Ligado fixo | `vel2_ativa == 1` |
+| EMERGÊNCIA | 19 | Piscando 4 Hz | Botão local de emergência ativo |
+| EMERGÊNCIA | 19 | Ligado fixo | `emergencia_ativa == 1` ou sem status válido |
 
-**Total: 7 GPIOs de saída** (LINK, MOTOR, VEL1, VEL2, VEL3, EMERGÊNCIA, ALARME)
+**Total: 5 GPIOs de saída** (LINK, MOTOR, VEL1, VEL2, EMERGÊNCIA)
 
 ### 9.2 LEDs no Painel Central
 
@@ -326,12 +296,9 @@ Cada LED corresponde a **exatamente 1 GPIO de saída** no ESP32.
 | DIREÇÃO B | 16 | Ligado fixo | Motor ativo sentido descida (compartilhado c/ relé) |
 | VEL1 | 17 | Ligado fixo | `velocidade_atual == 1` (compartilhado c/ relé) |
 | VEL2 | 5 | Ligado fixo | `velocidade_atual == 2` (compartilhado c/ relé) |
-| VEL3 | 18 | Ligado fixo | `velocidade_atual == 3` (compartilhado c/ relé) |
-| FREIO_ON  | 19 | Ligado fixo | Bobina de aplicação energizada — freio aplicado (compartilhado c/ relé) |
-| FREIO_OFF | 22 | (sem LED)   | Bobina de liberação — sem indicador visual                            |
 | LINK REMOTE | 21 | Ligado fixo | Comunicação com Remote ativa (watchdog OK) |
 
-**Total: 7 GPIOs de saída** (6 compartilhados com relés + 1 exclusivo)
+**Total: 1 GPIO de saída exclusivo** (LINK REMOTE)
 
 ---
 
@@ -378,4 +345,3 @@ O firmware inclui logging via Serial (115200 baud) para depuração pré-deploy.
 | Rearme | Ato manual de desativar o estado de emergência e retornar à operação normal |
 | Trava Lógica | Flag de software que bloqueia movimentação independentemente de entradas físicas |
 | Botão com Trava | Botão que mantém o sinal ativo após pressionado, até ser manualmente destrancado |
-| LED ALARME | Indicador no Remote que sinaliza inconsistência entre estado do botão local e estado do sistema |

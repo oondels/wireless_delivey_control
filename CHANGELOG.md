@@ -4,6 +4,91 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(remote): adiciona espera visual de partida no LED do motor
+
+- LED `MOTOR` do Remote passa a piscar em 2 Hz enquanto SUBIR ou DESCER estiver pressionado e o sistema ainda aguardar `micro_freio_ativa == 0` junto com `motor_ativo == 1`
+- Quando a partida é confirmada pelo Principal, o LED `MOTOR` passa de piscando para ligado fixo
+- Logs do Remote foram ajustados para tratar `micro_freio_ativa` como estado do freio (`ativo` ou `liberado`)
+- `README.md` e specs correlatas atualizados com a nova lógica visual do LED `MOTOR`, a semântica de `micro_freio_ativa` e o pinout real do módulo Remote
+- LED `EMERGÊNCIA` do Remote agora pisca tanto para emergência local quanto para `emergencia_ativa` reportada pelo Principal
+- O Remote passa a bloquear `SUBIR` e `DESCER` também quando a emergência local está ativa
+
+### feat(principal): adiciona log nas entradas de feedback do CLP
+
+- Módulo Principal passa a registrar em nível informativo as transições dos feedbacks `MOTOR_ATIVO`, `EMERGENCIA_ATIVA`, `VEL1_ATIVA` e `VEL2_ATIVA`
+- Logs são emitidos apenas em mudança de estado para evitar spam no loop principal
+- Log existente da micro do freio em `GPIO 14` foi preservado sem alteração
+- Saídas `SUBIR` e `DESCER` do Principal passam a permanecer estáveis enquanto o hold remoto continuar válido, sem pulsar entre heartbeats
+- Operação remota no Principal passa a ser bloqueada por perda de link, emergência, `micro_freio_ativa == 1` ou ausência de `motor_ativo`
+- `README.md` e `hardware_io/SPEC.md` atualizados para documentar o módulo de relé 5V intermediário entre ESP32 e CLP
+
+### feat(comunicacao): adiciona feedback do CLP e micro do freio ao status do remote
+
+- `PacoteStatus` ampliado para carregar `link_ok`, `motor_ativo`, `emergencia_ativa`, `vel1_ativa`, `vel2_ativa` e `micro_freio_ativa`
+- Módulo Principal passa a ler 4 feedbacks do CLP via `INPUT_PULLUP`: `GPIO 23` (motor), `25` (emergência), `26` (VEL1) e `27` (VEL2)
+- Módulo Principal passa a ler a micro do freio NC no `GPIO 14`, com `HIGH` representando micro aberta/acionada
+- Status do Principal agora é enviado ao Remote a cada `200 ms` e também imediatamente quando algum feedback muda
+- Remote passa a bloquear `SUBIR` e `DESCER` quando o status do Principal expira ou quando o CLP reporta emergência ativa
+- LEDs `MOTOR`, `VEL1` e `VEL2` do Remote passam a refletir o feedback do CLP, não mais o estado local
+- `README.md` atualizado com diagrama Mermaid do fluxo de comunicação, novo protocolo e novo pinout do Principal
+
+### feat(principal): botões de teste local para acionar CLP sem Remote
+
+- Adicionados dois botões de teste físico no Módulo Principal (GPIO 32 = TESTE SUBIR, GPIO 33 = TESTE DESCER), configurados com `INPUT_PULLUP`
+- Quando pressionados, resetam o watchdog interno para evitar emergência por timeout
+- Acionam diretamente `PIN_CLP_SUBIR` / `PIN_CLP_DESCER` LOW enquanto mantidos pressionados
+- Pacote do Remote tem prioridade — botões de teste só atuam quando nenhum pacote foi processado no ciclo
+- Log via Serial com tag `[TESTE]` apenas na borda de pressionar (anti-spam)
+- Documentação atualizada: `README.md` (§4.3 e §5.1), `docs/specs/hardware_io/SPEC.md` (§4, v1.5)
+
+
+
+### Refatoração de Arquitetura — ESP32 como Bridge para CLP
+
+**Motivação:** interferência eletromagnética do motor e do inversor (VFD) comprometia a operação
+dos ESP32. Um CLP programado em Ladder passou a gerenciar toda a lógica de controle
+(motor, freio, estados, segurança). Os ESP32 tornaram-se pontes de comunicação.
+
+#### Módulo Principal — alterações
+
+**Removido:**
+- Toda a lógica de controle direto: classes `Motor`, `Freio`, `Velocidade`, `MaquinaEstados`,
+  `Sensores`, `MonitorRede`, `Emergencia`, `Rearme`, `Botoes`
+- Todas as entradas de GPIO: botões (SUBIR, DESCER, VEL1-3, EMERGÊNCIA, REARME)
+  e sensores (fim de curso, microchave freio, monitor rede)
+
+**Adicionado:**
+- Bridge ESP→CLP: recebe `PacoteRemote` via ESP-NOW e replica sinais para entradas digitais do CLP
+- Sete saídas GPIO para o CLP (lógica ativa em LOW/GND): `PIN_CLP_SUBIR` (GPIO 4),
+  `PIN_CLP_DESCER` (GPIO 16), `PIN_CLP_VEL1` (GPIO 17), `PIN_CLP_VEL2` (GPIO 5),
+  `PIN_CLP_EMERGENCIA` (GPIO 18), `PIN_CLP_RESET` (GPIO 19), `PIN_CLP_FIM_CURSO` (GPIO 22)
+- Pulsos de `PULSO_CLP_MS` (50 ms) para sinais VEL1, VEL2 e RESET
+
+**Alterado:**
+- Fail-safe: watchdog timeout → `PIN_CLP_EMERGENCIA` LOW imediato (emergência enviada ao CLP);
+  todos os sinais de movimento vão a HIGH (inativo)
+- `PacoteStatus` simplificado: de 5 bytes para 2 bytes — campo único `link_ok`
+  (CLP não fornece feedback ao ESP)
+
+#### Módulo Remote — alterações
+
+**Adicionado:**
+- Botão RESET em GPIO 32 (substituiu VEL3); envia `CMD_RESET` ao Principal
+
+**Removido:**
+- Botão VEL3 e campo `vel3_pulso` em `EstadoBotoes`
+- LED VEL3 (GPIO 18) — não utilizado nesta arquitetura
+
+**Alterado:**
+- LEDs agora refletem **estado local** (sem feedback do CLP):
+  - MOTOR: aceso se SUBIR ou DESCER hold ativo + sem emergência local
+  - VEL1/VEL2: velocidade selecionada localmente
+  - EMERGÊNCIA: pisca 4 Hz se botão emergência ativo; fixo se link perdido > 500 ms
+  - ALARME: pisca 2 Hz se link com Principal perdido
+- `CMD_VEL3` renomeado para `CMD_RESET` (valor 5) no protocolo
+
+---
+
 ### Adicionado
 - Projeto PlatformIO do Módulo Principal (`principal/`) com estrutura de diretórios e build funcional para ESP32
 - Projeto PlatformIO do Módulo Remote (`remote/`) com estrutura de diretórios e build funcional para ESP32

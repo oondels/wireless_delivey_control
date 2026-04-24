@@ -59,19 +59,6 @@
       Serial.print("] "); Serial.print(msg); Serial.println(val); \
   } while(0)
 
-  // Helper: converte EstadoSistema para string legivel
-  inline const char* estadoParaString(uint8_t estado) {
-      switch (estado) {
-          case 0: return "PARADO";
-          case 1: return "SUBINDO";
-          case 2: return "DESCENDO";
-          case 3: return "EMERGENCIA";
-          case 4: return "FALHA_COMUNICACAO";
-          case 5: return "FALHA_ENERGIA";
-          default: return "DESCONHECIDO";
-      }
-  }
-
   // Helper: converte Comando para string legivel
   inline const char* comandoParaString(uint8_t cmd) {
       switch (cmd) {
@@ -80,7 +67,7 @@
           case 2: return "DESCER";
           case 3: return "VEL1";
           case 4: return "VEL2";
-          case 5: return "VEL3";
+          case 5: return "RESET";
           default: return "DESCONHECIDO";
       }
   }
@@ -93,7 +80,6 @@
   #define LOG_INFO_VAL(modulo, msg, val)
   #define LOG_WARN_VAL(modulo, msg, val)
   #define LOG_ERROR_VAL(modulo, msg, val)
-  inline const char* estadoParaString(uint8_t) { return ""; }
   inline const char* comandoParaString(uint8_t) { return ""; }
 
 #endif // LOG_ENABLED

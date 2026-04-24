@@ -1,9 +1,7 @@
 /**
- * atualizar_leds.h — Função de atualização dos 7 LEDs do Remote
+ * atualizar_leds.h — Função de atualização dos LEDs do Remote
  *
- * Recebe PacoteStatus do Principal e atualiza cada LED conforme spec.
- * Todos os LEDs são instanciados externamente (remote.cpp) e passados
- * por referência.
+ * LEDs baseados no status recebido do Principal.
  *
  * Ref: leds/SPEC.md §3.2
  */
@@ -16,28 +14,28 @@
 #include "leds.h"
 
 /**
- * Atualiza os 7 LEDs do Remote com base no PacoteStatus recebido.
+ * Atualiza os LEDs do Remote com base no status recebido do Principal.
  *
  * @param status           Último PacoteStatus recebido do Principal
  * @param ultimoStatusMs   Timestamp (millis()) do último status recebido
+ * @param emergenciaLocal  true = botão emergência com trava ativo
+ * @param aguardandoPartida true = comando SUBIR/DESCER ativo aguardando freio liberar e motor partir
  * @param ledLink          LED de comunicação
  * @param ledMotor         LED de motor ativo
  * @param ledVel1          LED velocidade 1
  * @param ledVel2          LED velocidade 2
- * @param ledVel3          LED velocidade 3
- * @param ledEmergencia    LED emergência/falha
- * @param ledAlarme        LED alarme (rearme com botão travado)
+ * @param ledEmergencia    LED emergência
  */
 void atualizarLeds(
     const volatile PacoteStatus& status,
     uint32_t ultimoStatusMs,
+    bool emergenciaLocal,
+    bool aguardandoPartida,
     Led& ledLink,
     Led& ledMotor,
     Led& ledVel1,
     Led& ledVel2,
-    Led& ledVel3,
-    Led& ledEmergencia,
-    Led& ledAlarme
+    Led& ledEmergencia
 );
 
 #endif // ATUALIZAR_LEDS_H

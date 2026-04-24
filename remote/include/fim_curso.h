@@ -1,8 +1,8 @@
 /**
  * fim_curso.h — Sensor de fim de curso com debounce e bloqueio pós-liberação
  *
- * Leitura não-bloqueante via millis(). Lógica: LOW = sensor acionado
- * (pull-up interno).
+ * Leitura não-bloqueante via millis(). Lógica: LOW = sensor acionado.
+ * GPIOs input-only (34-39) exigem pull-up externo.
  *
  * Bloqueio pós-liberação: após o sensor físico ser liberado, o método
  * acionado() continua retornando true por BLOQUEIO_POS_LIBERACAO_MS (10 s).
@@ -24,7 +24,11 @@ public:
     explicit FimCurso(uint8_t gpio) : _gpio(gpio) {}
 
     void init() {
-        pinMode(_gpio, INPUT_PULLUP);
+        if (_gpio == 34 || _gpio == 35 || _gpio == 36 || _gpio == 39) {
+            pinMode(_gpio, INPUT);
+        } else {
+            pinMode(_gpio, INPUT_PULLUP);
+        }
         _estadoFiltrado    = false;
         _ultimaLeitura     = HIGH;
         _ultimoCambioMs    = 0;

@@ -4,6 +4,9 @@
  * Arquivo compartilhado entre Módulo Principal e Módulo Remote.
  * Qualquer alteração deve ser replicada em ambos os projetos.
  *
+ * Arquitetura: ESP32s são pontes de comunicação.
+ * O CLP gerencia toda a lógica de controle (motor, freio, estados, segurança).
+ *
  * Ref: docs/specs/comunicacao/SPEC.md §4-6
  */
 
@@ -23,17 +26,8 @@ typedef enum {
     CMD_DESCER    = 2,
     CMD_VEL1      = 3,
     CMD_VEL2      = 4,
-    CMD_VEL3      = 5
+    CMD_RESET     = 5  // Botão RESET no Remote (era CMD_VEL3)
 } Comando;
-
-typedef enum {
-    ESTADO_PARADO            = 0,
-    ESTADO_SUBINDO           = 1,
-    ESTADO_DESCENDO          = 2,
-    ESTADO_EMERGENCIA        = 3,
-    ESTADO_FALHA_COMUNICACAO = 4,
-    ESTADO_FALHA_ENERGIA     = 5   // queda de energia da rede elétrica (GPIO 13)
-} EstadoSistema;
 
 // ============================================================
 // Structs de pacotes
@@ -42,20 +36,23 @@ typedef enum {
 // Remote → Principal (9 bytes)
 typedef struct {
     uint8_t  comando;            // Comando enum (0-5)
-    uint8_t  botao_hold;         // 1 = SUBIR ou DESCER pressionado (Homem-Morto)
+    uint8_t  botao_hold;         // 1 = SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1 = botão emergência com trava ativo no Remote
-    uint8_t  fim_curso_descida;  // 1 = carrinho na posição final de descida (GPIO 13)
+    uint8_t  fim_curso_descida;  // 1 = carrinho na posição final de descida (GPIO 36)
     uint32_t timestamp;          // millis() do Remote
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteRemote;
 
-// Principal → Remote (5 bytes)
+// Principal → Remote (7 bytes)
+// Principal propaga ao Remote o status atual do CLP e da micro do freio.
 typedef struct {
-    uint8_t  estado_sistema; // EstadoSistema enum (0-5)
-    uint8_t  velocidade;     // 1, 2 ou 3
-    uint8_t  trava_logica;   // 1 = movimentação bloqueada
-    uint8_t  rearme_ativo;   // 1 = rearme feito com emergência Remote ainda travada
-    uint8_t  checksum;       // XOR de todos os bytes anteriores
+    uint8_t  link_ok;             // 1 = Principal ativo e recebendo pacotes do Remote
+    uint8_t  motor_ativo;         // 1 = CLP reporta motor ativo
+    uint8_t  emergencia_ativa;    // 1 = CLP reporta emergencia ativa
+    uint8_t  vel1_ativa;          // 1 = CLP reporta velocidade 1 ativa
+    uint8_t  vel2_ativa;          // 1 = CLP reporta velocidade 2 ativa
+    uint8_t  micro_freio_ativa;   // 1 = freio ativo; 0 = freio liberado
+    uint8_t  checksum;            // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteStatus;
 
 // ============================================================
@@ -81,5 +78,6 @@ inline uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 #define HEARTBEAT_INTERVALO_MS   100
 #define WATCHDOG_TIMEOUT_MS      500
 #define STATUS_INTERVALO_MS      200
+#define PULSO_CLP_MS              50  // Duração do pulso enviado ao CLP (VEL1/VEL2/RESET)
 
 #endif // PROTOCOLO_H

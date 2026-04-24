@@ -1,14 +1,17 @@
 # Especificação de Hardware e I/O
 
-**Versão:** 1.4
-**Data:** 2026-03-22
-**Referência:** DESIGN_SPEC.md v3.3, README.md v3.4
+**Versão:** 1.6
+**Data:** 2026-04-24
+**Referência:** README.md v4.0
 
 ---
 
 ## 1. Visão Geral
 
-O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para botões, relés e LEDs. Este documento detalha todos os componentes de hardware, pinout e especificações elétricas.
+O sistema utiliza dois ESP32 WROOM-32U.
+
+- O **Remote** lê botões e sensor de fim de curso e envia comandos via ESP-NOW.
+- O **Principal** recebe esses comandos, aciona entradas digitais do CLP por GPIO e lê feedbacks do CLP e da micro do freio para retransmiti-los ao Remote.
 
 ---
 
@@ -38,73 +41,69 @@ O sistema utiliza dois microcontroladores ESP32 WROOM-32U com I/O digital para b
 | Bateria | Li-Ion 18650 recarregável |
 | Carregador | Módulo TP4056 |
 | Regulador | LM2596 step-down → 3.3V para ESP32 |
-| Proteção | Enclosure mínimo IP54 (respingos e umidade) |
+| Proteção | Enclosure mínimo IP54 |
 
 ---
 
 ## 4. Entradas — Módulo Principal
 
-### 4.1 Botões
+### 4.1 Botões de Teste Local
 
-| Botão | GPIO | Tipo | Debounce | Leitura | Descrição |
+Usados para acionar o CLP diretamente durante testes, sem necessidade do Remote conectado. Quando pressionados, resetam o watchdog interno para evitar emergência por timeout.
+
+| Botão | GPIO | Tipo | Pull-up | Leitura | Descrição |
 |---|---|---|---|---|---|
-| SUBIR | 36 | Táctil | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
-| DESCER | 39 | Táctil | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
-| VEL1 | 34 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
-| VEL2 | 35 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
-| VEL3 | 32 | Táctil | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
-| EMERGÊNCIA | 33 | NC c/ trava | — | Nível contínuo | Emergência — NC: repouso LOW, pressionado HIGH |
-| REARME | 25 | Táctil | 50 ms | Pulso (borda) | Desativar emergência |
+| TESTE SUBIR | 32 | Táctil | Interno (`INPUT_PULLUP`) | LOW = ativo | Ativa `PIN_CLP_SUBIR` LOW enquanto pressionado |
+| TESTE DESCER | 33 | Táctil | Interno (`INPUT_PULLUP`) | LOW = ativo | Ativa `PIN_CLP_DESCER` LOW enquanto pressionado |
 
-> GPIOs 34, 35, 36, 39 são input-only (sem pull-up interno) — usar pull-up externo 10kΩ.
+### 4.2 Feedbacks do CLP
 
-**Total: 7 entradas digitais**
+Todos configurados com `INPUT_PULLUP`.
 
-### 4.2 Sensores
+| Sinal | GPIO | Origem | Leitura | Descrição |
+|---|---|---|---|---|
+| MOTOR_ATIVO | 23 | CLP | LOW = ativo | Informa motor em operação |
+| EMERGÊNCIA_ATIVA | 25 | CLP | LOW = ativo | Informa emergência ativa |
+| VEL1_ATIVA | 26 | CLP | LOW = ativo | Informa velocidade 1 ativa |
+| VEL2_ATIVA | 27 | CLP | LOW = ativo | Informa velocidade 2 ativa |
 
-| Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
+### 4.3 Micro do Freio
+
+| Sinal | GPIO | Tipo | Pull-up | Leitura | Descrição |
 |---|---|---|---|---|---|
-| Fim de curso | 26 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de subida (estacionamento) — bloqueio pós-acionamento de 10 s |
-| Microchave freio | 27 | Microswitch NA | — | Nível (HIGH=engatado) | Estado mecânico do freio |
-| Monitor rede | 13 | Entrada digital | 50 ms | Nível (HIGH=presente) | Presença da rede elétrica — pull-down externo (divisor resistivo 5V→2,5V ou optoacoplador) |
+| MICRO_FREIO | 14 | NC | Interno (`INPUT_PULLUP`) | LOW = freio liberado, HIGH = freio ativo | Micro do freio indica freio aplicado; abertura do circuito também resulta em HIGH |
 
-**Total: 3 entradas digitais**
-
-**Total de entradas no Principal: 10 GPIOs**
+**Total de entradas no Principal: 7 GPIOs**
 
 ---
 
 ## 5. Saídas — Módulo Principal
 
-### 5.1 Relés (com LED Compartilhado)
+### 5.1 Saídas para o CLP
 
-O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; `GPIO HIGH` = relé desacionado. Cada GPIO aciona o relé e o LED em paralelo — ambos seguem o mesmo estado lógico.
+Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **módulo de relé 5V comandado pelo ESP32**:
+- `LOW` = sinal ativo para o CLP
+- `HIGH` = sinal inativo
 
-| Relé | GPIO | Função | LED Associado | Acionamento |
-|---|---|---|---|---|
-| DIREÇÃO A | 4 | Motor sentido SUBIR | LED SUBIR — aceso quando motor sobe | GPIO LOW = ativo |
-| DIREÇÃO B | 16 | Motor sentido DESCER | LED DESCER — aceso quando motor desce | GPIO LOW = ativo |
-| VEL1 | 17 | Velocidade 1 (potenciômetro baixo) | LED VEL1 | GPIO LOW = ativo |
-| VEL2 | 5 | Velocidade 2 (potenciômetro médio) | LED VEL2 | GPIO LOW = ativo |
-| VEL3 | 18 | Velocidade 3 (potenciômetro alto) | LED VEL3 | GPIO LOW = ativo |
-| FREIO_ON | 19 | Bobina de aplicação (cilindro avança, freio trava) | LED FREIO — aceso quando bobina pulsa | GPIO LOW = energizada |
-| FREIO_OFF | 22 | Bobina de liberação (cilindro retrai, freio libera) | Nenhum | GPIO LOW = energizada |
+| Sinal | GPIO | Tipo | Descrição |
+|---|---|---|---|
+| SUBIR | 4 | Saída | Nível LOW estável enquanto comando remoto de subida permanecer válido |
+| DESCER | 16 | Saída | Nível LOW estável enquanto comando remoto de descida permanecer válido |
+| VEL1 | 17 | Saída | Pulso LOW de 50 ms |
+| VEL2 | 5 | Saída | Pulso LOW de 50 ms |
+| EMERGÊNCIA | 18 | Saída | LOW quando emergência remota ou watchdog expirado |
+| RESET | 19 | Saída | Pulso LOW de 50 ms |
+| FIM_CURSO | 22 | Saída | LOW quando fim de curso de descida está ativo |
 
-> **Nota sobre o LED FREIO_ON:** o relé permanece ativo **continuamente** enquanto o freio está engatado — o cilindro possui fim de curso mecânico próprio, portanto o relé não é desativado após confirmação da microchave. O LED acende ao acionar o freio e permanece aceso enquanto o freio estiver aplicado.
-
-**Total: 7 GPIOs de saída (6 c/ LED + 1 sem LED)**
-
-### 5.2 LEDs Exclusivos
+### 5.2 LED Exclusivo
 
 | LED | GPIO | Função |
 |---|---|---|
-| LINK REMOTE | 21 | Indica comunicação ativa com Remote |
-
-**Total: 1 GPIO de saída exclusivo**
+| LINK REMOTE | 21 | Indica comunicação ativa com o Remote |
 
 **Total de saídas no Principal: 8 GPIOs**
 
-**Total de GPIOs no Principal: 18** (10 entradas + 8 saídas)
+**Total de GPIOs no Principal: 15** (7 entradas + 8 saídas)
 
 ---
 
@@ -112,24 +111,22 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 
 ### 6.1 Botões
 
-| Botão | GPIO | Tipo | Debounce | Leitura | Descrição |
-|---|---|---|---|---|---|
-| SUBIR | 36 | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido subir — mantido pressionado |
-| DESCER | 39 | Táctil (capa borracha) | 50 ms | Hold (nível) | Motor sentido descer — mantido pressionado |
-| VEL1 | 34 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 1 |
-| VEL2 | 35 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 2 |
-| VEL3 | 32 | Táctil (capa borracha) | 50 ms | Pulso (borda) | Selecionar velocidade 3 |
-| EMERGÊNCIA | 33 | NC c/ trava | — | Nível contínuo | Emergência — NC: repouso LOW, pressionado HIGH |
-
-> GPIOs de entrada consistentes com o Módulo Principal. GPIOs 34, 35, 36, 39 são input-only — usar pull-up externo 10kΩ.
+| Botão | GPIO | Tipo | Pull-up | Debounce | Leitura | Descrição |
+|---|---|---|---|---|---|---|
+| SUBIR | 32 | Táctil | Interno (`INPUT_PULLUP`) | 50 ms | LOW = pressionado | Hold |
+| DESCER | 33 | Táctil | Interno (`INPUT_PULLUP`) | 50 ms | LOW = pressionado | Hold |
+| VEL1 | 39 | Táctil | Externo obrigatório | 50 ms | LOW = pressionado | Pulso |
+| VEL2 | 34 | Táctil | Externo obrigatório | 50 ms | LOW = pressionado | Pulso |
+| RESET | 255 | Desabilitado | — | — | — | Não utilizado nesta versão |
+| EMERGÊNCIA | 13 | NC com trava | Interno (`INPUT_PULLUP`) | — | HIGH = ativo | Emergência local |
 
 ### 6.2 Sensores
 
-| Sensor | GPIO | Tipo | Debounce | Leitura | Descrição |
-|---|---|---|---|---|---|
-| Fim de curso descida | 13 | Microswitch | 20 ms | Nível (LOW=acionado) | Posição final de descida (margem do rio) — bloqueio pós-liberação de 10 s (bloqueia apenas DESCER) |
+| Sensor | GPIO | Tipo | Pull-up | Debounce | Leitura | Descrição |
+|---|---|---|---|---|---|---|
+| Fim de curso descida | 36 | Microswitch | Externo obrigatório | 20 ms | LOW = acionado | Posição final de descida |
 
-**Total de entradas no Remote: 7 GPIOs** (6 botões + 1 sensor)
+**Total de entradas no Remote: 6 GPIOs ativas + 1 desabilitada**
 
 ---
 
@@ -138,16 +135,14 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 | LED | GPIO | Função |
 |---|---|---|
 | LINK | 4 | Status de comunicação |
-| MOTOR | 16 | Motor em operação |
-| VEL1 | 17 | Velocidade 1 ativa |
-| VEL2 | 5 | Velocidade 2 ativa |
-| VEL3 | 18 | Velocidade 3 ativa |
-| EMERGÊNCIA | 19 | Emergência ou falha de comunicação |
-| ALARME | 21 | Rearme com botão local ainda travado |
+| MOTOR | 16 | Reflete `motor_ativo` recebido |
+| VEL1 | 17 | Reflete `vel1_ativa` recebida |
+| VEL2 | 5 | Reflete `vel2_ativa` recebida |
+| EMERGÊNCIA | 19 | Emergência local, emergência do CLP ou perda de link |
 
-**Total de saídas no Remote: 7 GPIOs**
+**Total de saídas no Remote: 5 GPIOs**
 
-**Total de GPIOs no Remote: 14** (7 entradas + 7 saídas)
+**Total de GPIOs no Remote: 11** (6 entradas ativas + 5 saídas)
 
 ---
 
@@ -159,7 +154,7 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 |---|---|
 | GPIO 0 | Modo boot (strapping pin) |
 | GPIO 2 | Modo boot (strapping pin) |
-| GPIO 12 | Modo boot — afeta tensão do flash (strapping pin) |
+| GPIO 12 | Modo boot — afeta tensão do flash |
 | GPIO 15 | Modo boot — afeta log de inicialização |
 
 ### 8.2 Pinos Somente Entrada (sem pull-up interno)
@@ -170,9 +165,9 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 
 ### 8.3 Recomendação
 
-- Registrar o mapa final de GPIOs no arquivo `pinout.h` de cada módulo.
-- Botões de emergência e fim de curso **não** devem usar pinos strapping.
-- Preferir resistores de pull-up **externos** para entradas críticas.
+- Registrar o mapa final de GPIOs em `pinout.h` de cada módulo.
+- Priorizar GPIOs com `INPUT_PULLUP` para sinais NC e feedbacks críticos.
+- Evitar pinos strapping em entradas críticas.
 
 ---
 
@@ -180,15 +175,18 @@ O módulo de relés utilizado é **ativo em LOW**: `GPIO LOW` = relé acionado; 
 
 | Componente | Pull-Up |
 |---|---|
-| Botões tácteis (NO) | Resistor pull-up externo (10kΩ recomendado) |
-| Botão emergência NC (trava) | Pull-up interno (INPUT_PULLUP) — GPIO 33 |
-| Fim de curso | Resistor pull-up externo |
+| Botões tácteis em GPIO 32/33 | Interno (`INPUT_PULLUP`) |
+| Botões tácteis em GPIO 34/39/36 | Externo obrigatório |
+| Botão emergência NC do Remote | Interno (`INPUT_PULLUP`) |
+| Feedbacks do CLP no Principal | Interno (`INPUT_PULLUP`) |
+| Micro do freio NC no Principal | Interno (`INPUT_PULLUP`) |
 
-Lógica botões NO: **não** pressionado = HIGH; pressionado = LOW.
+Lógicas importantes:
 
-Lógica botão emergência NC: **não** pressionado (repouso) = LOW (contato fechado drena para GND); pressionado = HIGH (contato abre, pull-up puxa para HIGH).
-
-> **Fail-safe:** com botão NC e pull-up, um cabo partido resulta em pino HIGH → emergência ativada. Comportamento seguro por projeto.
+- botão NO: repouso = HIGH, pressionado = LOW
+- botão NC de emergência: repouso = LOW, pressionado = HIGH
+- feedback do CLP: LOW = ativo
+- micro do freio NC: LOW = normal, HIGH = aberta/acionada
 
 ---
 
@@ -196,64 +194,47 @@ Lógica botão emergência NC: **não** pressionado (repouso) = LOW (contato fec
 
 | Parâmetro | Valor |
 |---|---|
-| Tensão do LED | 3V (padrão Arduino) |
+| Tensão do LED | 3V |
 | Resistor limitador | 220Ω por LED |
 | Corrente máxima por GPIO | 12 mA |
 | Cor | Definida pelo componente físico |
 
-### 10.1 LEDs Compartilhados com Relés (Principal)
+---
 
-Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
-- Medir corrente total na protoboard durante a Fase 1.
-- Se corrente > 12 mA: usar transistor NPN (ex: BC547) ou buffer (ULN2003) para isolar.
+## 11. Módulo de Relés / Interface com CLP
+
+Na arquitetura atual, o Principal não aciona diretamente o motor nem o freio. Ele apenas:
+
+- envia sinais digitais para um módulo de relé 5V por GPIO
+- usa os contatos desse módulo para acionar as entradas do CLP
+- lê feedbacks digitais do CLP por GPIO
+
+Os relés e a lógica de potência ficam sob responsabilidade do CLP e do circuito externo.
 
 ---
 
-## 11. Módulo de Relés
+## 12. Sensor de Fim de Curso de Descida
 
 | Parâmetro | Valor |
 |---|---|
-| Tensão de operação | 5V |
-| Número de canais (Principal) | 7 (direção A, direção B, VEL1, VEL2, VEL3, FREIO_ON, FREIO_OFF) — de 8 disponíveis |
-| Acionamento | **Ativo LOW** — GPIO LOW = relé acionado; GPIO HIGH = relé desacionado |
-| Dimensionamento | Corrente de partida do motor × fator 2x |
+| Tipo | Microswitch |
+| Localização | Posição final de descida |
+| Debounce | 20 ms |
+| Conexão | GPIO 36 do Remote |
 
 ---
 
-## 12. Sensor de Fim de Curso
+## 13. Micro do Freio
 
 | Parâmetro | Valor |
 |---|---|
-| Tipo | Microswitch (chave de limite) |
-| Localização | Posição final de subida (estacionamento/depósito) |
-| Debounce | 20 ms (firmware) |
-| Conexão | Entrada digital do ESP32 Principal |
+| Tipo | Microswitch NC |
+| Conexão | GPIO 14 do Principal |
+| Pull-up | Interno (`INPUT_PULLUP`) |
+| Lógica | LOW = normal; HIGH = aberta/acionada |
+| Uso no firmware | Propagada ao `PacoteStatus` como `micro_freio_ativa` |
 
----
-
-## 13. Microchave do Freio
-
-| Parâmetro | Valor |
-|---|---|
-| Tipo | Microswitch NA (normalmente aberto) |
-| Localização | Acoplada ao cilindro do freio — acionada quando cilindro está retraído (freio liberado) |
-| Conexão | GPIO 27 do ESP32 Principal |
-| Pull-up | Interno (INPUT_PULLUP) |
-| Lógica | HIGH = freio engatado (cilindro avançado, micro aberta); LOW = freio liberado (cilindro retraído, micro pressionada) |
-| Função firmware | Controla máquina de estados do freio (`Freio::atualizar()`); bloqueia motor enquanto GPIO 27 ≠ LOW |
-
-**Comportamento por estado:**
-
-| Condição | GPIO 27 | Microchave | Estado do cilindro | Motor |
-|---|---|---|---|---|
-| Freio engatado (padrão) | HIGH | Aberta | Avançado (brake pads travados) | Bloqueado |
-| Freio em transição (FREIO_OFF pulsando) | HIGH → LOW | Abre → Fecha | Retraindo (~10s) | Bloqueado durante transição |
-| Freio liberado (confirmado) | LOW | Pressionada | Retraído (brake pads livres) | Permitido |
-| Freio em transição (FREIO_ON pulsando) | LOW → HIGH | Fecha → Abre | Avançando (~10s) | Bloqueado |
-
-> Fail-safe: cabo partido → GPIO flutua HIGH → interpretado como freio engatado → motor bloqueado.
->
-> O Remote não recebe o estado do freio — o operador percebe o bloqueio pela ausência de resposta do motor durante a transição de ~10s.
+> Fail-safe: cabo partido ou abertura da micro resultam em HIGH.
 
 ---
 
@@ -262,17 +243,13 @@ Quando um LED e o driver do módulo relé compartilham o mesmo GPIO:
 | Qtd | Componente | Uso |
 |---|---|---|
 | 2 | ESP32 DevKit (WROOM-32U) | Principal + Remote |
-| 1 | Módulo relé 6 canais (5V) | Principal |
+| 1 | CLP | Lógica central do sistema |
 | 1 | Bateria Li-Ion 18650 | Remote |
-| 1 | Módulo TP4056 | Carregador de bateria Remote |
-| 1 | LM2596 step-down | Regulador de tensão Remote |
-| 2 | Botões com trava (emergência) | Painel + Remote |
-| 6 | Botões tácteis | Painel (SUBIR, DESCER, VEL1, VEL2, VEL3, REARME) |
-| 5 | Botões tácteis com capa borracha | Remote (SUBIR, DESCER, VEL1, VEL2, VEL3) |
-| 1 | Sensor fim de curso (microswitch) | Estacionamento |
-| 13 | LEDs 3V (cor a definir) | 7 no Principal + 7 no Remote (nota: LED EMERGÊNCIA do Principal usa LED exclusivo e 6 compartilhados c/ relés) |
-| 13 | Resistores 220Ω | 1 por LED |
-| ~15 | Resistores 10kΩ | Pull-ups de botões e sensores |
-| — | Transistores NPN (BC547) / ULN2003 | Se necessário para driver dos relés |
-| 2 | Enclosures | Painel (caixa elétrica) + Remote (IP54) |
-| — | Cabos, conectores, terminais | Montagem geral |
+| 1 | Módulo TP4056 | Carregador do Remote |
+| 1 | LM2596 step-down | Regulador do Remote |
+| 2 | Botões com trava | Emergência principal + emergência remote |
+| 4 | Botões tácteis / teste | Remote e testes locais do Principal |
+| 1 | Sensor fim de curso | Descida |
+| 1 | Micro do freio NC | Feedback do freio no Principal |
+| 6 | LEDs discretos | 1 no Principal + 5 no Remote |
+| Resistores | 220Ω / 10kΩ | LEDs e pull-ups externos necessários |

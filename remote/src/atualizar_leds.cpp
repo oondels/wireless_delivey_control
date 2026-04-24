@@ -1,76 +1,69 @@
 /**
  * atualizar_leds.cpp — Implementação da atualização dos LEDs do Remote
  *
- * Lógica conforme leds/SPEC.md §3.2:
- * - LINK: fixo se comunicação ativa, piscar 1Hz se timeout > 1000ms
- * - MOTOR: fixo se SUBINDO ou DESCENDO
- * - VEL1/2/3: fixo conforme campo velocidade
- * - EMERGÊNCIA: piscar 4Hz se EMERGENCIA, fixo se FALHA_COMUNICACAO, piscar 2Hz se FALHA_ENERGIA
- * - ALARME: piscar 2Hz se rearme_ativo E botão local travado
+ * Lógica baseada no feedback recebido do Principal:
+ * - LINK:       fixo se Principal respondeu recentemente; pisca 1Hz se timeout > 500ms
+ * - MOTOR:      pisca enquanto aguarda freio liberar e CLP reportar motor ativo; fixo quando motor ativo
+ * - VEL1/VEL2:  fixo conforme feedback do CLP
+ * - EMERGÊNCIA: pisca 4Hz se houver emergência local ou reportada pelo CLP
  *
  * Ref: leds/SPEC.md §3.2
  */
 
 #include "atualizar_leds.h"
-#include "pinout.h"
 
 void atualizarLeds(
     const volatile PacoteStatus& status,
     uint32_t ultimoStatusMs,
+    bool emergenciaLocal,
+    bool aguardandoPartida,
     Led& ledLink,
     Led& ledMotor,
     Led& ledVel1,
     Led& ledVel2,
-    Led& ledVel3,
-    Led& ledEmergencia,
-    Led& ledAlarme
+    Led& ledEmergencia
 ) {
-    // LINK — timeout 1000ms sem status = piscar 1Hz
-    if (millis() - ultimoStatusMs > 1000) {
-        ledLink.piscar(500);       // 1 Hz
-    } else {
+    uint32_t agora = millis();
+    bool linkOk = (status.link_ok == 1) && (agora - ultimoStatusMs <= WATCHDOG_TIMEOUT_MS);
+
+    // LINK — timeout 500ms sem status do Principal = pisca 1Hz
+    if (linkOk) {
         ledLink.ligar();
+    } else {
+        ledLink.piscar(500);  // 1 Hz
     }
 
-    // MOTOR — fixo se em movimento
-    if (status.estado_sistema == ESTADO_SUBINDO || status.estado_sistema == ESTADO_DESCENDO) {
+    // MOTOR
+    // - pisca enquanto existe solicitacao de movimento aguardando o freio liberar
+    //   e o CLP confirmar motor ativo
+    // - fica fixo quando o motor esta efetivamente ativo
+    if (status.motor_ativo == 1) {
         ledMotor.ligar();
+    } else if (aguardandoPartida) {
+        ledMotor.piscar(250);  // 2 Hz
     } else {
         ledMotor.desligar();
     }
 
-    // VELOCIDADE — exclusividade mútua
+    // VELOCIDADE — reflete feedback do CLP
     ledVel1.desligar();
     ledVel2.desligar();
-    ledVel3.desligar();
-    if (status.velocidade == 1) ledVel1.ligar();
-    if (status.velocidade == 2) ledVel2.ligar();
-    if (status.velocidade == 3) ledVel3.ligar();
+    if (status.vel1_ativa == 1) ledVel1.ligar();
+    if (status.vel2_ativa == 1) ledVel2.ligar();
 
     // EMERGÊNCIA
-    if (status.estado_sistema == ESTADO_EMERGENCIA) {
-        ledEmergencia.piscar(125);          // 4 Hz
-    } else if (status.estado_sistema == ESTADO_FALHA_COMUNICACAO) {
-        ledEmergencia.ligar();              // fixo
-    } else if (status.estado_sistema == ESTADO_FALHA_ENERGIA) {
-        ledEmergencia.piscar(250);          // 2 Hz — link OK, energia ausente
+    // - pisca 4Hz se houver emergência local
+    // - também pisca 4Hz se o CLP reportar emergência ativa
+    if (emergenciaLocal || status.emergencia_ativa == 1) {
+        ledEmergencia.piscar(125);  // 4 Hz
     } else {
         ledEmergencia.desligar();
     }
 
-    // ALARME — piscar 2Hz se rearme_ativo E botão emergência local ainda pressionado (NC: HIGH)
-    if (status.rearme_ativo == 1 && digitalRead(PIN_BTN_EMERGENCIA) == HIGH) {
-        ledAlarme.piscar(250);       // 2 Hz
-    } else {
-        ledAlarme.desligar();
-    }
-
-    // Atualizar todos os LEDs (processar piscar não-bloqueante)
+    // Processar piscar não-bloqueante em todos os LEDs
     ledLink.atualizar();
     ledMotor.atualizar();
     ledVel1.atualizar();
     ledVel2.atualizar();
-    ledVel3.atualizar();
     ledEmergencia.atualizar();
-    ledAlarme.atualizar();
 }
