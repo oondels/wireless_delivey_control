@@ -7,6 +7,7 @@
  */
 
 #include "comunicacao.h"
+#include "logger.h"
 #include <esp_system.h>
 
 #ifndef SEC_REMOTE_MAC_STR
@@ -146,7 +147,7 @@ void Comunicacao::init(WatchdogComm& watchdog) {
     if (!parseMacString(SEC_REMOTE_MAC_STR, MAC_REMOTE_ESPERADO) ||
         !parseHexKey16(SEC_ESPNOW_PMK_STR, ESPNOW_PMK) ||
         !parseHexKey16(SEC_ESPNOW_LMK_STR, ESPNOW_LMK)) {
-        Serial.println("[ERRO] Configuracao de seguranca invalida");
+        LOG_ERROR("ESP-NOW", "Configuracao de seguranca invalida");
         return;
     }
 
@@ -163,11 +164,11 @@ void Comunicacao::init(WatchdogComm& watchdog) {
     WiFi.disconnect();
 
     if (esp_now_init() != ESP_OK) {
-        Serial.println("[ERRO] Falha ao inicializar ESP-NOW");
+        LOG_ERROR("ESP-NOW", "Falha ao inicializar ESP-NOW");
         return;
     }
     if (esp_now_set_pmk(ESPNOW_PMK) != ESP_OK) {
-        Serial.println("[ERRO] Falha ao configurar PMK do ESP-NOW");
+        LOG_ERROR("ESP-NOW", "Falha ao configurar PMK do ESP-NOW");
         return;
     }
 
@@ -175,15 +176,19 @@ void Comunicacao::init(WatchdogComm& watchdog) {
     esp_now_register_recv_cb(onDataRecv);
 
     if (!registrarPeerRemoto()) {
-        Serial.println("[ERRO] Falha ao registrar peer remoto criptografado");
+        LOG_ERROR("ESP-NOW", "Falha ao registrar peer remoto criptografado");
         return;
     }
 
-    Serial.printf(
-        "[OK] ESP-NOW inicializado — Principal pareado com %02X:%02X:%02X:%02X:%02X:%02X\n",
+    char macPareado[18];
+    snprintf(
+        macPareado,
+        sizeof(macPareado),
+        "%02X:%02X:%02X:%02X:%02X:%02X",
         MAC_REMOTE_ESPERADO[0], MAC_REMOTE_ESPERADO[1], MAC_REMOTE_ESPERADO[2],
         MAC_REMOTE_ESPERADO[3], MAC_REMOTE_ESPERADO[4], MAC_REMOTE_ESPERADO[5]
     );
+    LOG_ALWAYS_VAL("ESP-NOW", "Peer remoto configurado: ", macPareado);
 }
 
 void Comunicacao::enviarStatus(const PacoteStatus& status) {

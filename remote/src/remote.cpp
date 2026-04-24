@@ -14,6 +14,7 @@
  */
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include "pinout.h"
 #include "protocolo.h"
 #include "botoes.h"
@@ -48,13 +49,14 @@ bool    aguardandoPartidaAnterior = false;
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("=== Módulo Remote — Inicializando ===");
+    LOG_ALWAYS("BOOT", "=== Modulo Remote - Inicializando ===");
 
     botoes.init();
     fimCursoDescida.init();
     comunicacao.init();
 
-    Serial.println("=== Módulo Remote — Pronto ===");
+    LOG_ALWAYS_VAL("BOOT", "MAC local: ", WiFi.macAddress());
+    LOG_ALWAYS("BOOT", "=== Modulo Remote - Pronto ===");
 }
 
 void loop() {

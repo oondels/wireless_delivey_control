@@ -457,19 +457,33 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 [9600] [INFO] [WDOG] Watchdog recuperado — emergencia CLP liberada
 ```
 
-### 11.5 Desabilitar em Produção
+### 11.5 Modos de Logging
 
-Adicionar no `platformio.ini` do módulo desejado:
+O build trabalha em **produção por padrão**:
+
+- `prod` (padrão): mantém logs essenciais de boot, MAC local, avisos e erros
+- `dev`: mostra todos os logs de debug e transições detalhadas
+- `LOG_DISABLED`: desliga logs normais, mas preserva logs obrigatórios de boot e identificação
+
+Para habilitar modo desenvolvimento no `platformio.ini` do módulo desejado:
 
 ```ini
-build_flags = -DLOG_DISABLED
+build_flags =
+    -DAPP_ENV_DEV
 ```
 
-Com `LOG_DISABLED`, todas as macros de logging compilam como no-op (zero overhead em Flash e RAM).
+Para desligar os logs normais:
+
+```ini
+build_flags =
+    -DLOG_DISABLED
+```
+
+Com `LOG_DISABLED`, `LOG_INFO`, `LOG_WARN` e `LOG_ERROR` compilam como no-op. Os logs de boot e MAC continuam usando `LOG_ALWAYS`.
 
 ### 11.6 Arquivo Compartilhado
 
-O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros de logging e função auxiliar `comandoParaString()` para saída legível.
+O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros `LOG_INFO`, `LOG_WARN`, `LOG_ERROR`, `LOG_ALWAYS` e a função auxiliar `comandoParaString()` para saída legível.
 
 ---
 

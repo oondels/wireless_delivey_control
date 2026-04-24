@@ -4,6 +4,13 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(logging): adiciona modos dev e prod para logs
+
+- Logging passa a operar em produção por padrão, ocultando `INFO` de debug e mantendo apenas logs essenciais de boot, avisos e erros
+- Novo modo de desenvolvimento via `-DAPP_ENV_DEV` mantém todos os logs detalhados nos módulos `principal` e `remote`
+- Logs obrigatórios de boot passam a usar macro própria e incluem o MAC local do ESP em ambos os módulos
+- Inicialização do ESP-NOW passa a respeitar a política de logging, mantendo falhas críticas visíveis em produção
+
 ### feat(comunicacao): endurece seguranca do enlace ESP-NOW
 
 - Comunicação passa a usar peer fixo por MAC configurado via `.env`, sem descoberta automática por broadcast em produção

@@ -8,6 +8,7 @@
  */
 
 #include "comunicacao.h"
+#include "logger.h"
 #include <esp_system.h>
 
 #ifndef SEC_PRINCIPAL_MAC_STR
@@ -134,7 +135,7 @@ void Comunicacao::init() {
     if (!parseMacString(SEC_PRINCIPAL_MAC_STR, MAC_PRINCIPAL_ESPERADO) ||
         !parseHexKey16(SEC_ESPNOW_PMK_STR, ESPNOW_PMK) ||
         !parseHexKey16(SEC_ESPNOW_LMK_STR, ESPNOW_LMK)) {
-        Serial.println("[ERRO] Configuracao de seguranca invalida");
+        LOG_ERROR("ESP-NOW", "Configuracao de seguranca invalida");
         return;
     }
 
@@ -151,11 +152,11 @@ void Comunicacao::init() {
     WiFi.disconnect();
 
     if (esp_now_init() != ESP_OK) {
-        Serial.println("[ERRO] Falha ao inicializar ESP-NOW");
+        LOG_ERROR("ESP-NOW", "Falha ao inicializar ESP-NOW");
         return;
     }
     if (esp_now_set_pmk(ESPNOW_PMK) != ESP_OK) {
-        Serial.println("[ERRO] Falha ao configurar PMK do ESP-NOW");
+        LOG_ERROR("ESP-NOW", "Falha ao configurar PMK do ESP-NOW");
         return;
     }
 
@@ -163,15 +164,19 @@ void Comunicacao::init() {
     esp_now_register_recv_cb(onDataRecv);
 
     if (!registrarPeerPrincipal()) {
-        Serial.println("[ERRO] Falha ao registrar peer principal criptografado");
+        LOG_ERROR("ESP-NOW", "Falha ao registrar peer principal criptografado");
         return;
     }
 
-    Serial.printf(
-        "[OK] ESP-NOW inicializado — Remote pareado com %02X:%02X:%02X:%02X:%02X:%02X\n",
+    char macPareado[18];
+    snprintf(
+        macPareado,
+        sizeof(macPareado),
+        "%02X:%02X:%02X:%02X:%02X:%02X",
         MAC_PRINCIPAL_ESPERADO[0], MAC_PRINCIPAL_ESPERADO[1], MAC_PRINCIPAL_ESPERADO[2],
         MAC_PRINCIPAL_ESPERADO[3], MAC_PRINCIPAL_ESPERADO[4], MAC_PRINCIPAL_ESPERADO[5]
     );
+    LOG_ALWAYS_VAL("ESP-NOW", "Peer principal configurado: ", macPareado);
 }
 
 void Comunicacao::enviarPacote(const PacoteRemote& pacote) {
