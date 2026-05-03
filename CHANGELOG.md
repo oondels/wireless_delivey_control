@@ -4,10 +4,15 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### fix(principal): corrige bloqueio por motor ativo
+
+- `MOTOR_ATIVO` deixa de ser pré-condição para liberar `SUBIR`/`DESCER` remoto
+- Movimento remoto passa a ser bloqueado quando o feedback `MOTOR_ATIVO` já está ativo, evitando comando remoto durante operação em andamento pelo CLP
+
 ### feat(logging): detalha saidas e bloqueios do principal
 
 - Módulo Principal passa a registrar quando cada saída para o CLP é ativada, incluindo GPIO e nível elétrico
-- Bloqueio de comando remoto passa a informar causas específicas: watchdog/link, emergência remota, emergência do CLP, micro do freio ou ausência de `MOTOR_ATIVO`
+- Bloqueio de comando remoto passa a informar causas específicas: watchdog/link, emergência remota, emergência do CLP, micro do freio ou `MOTOR_ATIVO` já ativo
 
 ### chore(pinout): remove testes locais do principal
 
@@ -52,7 +57,7 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 - Logs são emitidos apenas em mudança de estado para evitar spam no loop principal
 - Log existente da micro do freio em `GPIO 14` foi preservado sem alteração
 - Saídas `SUBIR` e `DESCER` do Principal passam a permanecer estáveis enquanto o hold remoto continuar válido, sem pulsar entre heartbeats
-- Operação remota no Principal passa a ser bloqueada por perda de link, emergência, `micro_freio_ativa == 1` ou ausência de `motor_ativo`
+- Operação remota no Principal passa a ser bloqueada por perda de link, emergência, `micro_freio_ativa == 1` ou `motor_ativo == 1`
 - `README.md` e `hardware_io/SPEC.md` atualizados para documentar o módulo de relé 5V intermediário entre ESP32 e CLP
 
 ### feat(comunicacao): adiciona feedback do CLP e micro do freio ao status do remote

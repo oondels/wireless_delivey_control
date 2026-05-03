@@ -252,7 +252,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 - O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido, a emergência local não está ativa e o CLP não está reportando emergência ativa.
 - No Principal, `SUBIR` ou `DESCER` remotos só energizam a saída correspondente enquanto o hold permanecer válido e as condições de bloqueio estiverem liberadas.
 - Ordem de prioridade no Principal: perda de link/watchdog e emergência sempre impedem operação remota.
-- Além disso, operação remota de `SUBIR` ou `DESCER` só é permitida quando `micro_freio_ativa == 0` e `motor_ativo == 1`.
+- Além disso, operação remota de `SUBIR` ou `DESCER` só é permitida quando `micro_freio_ativa == 0` e `motor_ativo == 0`; se `motor_ativo == 1`, o CLP já indica operação em andamento e o movimento remoto fica bloqueado no Principal.
 - O Remote transmite `botao_hold = 1` enquanto o botão está pressionado.
 - Ao pressionar SUBIR ou DESCER, o LED `MOTOR` do Remote pisca enquanto o freio ainda está aplicado (`micro_freio_ativa == 1`) ou enquanto o CLP ainda não reportou `motor_ativo == 1`.
 - O LED `MOTOR` só passa a ficar aceso fixo quando o Principal reporta simultaneamente `micro_freio_ativa == 0` e `motor_ativo == 1`.

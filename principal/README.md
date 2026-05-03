@@ -18,7 +18,7 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
   - emergência remota
   - `EMERGENCIA_ATIVA` do CLP
   - `micro_freio_ativa == 1`
-  - ausência de `MOTOR_ATIVO`
+  - `MOTOR_ATIVO` já ativo
 
 ## GPIOs
 

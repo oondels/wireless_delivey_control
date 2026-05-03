@@ -243,8 +243,8 @@ static void registrarMotivosBloqueioRemoto(
     if (microFreioAtiva) {
         LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: micro do freio ativa/aberta (GPIO 14 HIGH)");
     }
-    if (!fbMotorAtivo) {
-        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: feedback MOTOR_ATIVO ausente (GPIO 23 HIGH)");
+    if (fbMotorAtivo) {
+        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: feedback MOTOR_ATIVO ja ativo (GPIO 23 LOW)");
     }
 }
 
@@ -407,7 +407,7 @@ void loop() {
                                    !emergenciaRemotaAtiva &&
                                    !fbEmergenciaAtiva &&
                                    !microFreioAtiva &&
-                                   fbMotorAtivo;
+                                   !fbMotorAtivo;
     bool demandaRemotaSubir  = holdRemotoAtivo && (direcaoRemotaAtual == DIRECAO_REMOTA_SUBIR);
     bool demandaRemotaDescer = holdRemotoAtivo && (direcaoRemotaAtual == DIRECAO_REMOTA_DESCER);
     bool bloqueioRemoto = (demandaRemotaSubir || demandaRemotaDescer) && !operacaoRemotaPermitida;

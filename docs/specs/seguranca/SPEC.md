@@ -26,7 +26,7 @@ Para aceitar movimento remoto (`SUBIR`/`DESCER`), o firmware exige simultaneamen
 2. `emergencia` remota **inativa**
 3. feedback `EMERGENCIA_ATIVA` do CLP **inativo**
 4. `micro_freio_ativa == 0`
-5. feedback `MOTOR_ATIVO == 1`
+5. feedback `MOTOR_ATIVO == 0`
 
 Se qualquer uma dessas condições falhar:
 
@@ -155,5 +155,5 @@ Estas condições devem permanecer verdadeiras no firmware atual:
 4. emergência local do Remote impede envio de `SUBIR` e `DESCER`
 5. `EMERGENCIA_ATIVA` reportada pelo CLP impede movimento remoto
 6. `micro_freio_ativa == 1` impede movimento remoto no Principal
-7. `MOTOR_ATIVO == 0` impede movimento remoto no Principal
+7. `MOTOR_ATIVO == 1` impede movimento remoto no Principal
 8. pacotes inválidos não atualizam estado de link nem resetam watchdog
