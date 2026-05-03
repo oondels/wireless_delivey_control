@@ -98,7 +98,7 @@ typedef struct {
 |---|---|---|---|
 | `link_ok` | `uint8_t` | 0 ou 1 | 1 = Principal recebendo pacotes válidos do Remote |
 | `motor_ativo` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 23` |
-| `emergencia_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 25` |
+| `emergencia_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 33` |
 | `vel1_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 26` |
 | `vel2_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 27` |
 | `micro_freio_ativa` | `uint8_t` | 0 ou 1 | 1 = freio ativo reportado pela micro no `GPIO 14`; 0 = freio liberado |

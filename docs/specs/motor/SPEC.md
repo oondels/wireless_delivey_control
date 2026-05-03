@@ -36,7 +36,7 @@ O motor só permanece em operação enquanto o Remote continuar enviando hold de
 
 ### 2.4 Prioridade de Comando
 
-- O firmware atual não implementa botões operacionais no Principal; apenas botões de teste local.
+- O firmware atual não implementa botões operacionais ou botões de teste local no Principal.
 - Quando o status do Principal é inválido ou `emergencia_ativa == 1`, o Remote bloqueia `SUBIR` e `DESCER`.
 
 ---

@@ -97,8 +97,6 @@ PacoteStatus   ultimoStatusEnviado = {};
 
 // Logging anti-spam
 bool           watchdogAnteriorExpirado = false;
-bool           testeSubirAnterior       = false;
-bool           testeDescerAnterior      = false;
 bool           microFreioAnteriorAtiva  = false;
 bool           fbMotorAnteriorAtivo     = false;
 bool           fbEmergenciaAnteriorAtiva = false;
@@ -106,6 +104,8 @@ bool           fbVel1AnteriorAtiva      = false;
 bool           fbVel2AnteriorAtiva      = false;
 bool           sinalSubirAnteriorAtivo  = false;
 bool           sinalDescerAnteriorAtivo = false;
+bool           sinalEmergenciaAnteriorAtivo = false;
+bool           sinalFimCursoAnteriorAtivo   = false;
 bool           bloqueioRemotoAnterior   = false;
 
 static bool statusMudou(const PacoteStatus& atual, const PacoteStatus& anterior) {
@@ -153,10 +153,11 @@ static void setEmergencia(bool ativa) {
 }
 
 /** Ativa um pulso no CLP (VEL1, VEL2 ou RESET). */
-static void iniciarPulso(uint8_t pino, uint32_t& inicio, bool& ativo) {
+static void iniciarPulso(uint8_t pino, uint32_t& inicio, bool& ativo, const char* mensagemAtivacao) {
     digitalWrite(pino, LOW);
     inicio = millis();
     ativo  = true;
+    LOG_INFO("CLP", mensagemAtivacao);
 }
 
 /** Verifica e encerra pulsos vencidos. */
@@ -166,34 +167,84 @@ static void atualizarPulsos() {
     if (pulsoVel1Ativo && (agora - pulsoVel1Inicio >= PULSO_CLP_MS)) {
         digitalWrite(PIN_CLP_VEL1, HIGH);
         pulsoVel1Ativo = false;
+        LOG_INFO("CLP", "Saida PIN_CLP_VEL1 inativa (GPIO 17 HIGH)");
     }
     if (pulsoVel2Ativo && (agora - pulsoVel2Inicio >= PULSO_CLP_MS)) {
         digitalWrite(PIN_CLP_VEL2, HIGH);
         pulsoVel2Ativo = false;
+        LOG_INFO("CLP", "Saida PIN_CLP_VEL2 inativa (GPIO 5 HIGH)");
     }
     if (pulsoResetAtivo && (agora - pulsoResetInicio >= PULSO_CLP_MS)) {
         digitalWrite(PIN_CLP_RESET, HIGH);
         pulsoResetAtivo = false;
+        LOG_INFO("CLP", "Saida PIN_CLP_RESET inativa (GPIO 19 HIGH)");
     }
 }
 
-static void registrarMudancaSaidaMovimento(bool subirAtivo, bool descerAtivo) {
+static void registrarMudancaSaidasSustentadas(
+    bool subirAtivo,
+    bool descerAtivo,
+    bool emergenciaAtiva,
+    bool fimCursoAtivo
+) {
     if (subirAtivo != sinalSubirAnteriorAtivo) {
         if (subirAtivo) {
-            LOG_INFO("CLP", "Sinal SUBIR enviado ao CLP");
+            LOG_INFO("CLP", "Saida PIN_CLP_SUBIR ativa (GPIO 4 LOW)");
         } else {
-            LOG_INFO("CLP", "Sinal SUBIR desativado");
+            LOG_INFO("CLP", "Saida PIN_CLP_SUBIR inativa (GPIO 4 HIGH)");
         }
         sinalSubirAnteriorAtivo = subirAtivo;
     }
 
     if (descerAtivo != sinalDescerAnteriorAtivo) {
         if (descerAtivo) {
-            LOG_INFO("CLP", "Sinal DESCER enviado ao CLP");
+            LOG_INFO("CLP", "Saida PIN_CLP_DESCER ativa (GPIO 16 LOW)");
         } else {
-            LOG_INFO("CLP", "Sinal DESCER desativado");
+            LOG_INFO("CLP", "Saida PIN_CLP_DESCER inativa (GPIO 16 HIGH)");
         }
         sinalDescerAnteriorAtivo = descerAtivo;
+    }
+
+    if (emergenciaAtiva != sinalEmergenciaAnteriorAtivo) {
+        if (emergenciaAtiva) {
+            LOG_WARN("CLP", "Saida PIN_CLP_EMERGENCIA ativa (GPIO 18 LOW)");
+        } else {
+            LOG_INFO("CLP", "Saida PIN_CLP_EMERGENCIA inativa (GPIO 18 HIGH)");
+        }
+        sinalEmergenciaAnteriorAtivo = emergenciaAtiva;
+    }
+
+    if (fimCursoAtivo != sinalFimCursoAnteriorAtivo) {
+        if (fimCursoAtivo) {
+            LOG_INFO("CLP", "Saida PIN_CLP_FIM_CURSO ativa (GPIO 22 LOW)");
+        } else {
+            LOG_INFO("CLP", "Saida PIN_CLP_FIM_CURSO inativa (GPIO 22 HIGH)");
+        }
+        sinalFimCursoAnteriorAtivo = fimCursoAtivo;
+    }
+}
+
+static void registrarMotivosBloqueioRemoto(
+    bool watchdogExpirado,
+    bool emergenciaRemotaAtiva,
+    bool fbEmergenciaAtiva,
+    bool microFreioAtiva,
+    bool fbMotorAtivo
+) {
+    if (watchdogExpirado) {
+        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: watchdog/link com Remote expirado");
+    }
+    if (emergenciaRemotaAtiva) {
+        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: emergencia do Remote ativa");
+    }
+    if (fbEmergenciaAtiva) {
+        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: feedback EMERGENCIA_ATIVA do CLP ativo");
+    }
+    if (microFreioAtiva) {
+        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: micro do freio ativa/aberta (GPIO 14 HIGH)");
+    }
+    if (!fbMotorAtivo) {
+        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: feedback MOTOR_ATIVO ausente (GPIO 23 HIGH)");
     }
 }
 
@@ -210,10 +261,6 @@ void setup() {
         pinMode(PINOS_CLP[i], OUTPUT);
         digitalWrite(PINOS_CLP[i], HIGH);
     }
-
-    // Botões de teste local
-    pinMode(PIN_BTN_TESTE_SUBIR,  INPUT_PULLUP);
-    pinMode(PIN_BTN_TESTE_DESCER, INPUT_PULLUP);
 
     // Feedbacks do CLP e micro do freio
     for (int i = 0; i < NUM_PINOS_FEEDBACK; i++) {
@@ -234,9 +281,6 @@ void setup() {
 void loop() {
     uint32_t agora = millis();
 
-    // Lê botões de teste local (LOW = pressionado com INPUT_PULLUP)
-    bool btnSubirLocal  = (digitalRead(PIN_BTN_TESTE_SUBIR)  == LOW);
-    bool btnDescerLocal = (digitalRead(PIN_BTN_TESTE_DESCER) == LOW);
     bool fbMotorAtivo      = (digitalRead(PIN_FB_MOTOR_ATIVO) == LOW);
     bool fbEmergenciaAtiva = (digitalRead(PIN_FB_EMERGENCIA_ATIVA) == LOW);
     bool fbVel1Ativa       = (digitalRead(PIN_FB_VEL1_ATIVA) == LOW);
@@ -279,11 +323,6 @@ void loop() {
             LOG_INFO("FREIO", "Micro do freio voltou ao estado normal");
         }
         microFreioAnteriorAtiva = microFreioAtiva;
-    }
-
-    // Botão de teste ativo → resetar watchdog para evitar emergência por timeout
-    if (btnSubirLocal || btnDescerLocal) {
-        watchdog.resetar();
     }
 
     // 1. Verificar watchdog
@@ -332,21 +371,33 @@ void loop() {
         // VEL1 (pulso)
         if (cmd == CMD_VEL1) {
             digitalWrite(PIN_CLP_VEL2, HIGH);  // garante exclusividade
-            iniciarPulso(PIN_CLP_VEL1, pulsoVel1Inicio, pulsoVel1Ativo);
-            LOG_INFO("CLP", "Pulso VEL1 enviado ao CLP");
+            iniciarPulso(
+                PIN_CLP_VEL1,
+                pulsoVel1Inicio,
+                pulsoVel1Ativo,
+                "Saida PIN_CLP_VEL1 ativa (GPIO 17 LOW, pulso 50 ms)"
+            );
         }
 
         // VEL2 (pulso)
         if (cmd == CMD_VEL2) {
             digitalWrite(PIN_CLP_VEL1, HIGH);  // garante exclusividade
-            iniciarPulso(PIN_CLP_VEL2, pulsoVel2Inicio, pulsoVel2Ativo);
-            LOG_INFO("CLP", "Pulso VEL2 enviado ao CLP");
+            iniciarPulso(
+                PIN_CLP_VEL2,
+                pulsoVel2Inicio,
+                pulsoVel2Ativo,
+                "Saida PIN_CLP_VEL2 ativa (GPIO 5 LOW, pulso 50 ms)"
+            );
         }
 
         // RESET (pulso)
         if (cmd == CMD_RESET) {
-            iniciarPulso(PIN_CLP_RESET, pulsoResetInicio, pulsoResetAtivo);
-            LOG_INFO("CLP", "Pulso RESET enviado ao CLP");
+            iniciarPulso(
+                PIN_CLP_RESET,
+                pulsoResetInicio,
+                pulsoResetAtivo,
+                "Saida PIN_CLP_RESET ativa (GPIO 19 LOW, pulso 50 ms)"
+            );
         }
 
         comunicacao.limparNovoPacote();
@@ -362,9 +413,20 @@ void loop() {
     bool bloqueioRemoto = (demandaRemotaSubir || demandaRemotaDescer) && !operacaoRemotaPermitida;
 
     if (bloqueioRemoto && !bloqueioRemotoAnterior) {
-        LOG_WARN("CLP", "Comando remoto bloqueado por link, emergencia ou feedbacks de operacao");
+        if (demandaRemotaSubir) {
+            LOG_WARN("BLOQUEIO", "Comando remoto SUBIR bloqueado");
+        } else {
+            LOG_WARN("BLOQUEIO", "Comando remoto DESCER bloqueado");
+        }
+        registrarMotivosBloqueioRemoto(
+            watchdogExpirado,
+            emergenciaRemotaAtiva,
+            fbEmergenciaAtiva,
+            microFreioAtiva,
+            fbMotorAtivo
+        );
     } else if (!bloqueioRemoto && bloqueioRemotoAnterior) {
-        LOG_INFO("CLP", "Comando remoto liberado");
+        LOG_INFO("BLOQUEIO", "Comando remoto liberado");
     }
     bloqueioRemotoAnterior = bloqueioRemoto;
 
@@ -375,24 +437,9 @@ void loop() {
         subirAtivo = true;
     } else if (operacaoRemotaPermitida && demandaRemotaDescer) {
         descerAtivo = true;
-    } else if (!holdRemotoAtivo && !watchdogExpirado) {
-        if (btnSubirLocal) {
-            subirAtivo = true;
-            if (!testeSubirAnterior) {
-                LOG_INFO("TESTE", "Botao SUBIR local pressionado — sinal enviado ao CLP");
-            }
-        } else if (btnDescerLocal) {
-            descerAtivo = true;
-            if (!testeDescerAnterior) {
-                LOG_INFO("TESTE", "Botao DESCER local pressionado — sinal enviado ao CLP");
-            }
-        }
     }
 
     aplicarMovimento(subirAtivo, descerAtivo);
-    registrarMudancaSaidaMovimento(subirAtivo, descerAtivo);
-    testeSubirAnterior  = btnSubirLocal;
-    testeDescerAnterior = btnDescerLocal;
 
     // Encerrar pulsos vencidos
     atualizarPulsos();
@@ -402,6 +449,12 @@ void loop() {
         setEmergencia(emergenciaRemotaAtiva);
     }
     digitalWrite(PIN_CLP_FIM_CURSO, fimCursoRemotoAtivo ? LOW : HIGH);
+    registrarMudancaSaidasSustentadas(
+        subirAtivo,
+        descerAtivo,
+        watchdogExpirado || emergenciaRemotaAtiva,
+        fimCursoRemotoAtivo
+    );
 
     // 3. Enviar PacoteStatus ao Remote (heartbeat 200ms + imediato em mudança)
     PacoteStatus status = {};

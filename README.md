@@ -44,7 +44,6 @@ O sistema utiliza dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem r
 │  - 7 saídas GPIO → CLP inputs    │
 │  - 4 entradas GPIO ← feedback CLP│
 │  - 1 entrada GPIO ← micro freio  │
-│  - 2 botões de teste local       │
 │  - LED LINK                      │
 │  - Alimentação rede elétrica     │
 └──────────────────────────────────┘
@@ -109,7 +108,7 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 | Microcontrolador | ESP32 |
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
-| Entradas físicas | 2 botões de teste local + 4 feedbacks do CLP + 1 micro do freio |
+| Entradas físicas | 4 feedbacks do CLP + 1 micro do freio |
 | Saídas GPIO → CLP | 7 GPIOs (ativo em LOW/GND): SUBIR, DESCER, VEL1, VEL2, EMERGÊNCIA, RESET, FIM_CURSO |
 | Entradas GPIO ← CLP | 4 GPIOs (INPUT_PULLUP): MOTOR_ATIVO, EMERGÊNCIA_ATIVA, VEL1_ATIVA, VEL2_ATIVA |
 | Entrada GPIO ← hardware | 1 GPIO (INPUT_PULLUP): micro do freio NC |
@@ -167,30 +166,19 @@ O ESP Principal lê feedbacks digitais do CLP e a micro do freio com `INPUT_PULL
 | Sinal | GPIO ESP | Origem | Lógica | Comportamento |
 |---|---|---|---|---|
 | MOTOR_ATIVO | 23 | CLP | LOW = ativo | CLP informa motor em operação |
-| EMERGÊNCIA_ATIVA | 25 | CLP | LOW = ativo | CLP informa emergência ativa |
+| EMERGÊNCIA_ATIVA | 33 | CLP | LOW = ativo | CLP informa emergência ativa |
 | VEL1_ATIVA | 26 | CLP | LOW = ativo | CLP informa velocidade 1 ativa |
 | VEL2_ATIVA | 27 | CLP | LOW = ativo | CLP informa velocidade 2 ativa |
 | MICRO_FREIO | 14 | Micro NC | HIGH = freio ativo | Micro do freio indica freio aplicado; LOW = freio liberado |
 
-### 4.3 Entradas de Teste Local (sem Remote)
-
-Botões físicos no Principal para acionar o CLP diretamente durante testes, sem necessidade do Módulo Remote. Quando pressionados, resetam o watchdog internamente para evitar emergência por timeout.
-
-| Botão | GPIO | Tipo | Lógica | Comportamento |
-|---|---|---|---|---|
-| TESTE SUBIR | 32 | Táctil | INPUT_PULLUP (LOW = ativo) | Ativa `PIN_CLP_SUBIR` LOW enquanto pressionado |
-| TESTE DESCER | 33 | Táctil | INPUT_PULLUP (LOW = ativo) | Ativa `PIN_CLP_DESCER` LOW enquanto pressionado |
-
-> Prioridade: hold remoto tem precedência. Botões de teste só atuam quando não há hold remoto ativo e o watchdog de comunicação não está expirado.
-
-### 4.4 Fim de Curso de Descida
+### 4.3 Fim de Curso de Descida
 
 O sensor de fim de curso de descida está conectado ao **ESP32 Remote** (GPIO 36). Quando acionado:
 - O Remote inclui `fim_curso_descida = 1` no `PacoteRemote`
 - O Principal replica o sinal em `PIN_CLP_FIM_CURSO` (LOW) para o CLP
 - O CLP trata a lógica de bloqueio de descida
 
-### 4.5 Fail-Safe de Comunicação
+### 4.4 Fail-Safe de Comunicação
 
 Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 1. `PIN_CLP_EMERGENCIA` = LOW → CLP aplica freio imediatamente
@@ -213,14 +201,12 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | CLP — RESET | Saída | 19 | LOW = pulso 50 ms |
 | CLP — FIM_CURSO | Saída | 22 | LOW = fim de curso descida ativo |
 | LED LINK | Saída | 21 | HIGH = aceso (link com Remote OK) |
-| TESTE SUBIR | Entrada | 32 | INPUT_PULLUP — LOW = pressionado |
-| TESTE DESCER | Entrada | 33 | INPUT_PULLUP — LOW = pressionado |
 | FB MOTOR_ATIVO | Entrada | 23 | INPUT_PULLUP — LOW = ativo |
-| FB EMERGÊNCIA_ATIVA | Entrada | 25 | INPUT_PULLUP — LOW = ativo |
+| FB EMERGÊNCIA_ATIVA | Entrada | 33 | INPUT_PULLUP — LOW = ativo |
 | FB VEL1_ATIVA | Entrada | 26 | INPUT_PULLUP — LOW = ativo |
 | FB VEL2_ATIVA | Entrada | 27 | INPUT_PULLUP — LOW = ativo |
 | MICRO_FREIO | Entrada | 14 | INPUT_PULLUP — HIGH = freio ativo |
-| **Total** | | **15** | **7 entradas + 8 saídas** |
+| **Total** | | **13** | **5 entradas + 8 saídas** |
 
 > Todos os GPIOs inicializados em HIGH (inativo) no boot.
 > GPIOs 0, 2, 12 e 15 evitados (strapping pins de boot).

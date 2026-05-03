@@ -19,7 +19,6 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
   - `EMERGENCIA_ATIVA` do CLP
   - `micro_freio_ativa == 1`
   - ausência de `MOTOR_ATIVO`
-- oferecer botões de teste local em `GPIO 32` e `GPIO 33`
 
 ## GPIOs
 
@@ -27,8 +26,8 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 
 | Sinal | GPIO | Comportamento |
 |---|---|---|
-| `PIN_CLP_SUBIR` | 4 | LOW estável durante hold remoto/local |
-| `PIN_CLP_DESCER` | 16 | LOW estável durante hold remoto/local |
+| `PIN_CLP_SUBIR` | 4 | LOW estável durante hold remoto |
+| `PIN_CLP_DESCER` | 16 | LOW estável durante hold remoto |
 | `PIN_CLP_VEL1` | 17 | Pulso LOW de 50 ms |
 | `PIN_CLP_VEL2` | 5 | Pulso LOW de 50 ms |
 | `PIN_CLP_EMERGENCIA` | 18 | LOW em emergência remota ou watchdog expirado |
@@ -40,10 +39,8 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 
 | Sinal | GPIO | Leitura |
 |---|---|---|
-| `PIN_BTN_TESTE_SUBIR` | 32 | `INPUT_PULLUP`, LOW = pressionado |
-| `PIN_BTN_TESTE_DESCER` | 33 | `INPUT_PULLUP`, LOW = pressionado |
 | `PIN_FB_MOTOR_ATIVO` | 23 | LOW = ativo |
-| `PIN_FB_EMERGENCIA_ATIVA` | 25 | LOW = ativo |
+| `PIN_FB_EMERGENCIA_ATIVA` | 33 | LOW = ativo |
 | `PIN_FB_VEL1_ATIVA` | 26 | LOW = ativo |
 | `PIN_FB_VEL2_ATIVA` | 27 | LOW = ativo |
 | `PIN_MICRO_FREIO` | 14 | HIGH = freio ativo |

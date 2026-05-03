@@ -56,7 +56,7 @@ O Módulo Principal possui **autoridade máxima** sobre o sistema:
 | Microcontrolador | ESP32 |
 | Localização | Painel fixo no estacionamento/depósito |
 | Alimentação | Fonte derivada da rede elétrica 110/220V |
-| Entradas | 2 botões de teste local, 4 feedbacks do CLP e 1 micro do freio |
+| Entradas | 4 feedbacks do CLP e 1 micro do freio |
 | Saídas | 7 sinais GPIO para entradas do CLP + 1 LED LINK |
 | Comunicação | ESP-NOW — recebe `PacoteRemote`, envia `PacoteStatus` com feedbacks |
 

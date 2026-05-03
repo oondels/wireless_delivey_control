@@ -118,13 +118,9 @@ Comportamento:
 - enquanto o hold remoto continuar válido e as condições de segurança estiverem satisfeitas, a saída correspondente permanece em LOW
 - ao cessar o hold ou surgir bloqueio, a saída volta imediatamente para HIGH
 
-### 5.3 Botões de Teste Local
+### 5.3 Principal
 
-Os botões locais do Principal:
-
-- resetam o watchdog enquanto pressionados
-- só comandam movimento quando não há hold remoto ativo
-- não assumem operação degradada com watchdog expirado
+O Principal não possui botões de teste local. Os sinais `SUBIR` e `DESCER` enviados ao CLP derivam apenas do hold recebido do Remote e das condições de segurança locais.
 
 ---
 

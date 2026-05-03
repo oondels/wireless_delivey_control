@@ -4,6 +4,17 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(logging): detalha saidas e bloqueios do principal
+
+- Módulo Principal passa a registrar quando cada saída para o CLP é ativada, incluindo GPIO e nível elétrico
+- Bloqueio de comando remoto passa a informar causas específicas: watchdog/link, emergência remota, emergência do CLP, micro do freio ou ausência de `MOTOR_ATIVO`
+
+### chore(pinout): remove testes locais do principal
+
+- Botões de teste local do Módulo Principal foram removidos do firmware e da documentação
+- `FB_EMERGENCIA_ATIVA` do CLP foi remapeado de `GPIO 25` para `GPIO 33`
+- Total do Módulo Principal passa para 5 entradas e 8 saídas
+
 ### docs(modulos): revisa specs e adiciona readmes locais
 
 - Documentação foi revisada contra o código atual de `principal` e `remote`, com correções em protocolo, segurança, LEDs e hardware

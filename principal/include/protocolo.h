@@ -128,11 +128,11 @@ inline uint32_t calcular_auth_tag_bytes(const uint8_t key[16], const uint8_t* da
     uint8_t digest[32] = {};
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
-    mbedtls_sha256_starts_ret(&ctx, 0);
-    mbedtls_sha256_update_ret(&ctx, key, 16);
-    mbedtls_sha256_update_ret(&ctx, data, len);
-    mbedtls_sha256_update_ret(&ctx, key, 16);
-    mbedtls_sha256_finish_ret(&ctx, digest);
+    mbedtls_sha256_starts(&ctx, 0);
+    mbedtls_sha256_update(&ctx, key, 16);
+    mbedtls_sha256_update(&ctx, data, len);
+    mbedtls_sha256_update(&ctx, key, 16);
+    mbedtls_sha256_finish(&ctx, digest);
     mbedtls_sha256_free(&ctx);
 
     return (static_cast<uint32_t>(digest[0]) << 24) |

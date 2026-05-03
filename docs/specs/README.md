@@ -21,7 +21,7 @@
 | motor, relé direção, SUBIR, DESCER, dead-time | `motor/SPEC.md` | §2 |
 | velocidade, VEL1, VEL2, potenciômetro, relé velocidade | `motor/SPEC.md` | §3 |
 | freio, relé freio, acionar_freio, liberar_freio | `motor/SPEC.md` | §4 |
-| micro do freio, micro_freio_ativa | `hardware_io/SPEC.md` | §4.3, §13 |
+| micro do freio, micro_freio_ativa | `hardware_io/SPEC.md` | §4.2, §13 |
 | fim de curso, estacionamento, sensor posição | `motor/SPEC.md` | §5 |
 | sequência de partida, parada, inversão | `motor/SPEC.md` | §6 |
 | condições de acionamento do motor (tabela) | `motor/SPEC.md` | §7 |
@@ -85,7 +85,7 @@ Documento histórico da máquina de estados central. Para a arquitetura atual, u
 
 ### `hardware_io/SPEC.md` — Hardware e I/O
 
-2x ESP32 WROOM-32U, alimentação (rede e bateria), mapa de entradas/saídas (15 GPIOs Principal, 11 GPIOs Remote), restrições de pinout, pull-ups, sensor fim de curso, micro do freio e lista de materiais.
+2x ESP32 WROOM-32U, alimentação (rede e bateria), mapa de entradas/saídas (13 GPIOs Principal, 11 GPIOs Remote), restrições de pinout, pull-ups, sensor fim de curso, micro do freio e lista de materiais.
 
 **Depende de:** nenhum (referência de base para todos os demais).
 
@@ -95,7 +95,7 @@ Documento histórico da máquina de estados central. Para a arquitetura atual, u
 
 | Módulo | Entradas | Saídas | Total |
 |---|---|---|---|
-| Principal | 7 | 8 | 15 |
+| Principal | 5 | 8 | 13 |
 | Remote | 6 ativas + 1 desabilitada | 5 | 11 |
 
 ---

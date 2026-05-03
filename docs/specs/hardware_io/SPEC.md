@@ -47,33 +47,24 @@ O sistema utiliza dois ESP32 WROOM-32U.
 
 ## 4. Entradas — Módulo Principal
 
-### 4.1 Botões de Teste Local
-
-Usados para acionar o CLP diretamente durante testes, sem necessidade do Remote conectado. Quando pressionados, resetam o watchdog interno para evitar emergência por timeout.
-
-| Botão | GPIO | Tipo | Pull-up | Leitura | Descrição |
-|---|---|---|---|---|---|
-| TESTE SUBIR | 32 | Táctil | Interno (`INPUT_PULLUP`) | LOW = ativo | Ativa `PIN_CLP_SUBIR` LOW enquanto pressionado |
-| TESTE DESCER | 33 | Táctil | Interno (`INPUT_PULLUP`) | LOW = ativo | Ativa `PIN_CLP_DESCER` LOW enquanto pressionado |
-
-### 4.2 Feedbacks do CLP
+### 4.1 Feedbacks do CLP
 
 Todos configurados com `INPUT_PULLUP`.
 
 | Sinal | GPIO | Origem | Leitura | Descrição |
 |---|---|---|---|---|
 | MOTOR_ATIVO | 23 | CLP | LOW = ativo | Informa motor em operação |
-| EMERGÊNCIA_ATIVA | 25 | CLP | LOW = ativo | Informa emergência ativa |
+| EMERGÊNCIA_ATIVA | 33 | CLP | LOW = ativo | Informa emergência ativa |
 | VEL1_ATIVA | 26 | CLP | LOW = ativo | Informa velocidade 1 ativa |
 | VEL2_ATIVA | 27 | CLP | LOW = ativo | Informa velocidade 2 ativa |
 
-### 4.3 Micro do Freio
+### 4.2 Micro do Freio
 
 | Sinal | GPIO | Tipo | Pull-up | Leitura | Descrição |
 |---|---|---|---|---|---|
 | MICRO_FREIO | 14 | NC | Interno (`INPUT_PULLUP`) | LOW = freio liberado, HIGH = freio ativo | Micro do freio indica freio aplicado; abertura do circuito também resulta em HIGH |
 
-**Total de entradas no Principal: 7 GPIOs**
+**Total de entradas no Principal: 5 GPIOs**
 
 ---
 
@@ -105,7 +96,7 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 
 **Total de saídas no Principal: 8 GPIOs**
 
-**Total de GPIOs no Principal: 15** (7 entradas + 8 saídas)
+**Total de GPIOs no Principal: 13** (5 entradas + 8 saídas)
 
 ---
 
@@ -177,7 +168,6 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 
 | Componente | Pull-Up |
 |---|---|
-| Botões tácteis em GPIO 32/33 | Interno (`INPUT_PULLUP`) |
 | Botões tácteis em GPIO 34/39/36 | Externo obrigatório |
 | Botão emergência NC do Remote | Interno (`INPUT_PULLUP`) |
 | Feedbacks do CLP no Principal | Interno (`INPUT_PULLUP`) |
@@ -250,7 +240,7 @@ Os relés e a lógica de potência ficam sob responsabilidade do CLP e do circui
 | 1 | Módulo TP4056 | Carregador do Remote |
 | 1 | LM2596 step-down | Regulador do Remote |
 | 2 | Botões com trava | Emergência principal + emergência remote |
-| 4 | Botões tácteis / teste | Remote e testes locais do Principal |
+| 4 | Botões tácteis | Remote |
 | 1 | Sensor fim de curso | Descida |
 | 1 | Micro do freio NC | Feedback do freio no Principal |
 | 6 | LEDs discretos | 1 no Principal + 5 no Remote |
