@@ -6,7 +6,6 @@
  * O CLP gerencia toda a lógica de controle (motor, freio, estados, segurança).
  *
  * Sequência do loop:
- *   0. Atualizar sensor fim de curso (debounce)
  *   1. Ler botões (debounce interno)
  *   2. Montar PacoteRemote
  *   3. Enviar pacote (heartbeat 100ms + imediato em mudança)
@@ -19,7 +18,6 @@
 #include "protocolo.h"
 #include "botoes.h"
 #include "comunicacao.h"
-#include "fim_curso.h"
 #include "leds.h"
 #include "atualizar_leds.h"
 #include "logger.h"
@@ -27,7 +25,6 @@
 // Instâncias globais
 Botoes      botoes;
 Comunicacao comunicacao;
-FimCurso    fimCursoDescida(PIN_FIM_CURSO_DESCIDA);
 
 // LEDs dedicados do Remote (GPIO 18 e GPIO 21 não utilizados nesta arquitetura)
 Led ledLink(PIN_LED_LINK);
@@ -42,7 +39,6 @@ uint32_t ultimoEnvioMs = 0;
 // Estado anterior dos botões para detectar mudança e logging
 EstadoBotoes btnAnterior = {};
 bool    linkAnteriorOk          = false;
-bool    fimCursoDescidaAnterior = false;
 bool    bloqueioMovimentoAnterior = false;
 bool    microFreioAnteriorAtiva   = false;
 bool    aguardandoPartidaAnterior = false;
@@ -52,7 +48,6 @@ void setup() {
     LOG_ALWAYS("BOOT", "=== Modulo Remote - Inicializando ===");
 
     botoes.init();
-    fimCursoDescida.init();
     comunicacao.init();
 
     LOG_ALWAYS_VAL("BOOT", "MAC local: ", WiFi.macAddress());
@@ -60,10 +55,6 @@ void setup() {
 }
 
 void loop() {
-    // 0. Atualizar sensor fim de curso (debounce + timer pós-liberação)
-    fimCursoDescida.atualizar();
-    bool fcDescida = fimCursoDescida.acionado();
-
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();
 
@@ -123,7 +114,7 @@ void loop() {
     // 2. Montar PacoteRemote
     PacoteRemote pacote = {};
     pacote.emergencia        = btn.emergencia ? 1 : 0;
-    pacote.fim_curso_descida = fcDescida ? 1 : 0;
+    pacote.fim_curso_descida = 0;  // FDC descida temporariamente desabilitado
     pacote.timestamp         = millis();
 
     // Determinar comando e botao_hold
@@ -151,7 +142,6 @@ void loop() {
     bool mudouEstado = (btn.subir_hold  != btnAnterior.subir_hold)  ||
                        (btn.descer_hold != btnAnterior.descer_hold) ||
                        (btn.emergencia  != btnAnterior.emergencia)  ||
-                       (fcDescida != fimCursoDescidaAnterior)       ||
                        btn.vel1_pulso || btn.vel2_pulso || btn.reset_pulso;
 
     bool envioPeriodicoVencido = (millis() - ultimoEnvioMs >= HEARTBEAT_INTERVALO_MS);
@@ -161,8 +151,7 @@ void loop() {
         ultimoEnvioMs = millis();
     }
 
-    btnAnterior             = btn;
-    fimCursoDescidaAnterior = fcDescida;
+    btnAnterior = btn;
 
     // Log de link (comunicação)
     bool linkAtualOk = statusPrincipalValido;

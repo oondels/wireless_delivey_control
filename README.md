@@ -29,7 +29,7 @@ O sistema utiliza dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem r
 │  - Botões: SUBIR, DESCER,       │
 │    VEL1, VEL2, RESET,           │
 │    EMERGÊNCIA (c/ trava),       │
-│    fim de curso descida         │
+│    fim de curso descida reservado│
 │  - LEDs de status               │
 │  - Bateria + Enclosure IP54     │
 └─────────────────────────────────┘
@@ -71,7 +71,7 @@ flowchart LR
     MFR[Micro do freio NC]
     LEDS[LEDs e bloqueio local no Remote]
 
-    RBTN -->|SUBIR DESCER VEL1 VEL2 RESET EMERGÊNCIA fim de curso| REM
+    RBTN -->|SUBIR DESCER VEL1 VEL2 RESET EMERGÊNCIA| REM
     REM -->|PacoteRemote via ESP-NOW\nheartbeat 100 ms| PRI
     PRI -->|GPIO de saída para CLP\nLOW = ativo| CLP
     CLP -->|Feedbacks LOW = ativo:\nmotor emergência vel1 vel2| PRI
@@ -122,7 +122,7 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 | Microcontrolador | ESP32 |
 | Localização | Embarcado no carrinho de transporte |
 | Alimentação | Bateria recarregável (ex: Li-Ion 18650 + regulador 3.3V) |
-| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, EMERGÊNCIA (c/ trava); fim de curso descida |
+| Entradas | Botões: SUBIR (hold), DESCER (hold), VEL1, VEL2, EMERGÊNCIA (c/ trava); fim de curso descida reservado/desabilitado |
 | Saídas LEDs | GPIOs dedicados: LINK, MOTOR, VEL1, VEL2, EMERGÊNCIA |
 | Comunicação | ESP-NOW — transmite `PacoteRemote` e heartbeat para o Principal |
 
@@ -157,7 +157,7 @@ GPIO ESP32 (OUTPUT)
 | VEL2 | 5 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL2 |
 | EMERGÊNCIA | 18 | Entrada CLP | Nível | LOW se emergência Remote OU watchdog expirado |
 | RESET | 19 | Entrada CLP | Pulso | LOW por 50 ms ao pressionar RESET |
-| FIM_CURSO | 22 | Entrada CLP | Nível | LOW quando carrinho na posição final de descida |
+| FIM_CURSO | 22 | Entrada CLP | Nível | Temporariamente desabilitado; mantido HIGH |
 
 ### 4.2 Entradas GPIO do Principal ← CLP / Hardware
 
@@ -173,10 +173,7 @@ O ESP Principal lê feedbacks digitais do CLP e a micro do freio com `INPUT_PULL
 
 ### 4.3 Fim de Curso de Descida
 
-O sensor de fim de curso de descida está conectado ao **ESP32 Remote** (GPIO 36). Quando acionado:
-- O Remote inclui `fim_curso_descida = 1` no `PacoteRemote`
-- O Principal replica o sinal em `PIN_CLP_FIM_CURSO` (LOW) para o CLP
-- O CLP trata a lógica de bloqueio de descida
+Funcionalidade temporariamente desabilitada nesta versão. O campo `fim_curso_descida` permanece no protocolo para reativação futura, mas o Remote envia sempre `0` e o Principal mantém `PIN_CLP_FIM_CURSO` em HIGH.
 
 ### 4.4 Fail-Safe de Comunicação
 
@@ -199,7 +196,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | CLP — VEL2 | Saída | 5 | LOW = pulso 50 ms |
 | CLP — EMERGÊNCIA | Saída | 18 | LOW = emergência ativa |
 | CLP — RESET | Saída | 19 | LOW = pulso 50 ms |
-| CLP — FIM_CURSO | Saída | 22 | LOW = fim de curso descida ativo |
+| CLP — FIM_CURSO | Saída | 22 | Temporariamente desabilitado; mantido HIGH |
 | LED LINK | Saída | 21 | HIGH = aceso (link com Remote OK) |
 | FB MOTOR_ATIVO | Entrada | 23 | INPUT_PULLUP — LOW = ativo |
 | FB EMERGÊNCIA_ATIVA | Entrada | 33 | INPUT_PULLUP — LOW = ativo |
@@ -222,7 +219,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | Botão VEL2 | Entrada | 34 | Input-only, pull-up externo obrigatório |
 | Botão RESET | Entrada | 255 | Desabilitado nesta versão |
 | Botão EMERGÊNCIA (trava) | Entrada | 13 | Pull-up interno (INPUT_PULLUP) — NC, HIGH = ativo |
-| Fim de curso descida | Entrada | 36 (VP) | Input-only, pull-up externo obrigatório — LOW = carrinho na posição final |
+| Fim de curso descida | Entrada | 36 (VP) | Reservado; funcionalidade temporariamente desabilitada |
 | LED LINK | Saída | 4 | Comunicação com Principal |
 | LED MOTOR | Saída | 16 | Pisca enquanto aguarda liberação do freio e partida; fixo com `motor_ativo == 1` |
 | LED VEL1 | Saída | 17 | Velocidade 1 reportada pelo CLP |
@@ -252,7 +249,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 - O Remote só envia `SUBIR` ou `DESCER` quando o status do Principal é válido, a emergência local não está ativa e o CLP não está reportando emergência ativa.
 - No Principal, `SUBIR` ou `DESCER` remotos só energizam a saída correspondente enquanto o hold permanecer válido e as condições de bloqueio estiverem liberadas.
 - Ordem de prioridade no Principal: perda de link/watchdog e emergência sempre impedem operação remota.
-- Além disso, operação remota de `SUBIR` ou `DESCER` só é permitida quando `micro_freio_ativa == 0` e `motor_ativo == 0`; se `motor_ativo == 1`, o CLP já indica operação em andamento e o movimento remoto fica bloqueado no Principal.
+- Além disso, operação remota de `SUBIR` ou `DESCER` só é bloqueada no Principal por watchdog/link, emergência, `EMERGENCIA_ATIVA` do CLP ou `micro_freio_ativa == 1`; o feedback `motor_ativo` é apenas telemetria e não bloqueia o comando remoto.
 - O Remote transmite `botao_hold = 1` enquanto o botão está pressionado.
 - Ao pressionar SUBIR ou DESCER, o LED `MOTOR` do Remote pisca enquanto o freio ainda está aplicado (`micro_freio_ativa == 1`) ou enquanto o CLP ainda não reportou `motor_ativo == 1`.
 - O LED `MOTOR` só passa a ficar aceso fixo quando o Principal reporta simultaneamente `micro_freio_ativa == 0` e `motor_ativo == 1`.
@@ -320,7 +317,7 @@ A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal
 | `PIN_CLP_VEL2` | Pulso LOW 50ms | Selecionar velocidade 2 |
 | `PIN_CLP_EMERGENCIA` | LOW | Emergência ativa (botão ou watchdog) |
 | `PIN_CLP_RESET` | Pulso LOW 50ms | Reset / rearme |
-| `PIN_CLP_FIM_CURSO` | LOW | Carrinho na posição final de descida |
+| `PIN_CLP_FIM_CURSO` | HIGH | Temporariamente desabilitado |
 
 ---
 
@@ -342,7 +339,7 @@ typedef struct {
                                  // 3=VEL1, 4=VEL2, 5=RESET
     uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1=botão com trava ativo no Remote
-    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
+    uint8_t  fim_curso_descida;  // reservado; enviado como 0 nesta versão
     uint32_t timestamp;          // millis() do Remote
     uint32_t seq;                // contador monotônico Remote -> Principal
     uint32_t session_id;         // sessão do Remote
@@ -483,13 +480,13 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 - **Robustez:** Enclosure Remote mínimo IP54.
 - **Segurança elétrica:** CLP e ESP32 com GND comum; isolação galvânica recomendada entre rede elétrica e lógica de controle.
 - **Pulso CLP:** 50 ms mínimo para garantir leitura de sinais VEL1/VEL2/RESET pelo CLP.
-- **Fim de curso descida:** Debounce mínimo 20 ms no Remote.
+- **Fim de curso descida:** temporariamente desabilitado; campo reservado para reativação futura.
 
 ---
 
 ## 13. Fora de Escopo (v1.0)
 
-- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 36)
+- Fim de curso na posição inferior (margem do rio) — temporariamente desabilitado; reservado para reativação futura no Remote GPIO 36.
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
 - Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).

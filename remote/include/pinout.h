@@ -38,7 +38,7 @@
 // ENTRADAS — Sensores
 // ============================================================
 
-#define PIN_FIM_CURSO_DESCIDA  36  // LOW = carrinho na posição final de descida — pull-up externo obrigatório
+#define PIN_FIM_CURSO_DESCIDA  36  // Reservado; FDC descida temporariamente desabilitado
 
 // ============================================================
 // SAÍDAS — LEDs dedicados (HIGH = aceso)

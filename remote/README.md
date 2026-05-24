@@ -1,11 +1,11 @@
 # Módulo Remote
 
-Firmware do ESP32 embarcado no carrinho. Este módulo lê botões e sensor local, envia comandos ao `Principal` e traduz o `PacoteStatus` em bloqueios e LEDs para o operador.
+Firmware do ESP32 embarcado no carrinho. Este módulo lê botões locais, envia comandos ao `Principal` e traduz o `PacoteStatus` em bloqueios e LEDs para o operador.
 
 ## Responsabilidades
 
 - ler botões `SUBIR`, `DESCER`, `VEL1`, `VEL2`, `EMERGÊNCIA`
-- monitorar o fim de curso de descida em `GPIO 36`
+- manter o fim de curso de descida temporariamente desabilitado (`fim_curso_descida = 0`)
 - enviar `PacoteRemote` por ESP-NOW a cada 100 ms ou imediatamente em mudanças
 - bloquear `SUBIR` e `DESCER` quando:
   - status do Principal expirou
@@ -26,7 +26,7 @@ Firmware do ESP32 embarcado no carrinho. Este módulo lê botões e sensor local
 | `PIN_BTN_VEL2` | 34 | pull-up externo, LOW = pressionado |
 | `PIN_BTN_RESET` | 255 | desabilitado nesta versão |
 | `PIN_BTN_EMERGENCIA` | 13 | NC, HIGH = ativo |
-| `PIN_FIM_CURSO_DESCIDA` | 36 | pull-up externo, LOW = acionado |
+| `PIN_FIM_CURSO_DESCIDA` | 36 | reservado; funcionalidade temporariamente desabilitada |
 
 ### Saídas
 
@@ -45,7 +45,7 @@ Firmware do ESP32 embarcado no carrinho. Este módulo lê botões e sensor local
 - o LED `MOTOR` pisca enquanto existe solicitação de movimento, mas o sistema ainda aguarda:
   - `micro_freio_ativa == 0`
   - `motor_ativo == 1`
-- o sensor de fim de curso mantém bloqueio lógico por 10 s após a liberação física
+- o fim de curso de descida está temporariamente desabilitado e será reativado em versão futura
 
 ## Comunicação
 
@@ -64,7 +64,7 @@ Campos do `.env` usados aqui:
 - [src/remote.cpp](/home/oendel/code/hendrius/automacao_rio/remote/src/remote.cpp:1): loop principal, montagem de `PacoteRemote` e bloqueios locais
 - [src/comunicacao.cpp](/home/oendel/code/hendrius/automacao_rio/remote/src/comunicacao.cpp:1): ESP-NOW, validação de `PacoteStatus`, autenticação e anti-replay
 - [src/botoes.cpp](/home/oendel/code/hendrius/automacao_rio/remote/src/botoes.cpp:1): debounce e leitura dos botões
-- [src/fim_curso.cpp](/home/oendel/code/hendrius/automacao_rio/remote/src/fim_curso.cpp:1): debounce e retenção pós-liberação do fim de curso
+- [src/fim_curso.cpp](/home/oendel/code/hendrius/automacao_rio/remote/src/fim_curso.cpp:1): implementação reservada para reativação futura do fim de curso
 - [src/atualizar_leds.cpp](/home/oendel/code/hendrius/automacao_rio/remote/src/atualizar_leds.cpp:1): lógica dos LEDs
 
 ## Build

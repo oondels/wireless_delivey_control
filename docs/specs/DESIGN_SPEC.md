@@ -238,7 +238,7 @@ typedef struct {
                                  // 3=VEL1, 4=VEL2, 5=RESET
     uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1=botão de emergência com trava ativo
-    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
+    uint8_t  fim_curso_descida;  // reservado; enviado como 0 na versão atual
     uint32_t timestamp;          // millis() do Remote
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } PacoteRemote;
@@ -325,7 +325,7 @@ O firmware inclui logging via Serial (115200 baud) com modo `prod` por padrão e
 
 ## 12. Fora de Escopo (v1.0)
 
-- ~~Fim de curso na posição inferior (margem do rio).~~ — **implementado** (Remote GPIO 13)
+- Fim de curso na posição inferior (margem do rio) — temporariamente desabilitado na versão atual; reservado para reativação futura.
 - Display LCD/OLED.
 - Controle por aplicativo mobile.
 - Registro persistente de logs de operação (logs via Serial para debug estão disponíveis — ver §11).

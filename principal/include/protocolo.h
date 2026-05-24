@@ -40,7 +40,7 @@ typedef struct {
     uint8_t  comando;            // Comando enum (0-5)
     uint8_t  botao_hold;         // 1 = SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1 = botão emergência com trava ativo no Remote
-    uint8_t  fim_curso_descida;  // 1 = carrinho na posição final de descida (GPIO 36)
+    uint8_t  fim_curso_descida;  // reservado; enviado como 0 nesta versão
     uint32_t timestamp;          // millis() do Remote
     uint32_t seq;                // contador monotônico Remote -> Principal
     uint32_t session_id;         // sessão do Remote para anti-replay

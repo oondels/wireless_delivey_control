@@ -42,7 +42,7 @@ O Remote bloqueia `SUBIR` e `DESCER` quando qualquer condição abaixo for verda
 Quando bloqueado:
 
 - `SUBIR` e `DESCER` não são enviados
-- heartbeat, `VEL1`, `VEL2`, `RESET`, `EMERGÊNCIA` e `fim_curso_descida` continuam podendo ser enviados
+- heartbeat, `VEL1`, `VEL2`, `RESET` e `EMERGÊNCIA` continuam podendo ser enviados; `fim_curso_descida` está reservado/desabilitado nesta versão
 
 ### 3.2 LEDs do Remote
 
@@ -68,7 +68,7 @@ Se nenhum `PacoteRemote` válido for recebido por mais de `500 ms`:
 
 - `SUBIR` e `DESCER` são sinais de nível
 - `VEL1`, `VEL2` e `RESET` são pulsos de `50 ms`
-- `EMERGÊNCIA` e `FIM_CURSO` são sinais de nível
+- `EMERGÊNCIA` é sinal de nível; `FIM_CURSO` está reservado/desabilitado nesta versão
 
 ### 4.3 Feedback para o Remote
 

@@ -10,7 +10,7 @@
 
 Os dois módulos ESP32 comunicam-se via **ESP-NOW**, protocolo peer-to-peer da Espressif que opera sem roteador Wi-Fi.
 
-- O **Remote** envia comandos, heartbeat, estado do botão de emergência e fim de curso de descida.
+- O **Remote** envia comandos, heartbeat e estado do botão de emergência. O campo de fim de curso de descida está temporariamente desabilitado e permanece reservado.
 - O **Principal** responde com um `PacoteStatus` contendo validade do link, feedbacks digitais do CLP e o estado da micro do freio.
 - Em produção, o pareamento é fixo por MAC e usa criptografia ESP-NOW com PMK/LMK configuradas no build.
 
@@ -52,7 +52,7 @@ typedef struct {
                                  // 3=VEL1, 4=VEL2, 5=RESET
     uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1=botão de emergência com trava ativo
-    uint8_t  fim_curso_descida;  // 1=carrinho na posição final de descida
+    uint8_t  fim_curso_descida;  // reservado; enviado como 0 nesta versão
     uint32_t timestamp;          // millis() do Remote
     uint32_t seq;                // contador monotônico Remote -> Principal
     uint32_t session_id;         // sessão do Remote
@@ -68,7 +68,7 @@ typedef struct {
 | `comando` | `uint8_t` | 0–5 | Comando ativo no momento do envio |
 | `botao_hold` | `uint8_t` | 0 ou 1 | 1 = botão SUBIR ou DESCER fisicamente pressionado |
 | `emergencia` | `uint8_t` | 0 ou 1 | 1 = botão de emergência com trava ativo no Remote |
-| `fim_curso_descida` | `uint8_t` | 0 ou 1 | 1 = carrinho na posição final de descida |
+| `fim_curso_descida` | `uint8_t` | 0 | Reservado; temporariamente desabilitado |
 | `timestamp` | `uint32_t` | millis() | Timestamp do Remote para diagnóstico |
 | `seq` | `uint32_t` | crescente | Contador monotônico para anti-replay |
 | `session_id` | `uint32_t` | boot atual | Identificador de sessão do Remote |
@@ -217,7 +217,7 @@ uint8_t calcular_checksum(const uint8_t* data, size_t len) {
 ## 10. Hierarquia de Comando
 
 - O Principal continua sendo o ponto de intermediação com o CLP.
-- O Remote pode sempre enviar heartbeat, emergência, fim de curso e comandos de pulso.
+- O Remote pode sempre enviar heartbeat, emergência e comandos de pulso. O fim de curso permanece reservado, mas desabilitado nesta versão.
 - O Remote **bloqueia** `SUBIR` e `DESCER` localmente quando:
   - o status do Principal expira, ou
   - o botão de emergência local está ativo, ou

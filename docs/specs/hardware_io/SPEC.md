@@ -10,7 +10,7 @@
 
 O sistema utiliza dois ESP32 WROOM-32U.
 
-- O **Remote** lê botões e sensor de fim de curso e envia comandos via ESP-NOW.
+- O **Remote** lê botões e envia comandos via ESP-NOW; o sensor de fim de curso fica reservado/desabilitado nesta versão.
 - O **Principal** recebe esses comandos, aciona entradas digitais do CLP por GPIO e lê feedbacks do CLP e da micro do freio para retransmiti-los ao Remote.
 
 ---
@@ -84,7 +84,7 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 | VEL2 | 5 | Saída | Pulso LOW de 50 ms |
 | EMERGÊNCIA | 18 | Saída | LOW quando emergência remota ou watchdog expirado |
 | RESET | 19 | Saída | Pulso LOW de 50 ms |
-| FIM_CURSO | 22 | Saída | LOW quando fim de curso de descida está ativo |
+| FIM_CURSO | 22 | Saída | Temporariamente desabilitado; mantido HIGH |
 
 ### 5.2 LED Exclusivo
 
@@ -117,7 +117,7 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 
 | Sensor | GPIO | Tipo | Pull-up | Debounce | Leitura | Descrição |
 |---|---|---|---|---|---|---|
-| Fim de curso descida | 36 | Microswitch | Externo obrigatório | 20 ms | LOW = acionado | Posição final de descida |
+| Fim de curso descida | 36 | Reservado | — | — | — | Temporariamente desabilitado |
 
 **Total de entradas no Remote: 6 GPIOs ativas + 1 desabilitada**
 

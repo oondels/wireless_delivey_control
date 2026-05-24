@@ -228,8 +228,7 @@ static void registrarMotivosBloqueioRemoto(
     bool watchdogExpirado,
     bool emergenciaRemotaAtiva,
     bool fbEmergenciaAtiva,
-    bool microFreioAtiva,
-    bool fbMotorAtivo
+    bool microFreioAtiva
 ) {
     if (watchdogExpirado) {
         LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: watchdog/link com Remote expirado");
@@ -242,9 +241,6 @@ static void registrarMotivosBloqueioRemoto(
     }
     if (microFreioAtiva) {
         LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: micro do freio ativa/aberta (GPIO 14 HIGH)");
-    }
-    if (fbMotorAtivo) {
-        LOG_WARN("BLOQUEIO", "Movimento remoto bloqueado: feedback MOTOR_ATIVO ja ativo (GPIO 23 LOW)");
     }
 }
 
@@ -352,7 +348,7 @@ void loop() {
         const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
 
         emergenciaRemotaAtiva = (pkt.emergencia == 1);
-        fimCursoRemotoAtivo   = (pkt.fim_curso_descida == 1);
+        fimCursoRemotoAtivo   = false;  // FDC descida temporariamente desabilitado
 
         uint8_t cmd       = pkt.comando;
         bool    botaoHold = (pkt.botao_hold == 1);
@@ -406,8 +402,7 @@ void loop() {
     bool operacaoRemotaPermitida = !watchdogExpirado &&
                                    !emergenciaRemotaAtiva &&
                                    !fbEmergenciaAtiva &&
-                                   !microFreioAtiva &&
-                                   !fbMotorAtivo;
+                                   !microFreioAtiva;
     bool demandaRemotaSubir  = holdRemotoAtivo && (direcaoRemotaAtual == DIRECAO_REMOTA_SUBIR);
     bool demandaRemotaDescer = holdRemotoAtivo && (direcaoRemotaAtual == DIRECAO_REMOTA_DESCER);
     bool bloqueioRemoto = (demandaRemotaSubir || demandaRemotaDescer) && !operacaoRemotaPermitida;
@@ -422,8 +417,7 @@ void loop() {
             watchdogExpirado,
             emergenciaRemotaAtiva,
             fbEmergenciaAtiva,
-            microFreioAtiva,
-            fbMotorAtivo
+            microFreioAtiva
         );
     } else if (!bloqueioRemoto && bloqueioRemotoAnterior) {
         LOG_INFO("BLOQUEIO", "Comando remoto liberado");

@@ -26,7 +26,8 @@ Para aceitar movimento remoto (`SUBIR`/`DESCER`), o firmware exige simultaneamen
 2. `emergencia` remota **inativa**
 3. feedback `EMERGENCIA_ATIVA` do CLP **inativo**
 4. `micro_freio_ativa == 0`
-5. feedback `MOTOR_ATIVO == 0`
+
+O feedback `MOTOR_ATIVO` é telemetria para LED/diagnóstico e não bloqueia o acionamento remoto, para evitar oscilação quando o próprio comando remoto faz o CLP ativar esse feedback.
 
 Se qualquer uma dessas condições falhar:
 
@@ -136,12 +137,11 @@ O Principal não possui botões de teste local. Os sinais `SUBIR` e `DESCER` env
 
 ### 6.2 Fim de Curso de Descida
 
-- conexão: `GPIO 36` no Remote
-- LOW = sensor acionado
-- debounce: 20 ms
-- após a liberação física, o firmware mantém bloqueio lógico por 10 s
-- durante esse período, `fim_curso_descida = 1` continua sendo enviado ao Principal
-- o Principal replica esse estado em `PIN_CLP_FIM_CURSO`
+- funcionalidade temporariamente desabilitada nesta versão
+- o campo `fim_curso_descida` permanece reservado no protocolo
+- o Remote envia `fim_curso_descida = 0` em todos os pacotes
+- o Principal ignora esse campo e mantém `PIN_CLP_FIM_CURSO` em HIGH
+- a implementação de debounce e retenção pós-liberação fica preservada para reativação futura
 
 ---
 
@@ -155,5 +155,5 @@ Estas condições devem permanecer verdadeiras no firmware atual:
 4. emergência local do Remote impede envio de `SUBIR` e `DESCER`
 5. `EMERGENCIA_ATIVA` reportada pelo CLP impede movimento remoto
 6. `micro_freio_ativa == 1` impede movimento remoto no Principal
-7. `MOTOR_ATIVO == 1` impede movimento remoto no Principal
+7. `MOTOR_ATIVO` não interfere no acionamento remoto no Principal
 8. pacotes inválidos não atualizam estado de link nem resetam watchdog

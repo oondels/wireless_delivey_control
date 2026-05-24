@@ -4,15 +4,22 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
-### fix(principal): corrige bloqueio por motor ativo
+### fix(principal): remove bloqueio por motor ativo
 
-- `MOTOR_ATIVO` deixa de ser pré-condição para liberar `SUBIR`/`DESCER` remoto
-- Movimento remoto passa a ser bloqueado quando o feedback `MOTOR_ATIVO` já está ativo, evitando comando remoto durante operação em andamento pelo CLP
+- `MOTOR_ATIVO` passa a ser usado apenas como telemetria para LED e diagnóstico
+- Principal deixa de cortar `SUBIR`/`DESCER` quando o CLP reporta `MOTOR_ATIVO`, evitando oscilação do relé durante acionamento remoto
+
+### chore(fim-curso): desabilita fdc de descida temporariamente
+
+- Remote passa a enviar `fim_curso_descida = 0` em todos os pacotes
+- Principal passa a ignorar o campo `fim_curso_descida` e mantém `PIN_CLP_FIM_CURSO` em HIGH
+- Documentação marca o fim de curso de descida como reservado para reativação futura
+- Configuração PlatformIO usa `monitor_port` e `upload_port` para evitar avisos de build
 
 ### feat(logging): detalha saidas e bloqueios do principal
 
 - Módulo Principal passa a registrar quando cada saída para o CLP é ativada, incluindo GPIO e nível elétrico
-- Bloqueio de comando remoto passa a informar causas específicas: watchdog/link, emergência remota, emergência do CLP, micro do freio ou `MOTOR_ATIVO` já ativo
+- Bloqueio de comando remoto passa a informar causas específicas: watchdog/link, emergência remota, emergência do CLP ou micro do freio
 
 ### chore(pinout): remove testes locais do principal
 
@@ -57,7 +64,7 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 - Logs são emitidos apenas em mudança de estado para evitar spam no loop principal
 - Log existente da micro do freio em `GPIO 14` foi preservado sem alteração
 - Saídas `SUBIR` e `DESCER` do Principal passam a permanecer estáveis enquanto o hold remoto continuar válido, sem pulsar entre heartbeats
-- Operação remota no Principal passa a ser bloqueada por perda de link, emergência, `micro_freio_ativa == 1` ou `motor_ativo == 1`
+- Operação remota no Principal passa a ser bloqueada por perda de link, emergência ou `micro_freio_ativa == 1`
 - `README.md` e `hardware_io/SPEC.md` atualizados para documentar o módulo de relé 5V intermediário entre ESP32 e CLP
 
 ### feat(comunicacao): adiciona feedback do CLP e micro do freio ao status do remote

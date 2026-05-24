@@ -18,7 +18,7 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
   - emergência remota
   - `EMERGENCIA_ATIVA` do CLP
   - `micro_freio_ativa == 1`
-  - `MOTOR_ATIVO` já ativo
+- tratar `MOTOR_ATIVO` apenas como telemetria; esse feedback não bloqueia `SUBIR`/`DESCER`
 
 ## GPIOs
 
@@ -32,7 +32,7 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 | `PIN_CLP_VEL2` | 5 | Pulso LOW de 50 ms |
 | `PIN_CLP_EMERGENCIA` | 18 | LOW em emergência remota ou watchdog expirado |
 | `PIN_CLP_RESET` | 19 | Pulso LOW de 50 ms |
-| `PIN_CLP_FIM_CURSO` | 22 | LOW quando o Remote reporta fim de curso descida |
+| `PIN_CLP_FIM_CURSO` | 22 | Temporariamente desabilitado; mantido HIGH |
 | `PIN_LED_LINK` | 21 | Fixo com link válido; pisca 2 Hz sem link |
 
 ### Entradas
