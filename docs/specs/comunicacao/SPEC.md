@@ -1,237 +1,120 @@
 # Especificação de Comunicação (ESP-NOW)
 
-**Versão:** 1.2
-**Data:** 2026-04-24
+**Versão:** 1.3
+**Data:** 2026-05-24
 **Referência:** README.md v4.0
 
 ---
 
 ## 1. Visão Geral
 
-Os dois módulos ESP32 comunicam-se via **ESP-NOW**, protocolo peer-to-peer da Espressif que opera sem roteador Wi-Fi.
+Os módulos ESP32 comunicam-se via **ESP-NOW** com peers fixos, criptografia habilitada e sem broadcast para comandos críticos.
 
-- O **Remote** envia comandos, heartbeat e estado do botão de emergência. O campo de fim de curso de descida está temporariamente desabilitado e permanece reservado.
-- O **Principal** responde com um `PacoteStatus` contendo validade do link, feedbacks digitais do CLP e o estado da micro do freio.
-- Em produção, o pareamento é fixo por MAC e usa criptografia ESP-NOW com PMK/LMK configuradas no build.
+- O **Remote** envia comandos, heartbeat, emergência local e probes de link.
+- O **Principal** recebe comandos válidos, alimenta o watchdog e envia `PacoteStatus`.
+- O **Repeater** opcional apenas valida e encaminha pacotes autenticados entre Remote e Principal.
+- A lógica de motor, freio, estados e segurança permanece no **CLP**.
 
-A lógica de controle permanece no **CLP**. Os ESP32 funcionam como ponte de comunicação sem fio.
+Rotas suportadas:
 
----
-
-## 2. Características do ESP-NOW
-
-| Propriedade | Valor |
-|---|---|
-| Protocolo | ESP-NOW (Espressif) |
-| Topologia | Peer-to-peer direto |
-| Dependência de roteador | Nenhuma |
-| Banda | 2.4 GHz |
-| Tamanho máximo do pacote | 250 bytes |
-| Alcance mínimo exigido | 50 metros (linha de visada) |
-| Latência esperada | < 20 ms por pacote |
+- Direta: `Remote -> Principal` e `Principal -> Remote`
+- Via Repeater: `Remote -> Repeater -> Principal` e `Principal -> Repeater -> Remote`
 
 ---
 
-## 3. Emparelhamento
+## 2. Emparelhamento
 
-- Cada módulo registra apenas o MAC esperado do seu peer.
-- O peer é cadastrado com `encrypt = true` e LMK configurada.
+- `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do `.env`.
+- `REPEATER_MAC` é obrigatório quando `ENABLE_REPEATER_ROUTE=true` ou ao compilar `repeater/`.
+- Cada peer é registrado com `encrypt = true` e LMK configurada.
 - A PMK é configurada no boot via `esp_now_set_pmk()`.
-- `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados de `.env` no build.
-- Não há descoberta automática por broadcast em produção.
+- Pacotes de MAC físico desconhecido são rejeitados.
 
 ---
 
-## 4. Estrutura dos Pacotes
+## 3. Estrutura dos Pacotes
 
-### 4.1 Pacote Remote → Principal (`PacoteRemote`)
+Todos os pacotes carregam um cabeçalho autenticado:
 
 ```c
 typedef struct {
-    uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
-                                 // 3=VEL1, 4=VEL2, 5=RESET
-    uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
-    uint8_t  emergencia;         // 1=botão de emergência com trava ativo
-    uint8_t  fim_curso_descida;  // reservado; enviado como 0 nesta versão
-    uint32_t timestamp;          // millis() do Remote
-    uint32_t seq;                // contador monotônico Remote -> Principal
-    uint32_t session_id;         // sessão do Remote
-    uint32_t auth_tag;           // autenticação do pacote
-    uint8_t  checksum;           // XOR de todos os bytes anteriores
-} PacoteRemote;
+    uint8_t tipo;       // PKT_REMOTE_CMD, PKT_STATUS, PKT_LINK_PROBE, PKT_LINK_ACK
+    uint8_t origem;     // NODE_REMOTE, NODE_PRINCIPAL, NODE_REPEATER
+    uint8_t destino;    // destino lógico final
+    uint8_t rota;       // ROUTE_DIRECT, ROUTE_VIA_REPEATER
+    uint8_t hop_count;  // 0 direto, 1 via Repeater
+} CabecalhoPacote;
 ```
 
-**Tamanho:** 21 bytes
+`PacoteRemote` adiciona esse cabeçalho antes dos campos já existentes (`comando`, `botao_hold`, `emergencia`, `fim_curso_descida`, `timestamp`, `seq`, `session_id`, `auth_tag`, `checksum`).
 
-| Campo | Tipo | Valores | Descrição |
-|---|---|---|---|
-| `comando` | `uint8_t` | 0–5 | Comando ativo no momento do envio |
-| `botao_hold` | `uint8_t` | 0 ou 1 | 1 = botão SUBIR ou DESCER fisicamente pressionado |
-| `emergencia` | `uint8_t` | 0 ou 1 | 1 = botão de emergência com trava ativo no Remote |
-| `fim_curso_descida` | `uint8_t` | 0 | Reservado; temporariamente desabilitado |
-| `timestamp` | `uint32_t` | millis() | Timestamp do Remote para diagnóstico |
-| `seq` | `uint32_t` | crescente | Contador monotônico para anti-replay |
-| `session_id` | `uint32_t` | boot atual | Identificador de sessão do Remote |
-| `auth_tag` | `uint32_t` | calculado | Tag de autenticação do pacote |
-| `checksum` | `uint8_t` | calculado | XOR de todos os bytes anteriores do pacote |
+`PacoteStatus` adiciona esse cabeçalho antes dos feedbacks do CLP (`link_ok`, `motor_ativo`, `emergencia_ativa`, `vel1_ativa`, `vel2_ativa`, `micro_freio_ativa`, `seq`, `session_id`, `auth_tag`, `checksum`).
 
-### 4.2 Pacote Principal → Remote (`PacoteStatus`)
-
-```c
-typedef struct {
-    uint8_t  link_ok;             // 1=Principal recebendo pacotes válidos do Remote
-    uint8_t  motor_ativo;         // 1=CLP reporta motor ativo
-    uint8_t  emergencia_ativa;    // 1=CLP reporta emergência ativa
-    uint8_t  vel1_ativa;          // 1=CLP reporta velocidade 1 ativa
-    uint8_t  vel2_ativa;          // 1=CLP reporta velocidade 2 ativa
-    uint8_t  micro_freio_ativa;   // 1=freio ativo; 0=freio liberado
-    uint32_t seq;                 // contador monotônico Principal -> Remote
-    uint32_t session_id;          // sessão do Principal
-    uint32_t auth_tag;            // autenticação do pacote
-    uint8_t  checksum;            // XOR de todos os bytes anteriores
-} PacoteStatus;
-```
-
-**Tamanho:** 19 bytes
-
-| Campo | Tipo | Valores | Descrição |
-|---|---|---|---|
-| `link_ok` | `uint8_t` | 0 ou 1 | 1 = Principal recebendo pacotes válidos do Remote |
-| `motor_ativo` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 23` |
-| `emergencia_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 33` |
-| `vel1_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 26` |
-| `vel2_ativa` | `uint8_t` | 0 ou 1 | 1 = feedback do CLP em LOW no `GPIO 27` |
-| `micro_freio_ativa` | `uint8_t` | 0 ou 1 | 1 = freio ativo reportado pela micro no `GPIO 14`; 0 = freio liberado |
-| `seq` | `uint32_t` | crescente | Contador monotônico para anti-replay |
-| `session_id` | `uint32_t` | boot atual | Identificador de sessão do Principal |
-| `auth_tag` | `uint32_t` | calculado | Tag de autenticação do pacote |
-| `checksum` | `uint8_t` | calculado | XOR de todos os bytes anteriores do pacote |
+`PacoteLink` usa o mesmo cabeçalho para `PKT_LINK_PROBE` e `PKT_LINK_ACK`. Esses pacotes medem qualidade de link e **não** resetam watchdog nem alteram estado operacional.
 
 ---
 
-## 5. Enumerações do Protocolo
+## 4. Validação
 
-### 5.1 Comandos (`Comando`)
+Todo receptor valida, nesta ordem:
 
-```c
-typedef enum {
-    CMD_HEARTBEAT = 0,
-    CMD_SUBIR     = 1,
-    CMD_DESCER    = 2,
-    CMD_VEL1      = 3,
-    CMD_VEL2      = 4,
-    CMD_RESET     = 5
-} Comando;
-```
+1. MAC físico esperado
+2. tamanho/tipo do pacote
+3. origem, destino, rota e `hop_count`
+4. checksum XOR
+5. `auth_tag`
+6. anti-replay por `session_id/seq`
 
-> `CMD_RESET` substituiu o antigo `CMD_VEL3`.
+Regras específicas:
 
----
-
-## 6. Checksum
-
-### 6.1 Algoritmo
-
-XOR simples de todos os bytes do pacote, excluindo o próprio campo checksum.
-
-```c
-uint8_t calcular_checksum(const uint8_t* data, size_t len) {
-    uint8_t cs = 0;
-    for (size_t i = 0; i < len; i++) {
-        cs ^= data[i];
-    }
-    return cs;
-}
-```
-
-### 6.2 Validação no Receptor
-
-- O **Principal** valida o checksum de todo `PacoteRemote` recebido.
-- O **Remote** valida o checksum de todo `PacoteStatus` recebido.
-- Pacotes com checksum inválido são descartados silenciosamente.
-- Pacotes descartados não resetam watchdog nem timer de link.
-
-### 6.3 Autenticação e Anti-Replay
-
-- Ambos os lados validam `auth_tag` com a chave secreta do par.
-- Ambos os lados rejeitam pacotes vindos de MAC diferente do peer configurado.
-- Cada direção mantém `seq` monotônico e `session_id` por boot.
-- Pacotes com `seq` repetido ou regressivo são descartados.
-- Mudança de `session_id` só é aceita após timeout de link.
+- Principal aceita comando direto apenas do MAC do Remote com `origem=NODE_REMOTE`, `destino=NODE_PRINCIPAL`, `rota=ROUTE_DIRECT`, `hop_count=0`.
+- Principal aceita comando via Repeater apenas do MAC do Repeater com `origem=NODE_REMOTE`, `destino=NODE_PRINCIPAL`, `rota=ROUTE_VIA_REPEATER`, `hop_count=1`.
+- Repeater aceita `PKT_REMOTE_CMD` somente do Remote para o Principal.
+- Repeater aceita `PKT_STATUS` somente do Principal para o Remote.
+- Remote aceita status direto do Principal e status via Repeater separadamente, para medir as duas rotas.
+- Pacotes inválidos não resetam watchdog nem atualizam link.
 
 ---
 
-## 7. Frequência e Timing de Envio
+## 5. Seleção Preventiva de Rota
 
-### 7.1 Remote → Principal
+O Remote mantém métricas separadas para rota direta e via Repeater:
 
-| Condição | Frequência |
-|---|---|
-| Nenhum botão pressionado (heartbeat) | A cada **100 ms** |
-| Mudança de estado de botão/sensor | **Imediato** + repetir a cada 100 ms enquanto ativo |
+- status autenticado recente
+- `PKT_LINK_ACK` recente
+- sucesso/falha de envio ESP-NOW
+- RSSI suavizado quando disponível em `esp_now_recv_info_t.rx_ctrl`
 
-### 7.2 Principal → Remote
+Constantes iniciais:
 
-| Condição | Frequência |
-|---|---|
-| Status periódico | A cada **200 ms** |
-| Mudança em qualquer campo do status | **Imediato** (além do periódico) |
+- `LINK_QUALITY_TIMEOUT_MS = 500`
+- `LINK_PROBE_INTERVALO_MS = 250`
+- `ROUTE_SWITCH_SCORE_MARGIN = 10`
+- `ROUTE_SWITCH_CONSECUTIVE_SAMPLES = 2`
+- `LINK_SWITCH_MARGIN_DB = 8`
+- `LINK_RSSI_MIN_DBM = -82`
 
----
-
-## 8. Watchdog e Validade do Link
-
-| Parâmetro | Valor |
-|---|---|
-| Timeout do Principal | **500 ms** (`WATCHDOG_TIMEOUT_MS`) |
-| Heartbeat do Remote | **100 ms** (`HEARTBEAT_INTERVALO_MS`) |
-| Timeout de validade do status no Remote | **500 ms** |
-
-- O **Principal** considera a comunicação perdida quando não recebe pacote válido do Remote por mais de 500 ms.
-- Ao expirar o watchdog, o Principal:
-  - força `PIN_CLP_EMERGENCIA` para LOW
-  - para sinais de movimento
-  - passa a enviar `link_ok = 0` no `PacoteStatus`
-- O **Remote** considera o status inválido quando:
-  - `link_ok == 0`, ou
-  - o último `PacoteStatus` recebido tem mais de 500 ms
+O Remote troca a rota ativa no próximo envio quando a rota candidata está operacional e supera a rota atual por margem de score. Ele não espera a rota atual expirar.
 
 ---
 
-## 9. Callbacks ESP-NOW
+## 6. Frequência e Timing
 
-### 9.1 Remote
-
-| Callback | Função |
-|---|---|
-| `OnDataRecv` | Validar checksum, atualizar `PacoteStatus`, atualizar timestamp do último status |
-
-### 9.2 Principal
-
-| Callback | Função |
-|---|---|
-| `OnDataRecv` | Validar MAC esperado, checksum, `auth_tag`, anti-replay, resetar watchdog e armazenar o último `PacoteRemote` |
+| Direção | Condição | Frequência |
+|---|---|---|
+| Remote -> Principal | Heartbeat/comando | A cada 100 ms ou mudança imediata |
+| Principal -> Remote | Status | A cada 200 ms ou mudança imediata |
+| Remote -> peers | Link probe | A cada 250 ms |
 
 ---
 
-## 10. Hierarquia de Comando
-
-- O Principal continua sendo o ponto de intermediação com o CLP.
-- O Remote pode sempre enviar heartbeat, emergência e comandos de pulso. O fim de curso permanece reservado, mas desabilitado nesta versão.
-- O Remote **bloqueia** `SUBIR` e `DESCER` localmente quando:
-  - o status do Principal expira, ou
-  - o botão de emergência local está ativo, ou
-  - `emergencia_ativa == 1` no `PacoteStatus`
-
----
-
-## 11. Tolerância a Falhas
+## 7. Tolerância a Falhas
 
 | Cenário | Comportamento |
 |---|---|
-| Pacote corrompido (checksum inválido) | Descartado; watchdog/timer não resetado |
-| Pacote duplicado | Descartado por `seq` repetido |
-| Pacote fora de ordem | Descartado por `seq` regressivo |
-| Perda total de comunicação | Watchdog do Principal aciona em 500 ms |
-| Remote fora de alcance | Watchdog do Principal aciona em 500 ms |
-| Freio ativo ou circuito NC aberto | `micro_freio_ativa = 1` no status enviado ao Remote |
+| Pacote corrompido | Descartado |
+| MAC desconhecido | Descartado |
+| Origem lógica inválida | Descartado |
+| Replay/duplicata | Descartado por `seq/session_id` |
+| Repeater cai | Remote tenta rota direta se operacional; senão bloqueia movimento |
+| Perda total | Principal aciona watchdog; Remote bloqueia `SUBIR`/`DESCER` |

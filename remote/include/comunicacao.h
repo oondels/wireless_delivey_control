@@ -24,11 +24,24 @@ public:
     // Envia PacoteRemote para o Principal (calcula checksum antes)
     void enviarPacote(const PacoteRemote& pacote);
 
+    // Mede e escolhe preventivamente a melhor rota disponivel.
+    void enviarProbes();
+    void atualizarRota();
+    uint8_t rotaAtual() const;
+    bool rotaAtualOperacional() const;
+    const char* rotaAtualNome() const;
+    int scoreRota(uint8_t rota) const;
+
     // Último PacoteStatus recebido do Principal (volatile — atualizado no callback)
     volatile PacoteStatus& ultimoStatus() { return _ultimoStatus; }
 
     // Timestamp do último status recebido (para controle de timeout LINK)
     uint32_t ultimoStatusRecebidoMs() const { return _ultimoStatusMs; }
+
+    // Membros estáticos atualizados pelo callback ESP-NOW.
+    static volatile PacoteStatus _ultimoStatus;
+    static volatile uint32_t     _ultimoStatusMs;
+    static volatile uint8_t      _rotaAtual;
 
 private:
     // Assinatura compatível com ESP-IDF 5.x (Arduino ESP32 >= 3.x) e versões anteriores
@@ -37,10 +50,8 @@ private:
 #else
     static void onDataRecv(const uint8_t* mac, const uint8_t* data, int len);
 #endif
+    static void onDataSent(const uint8_t* mac, esp_now_send_status_t status);
 
-    // Membros estáticos para acesso no callback C
-    static volatile PacoteStatus _ultimoStatus;
-    static volatile uint32_t     _ultimoStatusMs;
 };
 
 #endif // COMUNICACAO_H

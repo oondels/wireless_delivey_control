@@ -30,6 +30,11 @@ public:
     bool novoPacoteRecebido() const { return _novoPacote; }
     void limparNovoPacote() { _novoPacote = false; }
 
+    // Membros estáticos atualizados pelo callback ESP-NOW.
+    static WatchdogComm* _pWatchdog;
+    static volatile PacoteRemote _ultimoPacote;
+    static volatile bool         _novoPacote;
+
 private:
     // Assinatura compatível com ESP-IDF 5.x (Arduino ESP32 >= 3.x) e versões anteriores
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -38,10 +43,6 @@ private:
     static void onDataRecv(const uint8_t* mac_addr, const uint8_t* data, int len);
 #endif
 
-    // Ponteiros estáticos para acesso no callback C
-    static WatchdogComm* _pWatchdog;
-    static volatile PacoteRemote _ultimoPacote;
-    static volatile bool         _novoPacote;
 };
 
 #endif // COMUNICACAO_H

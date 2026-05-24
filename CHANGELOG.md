@@ -4,6 +4,15 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(comunicacao): adiciona repetidor esp-now com rota preventiva
+
+- Novo firmware `repeater/` encaminha comandos e status autenticados entre Remote e Principal sem autoridade sobre movimento
+- `PacoteRemote` e `PacoteStatus` recebem cabeçalho de rota autenticado com tipo, origem, destino, rota e `hop_count`
+- Remote passa a medir rota direta e via Repeater com status, probes, callback de envio e RSSI quando disponível
+- Troca de rota é preventiva: o Remote usa a rota mais estável sem esperar o link direto expirar
+- Principal aceita comando via Repeater apenas quando o MAC físico e a origem lógica autenticada são válidos
+- `.env.example` e documentação foram atualizados com `REPEATER_MAC` e flags de rota
+
 ### fix(principal): remove bloqueio por motor ativo
 
 - `MOTOR_ATIVO` passa a ser usado apenas como telemetria para LED e diagnóstico

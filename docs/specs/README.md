@@ -14,6 +14,7 @@
 | homem-morto, dead-man, botão hold | `seguranca/SPEC.md` | §5 |
 | invariantes de segurança | `seguranca/SPEC.md` | §9 |
 | ESP-NOW, pacote, PacoteRemote, PacoteStatus, checksum | `comunicacao/SPEC.md` | §4 (structs), §6 (checksum) |
+| repeater, repetidor, rota, hop_count, link probe | `comunicacao/SPEC.md` | §3–§5 |
 | comando, enum, CMD_SUBIR, CMD_DESCER, CMD_RESET | `comunicacao/SPEC.md` | §5 |
 | callback, OnDataRecv | `comunicacao/SPEC.md` | §9 |
 | frequência de envio, timing, 200 ms | `comunicacao/SPEC.md` | §7 |
@@ -61,7 +62,7 @@ Hierarquia de prioridades de segurança, botões de emergência com trava, watch
 
 ### `comunicacao/SPEC.md` — Protocolo ESP-NOW
 
-Structs `PacoteRemote` (21 bytes) e `PacoteStatus` (19 bytes), enum `Comando`, checksum XOR, autenticação, anti-replay, frequências de envio, callbacks, watchdog e tolerância a falhas.
+Structs `PacoteRemote`, `PacoteStatus` e `PacoteLink`, cabeçalho de rota, enum `Comando`, checksum XOR, autenticação, anti-replay, Repeater opcional, frequências de envio, callbacks, watchdog e tolerância a falhas.
 
 **Depende de:** `seguranca/SPEC.md` (watchdog, §4 para detalhes de timeout).
 
@@ -85,7 +86,7 @@ Documento histórico da máquina de estados central. Para a arquitetura atual, u
 
 ### `hardware_io/SPEC.md` — Hardware e I/O
 
-2x ESP32 WROOM-32U, alimentação (rede e bateria), mapa de entradas/saídas (13 GPIOs Principal, 11 GPIOs Remote), restrições de pinout, pull-ups, sensor fim de curso, micro do freio e lista de materiais.
+2x ESP32 WROOM-32U principais + Repeater opcional, alimentação (rede e bateria), mapa de entradas/saídas (13 GPIOs Principal, 11 GPIOs Remote), restrições de pinout, pull-ups, sensor fim de curso, micro do freio e lista de materiais.
 
 **Depende de:** nenhum (referência de base para todos os demais).
 
@@ -97,6 +98,7 @@ Documento histórico da máquina de estados central. Para a arquitetura atual, u
 |---|---|---|---|
 | Principal | 5 | 8 | 13 |
 | Remote | 6 ativas + 1 desabilitada | 5 | 11 |
+| Repeater | 0 | 0 | 0 |
 
 ---
 

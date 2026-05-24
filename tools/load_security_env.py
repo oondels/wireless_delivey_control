@@ -48,6 +48,17 @@ def validate_hex_16(value):
         return False
 
 
+def parse_bool(value, default=False):
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in ("1", "true", "yes", "on", "sim"):
+        return True
+    if normalized in ("0", "false", "no", "off", "nao", "não"):
+        return False
+    raise ValueError(f"Valor booleano invalido no .env: {value}")
+
+
 if not os.path.exists(ENV_PATH):
     raise RuntimeError(
         f"Arquivo .env nao encontrado em {ENV_PATH}. "
@@ -55,25 +66,45 @@ if not os.path.exists(ENV_PATH):
     )
 
 config = parse_env_file(ENV_PATH)
+project_name = os.path.basename(PROJECT_DIR)
+is_repeater_project = project_name == "repeater"
 
 missing = [key for key in REQUIRED_KEYS if key not in config]
 if missing:
     raise RuntimeError(f"Campos obrigatorios ausentes no .env: {', '.join(missing)}")
 
+try:
+    enable_repeater_route = parse_bool(config.get("ENABLE_REPEATER_ROUTE"), False) or is_repeater_project
+    prefer_direct_route = parse_bool(config.get("PREFER_DIRECT_ROUTE"), False)
+except ValueError as exc:
+    raise RuntimeError(str(exc))
+
 if not validate_mac(config["PRINCIPAL_MAC"]):
     raise RuntimeError("PRINCIPAL_MAC invalido. Use formato AA:BB:CC:DD:EE:FF")
 if not validate_mac(config["REMOTE_MAC"]):
     raise RuntimeError("REMOTE_MAC invalido. Use formato AA:BB:CC:DD:EE:FF")
+if enable_repeater_route and "REPEATER_MAC" not in config:
+    raise RuntimeError(
+        "REPEATER_MAC ausente no .env. Configure quando ENABLE_REPEATER_ROUTE=true "
+        "ou ao compilar o modulo repeater."
+    )
+if enable_repeater_route and not validate_mac(config["REPEATER_MAC"]):
+    raise RuntimeError("REPEATER_MAC invalido. Use formato AA:BB:CC:DD:EE:FF")
 if not validate_hex_16(config["ESPNOW_PMK"]):
     raise RuntimeError("ESPNOW_PMK invalido. Use 32 hex chars (16 bytes)")
 if not validate_hex_16(config["ESPNOW_LMK"]):
     raise RuntimeError("ESPNOW_LMK invalido. Use 32 hex chars (16 bytes)")
 
-env.Append(
-    CPPDEFINES=[
-        ("SEC_PRINCIPAL_MAC_STR", f'\\\"{config["PRINCIPAL_MAC"]}\\\"'),
-        ("SEC_REMOTE_MAC_STR", f'\\\"{config["REMOTE_MAC"]}\\\"'),
-        ("SEC_ESPNOW_PMK_STR", f'\\\"{config["ESPNOW_PMK"]}\\\"'),
-        ("SEC_ESPNOW_LMK_STR", f'\\\"{config["ESPNOW_LMK"]}\\\"'),
-    ]
-)
+defines = [
+    ("SEC_PRINCIPAL_MAC_STR", f'\\\"{config["PRINCIPAL_MAC"]}\\\"'),
+    ("SEC_REMOTE_MAC_STR", f'\\\"{config["REMOTE_MAC"]}\\\"'),
+    ("SEC_ESPNOW_PMK_STR", f'\\\"{config["ESPNOW_PMK"]}\\\"'),
+    ("SEC_ESPNOW_LMK_STR", f'\\\"{config["ESPNOW_LMK"]}\\\"'),
+    ("SEC_ENABLE_REPEATER_ROUTE", 1 if enable_repeater_route else 0),
+    ("SEC_PREFER_DIRECT_ROUTE", 1 if prefer_direct_route else 0),
+]
+
+if enable_repeater_route:
+    defines.append(("SEC_REPEATER_MAC_STR", f'\\\"{config["REPEATER_MAC"]}\\\"'))
+
+env.Append(CPPDEFINES=defines)

@@ -13,6 +13,7 @@ Na arquitetura atual, o CLP executa a lógica de potência e segurança. Os ESP3
 - perda de comunicação Remote → Principal aciona `PIN_CLP_EMERGENCIA` em LOW
 - comandos de movimento são interrompidos imediatamente quando condições de operação deixam de ser válidas
 - o Remote nunca assume que pode mover apenas pelo botão local; ele depende do status válido vindo do Principal
+- o Repeater opcional não tem autoridade sobre movimento, emergência, freio ou fim de curso
 
 ---
 
@@ -41,8 +42,9 @@ O Remote bloqueia localmente `SUBIR` e `DESCER` quando qualquer condição abaix
 
 1. status do Principal expirado
 2. `link_ok == 0`
-3. emergência local ativa
-4. `emergencia_ativa == 1` no `PacoteStatus`
+3. nenhuma rota ESP-NOW está operacional
+4. emergência local ativa
+5. `emergencia_ativa == 1` no `PacoteStatus`
 
 Os comandos de pulso (`VEL1`, `VEL2`, `RESET`) continuam podendo ser transmitidos mesmo com bloqueio de movimento.
 
@@ -89,11 +91,13 @@ O feedback de emergência efetiva do sistema vem do CLP por `EMERGENCIA_ATIVA`:
 | Heartbeat Remote → Principal | 100 ms |
 | Status Principal → Remote | 200 ms |
 | Timeout de watchdog | 500 ms |
+| Probe de qualidade de rota | 250 ms |
 
 Comportamento:
 
 - o callback do Principal reseta o watchdog apenas ao receber pacote válido
 - pacote inválido por MAC, checksum, autenticação ou replay **não** reseta watchdog
+- `PKT_LINK_PROBE`, `PKT_LINK_ACK` e `PacoteStatus` não resetam watchdog
 - ao expirar:
   - `PIN_CLP_EMERGENCIA` vai para LOW
   - `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` vão para HIGH
@@ -102,6 +106,13 @@ Comportamento:
 - ao recuperar comunicação:
   - `PIN_CLP_EMERGENCIA` volta para HIGH se não houver emergência remota ativa
   - o LED LINK do Principal volta ao estado fixo
+
+Com Repeater habilitado:
+
+- se a rota direta degradar, o Remote pode trocar preventivamente para `ROUTE_VIA_REPEATER`
+- se o Repeater cair, o Remote volta para direto se essa rota estiver operacional
+- se nenhuma rota estiver operacional, o Remote bloqueia `SUBIR`/`DESCER`
+- o Principal continua entrando em fail-safe se não receber `PKT_REMOTE_CMD` válido dentro de 500 ms
 
 ---
 
@@ -157,3 +168,4 @@ Estas condições devem permanecer verdadeiras no firmware atual:
 6. `micro_freio_ativa == 1` impede movimento remoto no Principal
 7. `MOTOR_ATIVO` não interfere no acionamento remoto no Principal
 8. pacotes inválidos não atualizam estado de link nem resetam watchdog
+9. Repeater nunca gera comando, nunca mantém último comando e nunca reseta watchdog do Principal por conta própria

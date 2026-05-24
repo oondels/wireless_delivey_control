@@ -37,7 +37,8 @@ O Remote bloqueia `SUBIR` e `DESCER` quando qualquer condição abaixo for verda
 
 1. `link_ok == 0`, ou
 2. o último `PacoteStatus` tem mais de `500 ms`, ou
-3. `emergencia_ativa == 1`
+3. nenhuma rota ESP-NOW está operacional, ou
+4. `emergencia_ativa == 1`
 
 Quando bloqueado:
 

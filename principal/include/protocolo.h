@@ -31,12 +31,39 @@ typedef enum {
     CMD_RESET     = 5  // Botão RESET no Remote (era CMD_VEL3)
 } Comando;
 
+typedef enum {
+    PKT_REMOTE_CMD = 1,
+    PKT_STATUS     = 2,
+    PKT_LINK_PROBE = 3,
+    PKT_LINK_ACK   = 4
+} TipoPacote;
+
+typedef enum {
+    NODE_REMOTE    = 1,
+    NODE_PRINCIPAL = 2,
+    NODE_REPEATER  = 3
+} NodeId;
+
+typedef enum {
+    ROUTE_DIRECT       = 1,
+    ROUTE_VIA_REPEATER = 2
+} RouteMode;
+
+typedef struct {
+    uint8_t tipo;       // TipoPacote
+    uint8_t origem;     // NodeId lógico de origem
+    uint8_t destino;    // NodeId lógico de destino final
+    uint8_t rota;       // RouteMode
+    uint8_t hop_count;  // 0 direto, 1 via repetidor
+} __attribute__((packed)) CabecalhoPacote;
+
 // ============================================================
 // Structs de pacotes
 // ============================================================
 
-// Remote → Principal (21 bytes)
+// Remote → Principal
 typedef struct {
+    CabecalhoPacote header;      // roteamento autenticado
     uint8_t  comando;            // Comando enum (0-5)
     uint8_t  botao_hold;         // 1 = SUBIR ou DESCER pressionado
     uint8_t  emergencia;         // 1 = botão emergência com trava ativo no Remote
@@ -48,9 +75,10 @@ typedef struct {
     uint8_t  checksum;           // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteRemote;
 
-// Principal → Remote (19 bytes)
+// Principal → Remote
 // Principal propaga ao Remote o status atual do CLP e da micro do freio.
 typedef struct {
+    CabecalhoPacote header;       // roteamento autenticado
     uint8_t  link_ok;             // 1 = Principal ativo e recebendo pacotes do Remote
     uint8_t  motor_ativo;         // 1 = CLP reporta motor ativo
     uint8_t  emergencia_ativa;    // 1 = CLP reporta emergencia ativa
@@ -62,6 +90,16 @@ typedef struct {
     uint32_t auth_tag;            // autenticação do pacote com chave secreta
     uint8_t  checksum;            // XOR de todos os bytes anteriores
 } __attribute__((packed)) PacoteStatus;
+
+// Pacote sem efeito operacional para medir qualidade de link.
+typedef struct {
+    CabecalhoPacote header;
+    uint32_t timestamp;           // millis() do emissor
+    uint32_t seq;                 // contador monotônico do emissor do probe
+    uint32_t session_id;          // sessão do emissor do probe
+    uint32_t auth_tag;            // autenticação do pacote com chave secreta
+    uint8_t  checksum;            // XOR de todos os bytes anteriores
+} __attribute__((packed)) PacoteLink;
 
 // ============================================================
 // Checksum — XOR simples
@@ -155,6 +193,13 @@ inline uint32_t calcular_auth_tag(const PacoteStatus& pacote, const uint8_t key[
     return calcular_auth_tag_bytes(key, reinterpret_cast<const uint8_t*>(&copia), sizeof(PacoteStatus));
 }
 
+inline uint32_t calcular_auth_tag(const PacoteLink& pacote, const uint8_t key[16]) {
+    PacoteLink copia = pacote;
+    copia.auth_tag = 0;
+    copia.checksum = 0;
+    return calcular_auth_tag_bytes(key, reinterpret_cast<const uint8_t*>(&copia), sizeof(PacoteLink));
+}
+
 // ============================================================
 // Constantes de timing (ms)
 // ============================================================
@@ -163,5 +208,14 @@ inline uint32_t calcular_auth_tag(const PacoteStatus& pacote, const uint8_t key[
 #define WATCHDOG_TIMEOUT_MS      500
 #define STATUS_INTERVALO_MS      200
 #define PULSO_CLP_MS              50  // Duração do pulso enviado ao CLP (VEL1/VEL2/RESET)
+
+// Qualidade de rota do Remote
+#define LINK_QUALITY_TIMEOUT_MS              500
+#define LINK_PROBE_INTERVALO_MS              250
+#define ROUTE_SWITCH_SCORE_MARGIN             10
+#define ROUTE_SWITCH_CONSECUTIVE_SAMPLES       2
+#define LINK_SWITCH_MARGIN_DB                  8
+#define LINK_RSSI_MIN_DBM                    -82
+#define RSSI_INVALIDO_DBM                   -127
 
 #endif // PROTOCOLO_H

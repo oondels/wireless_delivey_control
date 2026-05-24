@@ -3,10 +3,10 @@
 Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Remote` e o CLP:
 
 - recebe `PacoteRemote` por ESP-NOW
-- valida MAC, checksum, autenticação e anti-replay
+- valida MAC físico, origem lógica, rota, checksum, autenticação e anti-replay
 - replica sinais para o CLP em GPIO ativo em LOW
 - lê feedbacks do CLP e da micro do freio
-- devolve `PacoteStatus` ao `Remote`
+- devolve `PacoteStatus` ao `Remote` direto e, quando habilitado, via `Repeater`
 
 ## Responsabilidades
 
@@ -48,12 +48,16 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 ## Comunicação
 
 - peer fixo via ESP-NOW criptografado
+- aceita rota direta do Remote e rota via Repeater quando `ENABLE_REPEATER_ROUTE=true`
+- `PKT_LINK_PROBE` responde com ACK, mas não reseta watchdog
 - depende de `.env` na raiz do repositório
 - chaves e MACs são carregados no build por `../tools/load_security_env.py`
 
 Campos do `.env` usados aqui:
 
 - `REMOTE_MAC`
+- `REPEATER_MAC` (quando `ENABLE_REPEATER_ROUTE=true`)
+- `ENABLE_REPEATER_ROUTE`
 - `ESPNOW_PMK`
 - `ESPNOW_LMK`
 

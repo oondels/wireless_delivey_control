@@ -1,15 +1,18 @@
 # Módulo Remote
 
-Firmware do ESP32 embarcado no carrinho. Este módulo lê botões locais, envia comandos ao `Principal` e traduz o `PacoteStatus` em bloqueios e LEDs para o operador.
+Firmware do ESP32 embarcado no carrinho. Este módulo lê botões locais, escolhe a melhor rota ESP-NOW disponível, envia comandos ao `Principal` e traduz o `PacoteStatus` em bloqueios e LEDs para o operador.
 
 ## Responsabilidades
 
 - ler botões `SUBIR`, `DESCER`, `VEL1`, `VEL2`, `EMERGÊNCIA`
 - manter o fim de curso de descida temporariamente desabilitado (`fim_curso_descida = 0`)
 - enviar `PacoteRemote` por ESP-NOW a cada 100 ms ou imediatamente em mudanças
+- medir rota direta e via Repeater com status, probes, callback de envio e RSSI quando disponível
+- trocar preventivamente para a rota mais estável sem esperar timeout do link direto
 - bloquear `SUBIR` e `DESCER` quando:
   - status do Principal expirou
   - `link_ok == 0`
+  - nenhuma rota está operacional
   - emergência local está ativa
   - `emergencia_ativa == 1` recebido do Principal
 - atualizar LEDs de `LINK`, `MOTOR`, `VEL1`, `VEL2` e `EMERGÊNCIA`
@@ -50,12 +53,17 @@ Firmware do ESP32 embarcado no carrinho. Este módulo lê botões locais, envia 
 ## Comunicação
 
 - peer fixo via ESP-NOW criptografado
+- registra `REPEATER_MAC` quando `ENABLE_REPEATER_ROUTE=true`
+- envia comandos por uma rota ativa: direta ou via Repeater
 - depende de `.env` na raiz do repositório
 - chaves e MACs são carregados no build por `../tools/load_security_env.py`
 
 Campos do `.env` usados aqui:
 
 - `PRINCIPAL_MAC`
+- `REPEATER_MAC` (quando `ENABLE_REPEATER_ROUTE=true`)
+- `ENABLE_REPEATER_ROUTE`
+- `PREFER_DIRECT_ROUTE`
 - `ESPNOW_PMK`
 - `ESPNOW_LMK`
 

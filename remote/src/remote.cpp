@@ -55,6 +55,9 @@ void setup() {
 }
 
 void loop() {
+    comunicacao.enviarProbes();
+    comunicacao.atualizarRota();
+
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();
 
@@ -80,7 +83,8 @@ void loop() {
 
     const volatile PacoteStatus& st = comunicacao.ultimoStatus();
     bool statusPrincipalValido = (st.link_ok == 1) &&
-                                 (millis() - comunicacao.ultimoStatusRecebidoMs() <= WATCHDOG_TIMEOUT_MS);
+                                 (millis() - comunicacao.ultimoStatusRecebidoMs() <= WATCHDOG_TIMEOUT_MS) &&
+                                 comunicacao.rotaAtualOperacional();
     bool bloqueioMovimento = !statusPrincipalValido || btn.emergencia || (st.emergencia_ativa == 1);
 
     if (bloqueioMovimento && !bloqueioMovimentoAnterior) {

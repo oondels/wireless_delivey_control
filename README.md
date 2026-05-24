@@ -18,7 +18,7 @@ A **prioridade absoluta do sistema é a segurança (Fail-Safe):** qualquer falha
 
 ## 2. Arquitetura do Sistema
 
-O sistema utiliza dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem roteador), com um **CLP** como controlador central de segurança e lógica de motor.
+O sistema utiliza dois ESP32 principais comunicando-se via **ESP-NOW** (peer-to-peer, sem roteador), com suporte opcional a um terceiro ESP32 como **Repeater**. O **CLP** permanece como controlador central de segurança e lógica de motor.
 
 ```
 ┌─────────────────────────────────┐
@@ -59,6 +59,13 @@ O sistema utiliza dois ESP32 comunicando-se via **ESP-NOW** (peer-to-peer, sem r
 │  - Segurança e emergência        │
 └──────────────────────────────────┘
 ```
+
+Quando `ENABLE_REPEATER_ROUTE=true`, o fluxo passa a ter duas rotas observadas continuamente:
+
+- Direta: `Remote -> Principal` e `Principal -> Remote`
+- Via Repeater: `Remote -> Repeater -> Principal` e `Principal -> Repeater -> Remote`
+
+O `Remote` escolhe preventivamente a rota mais estável. Se a rota via Repeater superar a direta por margem de qualidade configurada, o próximo pacote já segue pelo Repeater; não é necessário esperar o link direto expirar.
 
 ### 2.1 Fluxo de Comunicação
 
@@ -127,6 +134,17 @@ Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
 | Comunicação | ESP-NOW — transmite `PacoteRemote` e heartbeat para o Principal |
 
 > O Remote não possui relés. Todos os seus LEDs são GPIOs dedicados.
+
+### 3.3 Módulo Repeater (Opcional)
+
+| Item | Descrição |
+|---|---|
+| Microcontrolador | ESP32 |
+| Localização | Ponto intermediário com melhor visada entre carrinho e painel fixo |
+| Entradas/Saídas críticas | Nenhuma |
+| Comunicação | ESP-NOW — encaminha pacotes autenticados entre Remote e Principal |
+
+> O Repeater não decide movimento, emergência, freio ou fim de curso. Ele não mantém último comando e não reenvia pacotes antigos.
 
 > Detalhes operacionais específicos de firmware estão em [principal/README.md](/home/oendel/code/hendrius/automacao_rio/principal/README.md) e [remote/README.md](/home/oendel/code/hendrius/automacao_rio/remote/README.md).
 
@@ -327,14 +345,30 @@ A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal
 
 Em produção, o pareamento é **fixo**. Cada módulo registra apenas o MAC esperado do seu peer e usa ESP-NOW com criptografia habilitada.
 
-- `PRINCIPAL_MAC`, `REMOTE_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do arquivo `.env` local no build
+- `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do arquivo `.env` local no build
+- `ENABLE_REPEATER_ROUTE=true` habilita peers e rota via Repeater em `remote/` e `principal/`
 - `.env` não deve ser versionado
 - `.env.example` documenta o formato esperado
 
-### 9.2 Pacote Remote → Principal (21 bytes)
+### 9.2 Cabeçalho de Roteamento
+
+`PacoteRemote`, `PacoteStatus` e `PacoteLink` carregam um cabeçalho autenticado:
 
 ```c
 typedef struct {
+    uint8_t tipo;       // PKT_REMOTE_CMD, PKT_STATUS, PKT_LINK_PROBE, PKT_LINK_ACK
+    uint8_t origem;     // NODE_REMOTE, NODE_PRINCIPAL ou NODE_REPEATER
+    uint8_t destino;    // destino lógico final
+    uint8_t rota;       // ROUTE_DIRECT ou ROUTE_VIA_REPEATER
+    uint8_t hop_count;  // 0 direto, 1 via Repeater
+} CabecalhoPacote;
+```
+
+### 9.3 Pacote Remote → Principal
+
+```c
+typedef struct {
+    CabecalhoPacote header;
     uint8_t  comando;            // 0=HEARTBEAT, 1=SUBIR, 2=DESCER,
                                  // 3=VEL1, 4=VEL2, 5=RESET
     uint8_t  botao_hold;         // 1=SUBIR ou DESCER pressionado
@@ -348,12 +382,13 @@ typedef struct {
 } PacoteRemote;
 ```
 
-### 9.3 Pacote Principal → Remote (Status) (19 bytes)
+### 9.4 Pacote Principal → Remote (Status)
 
 O Principal informa ao Remote se o link está válido e replica os feedbacks atuais do CLP e da micro do freio.
 
 ```c
 typedef struct {
+    CabecalhoPacote header;
     uint8_t  link_ok;             // 1=Principal ativo e recebendo pacotes do Remote
     uint8_t  motor_ativo;         // 1=CLP reporta motor ativo
     uint8_t  emergencia_ativa;    // 1=CLP reporta emergencia ativa
@@ -367,13 +402,25 @@ typedef struct {
 } PacoteStatus;
 ```
 
-### 9.4 Frequência de Envio
+### 9.5 Seleção de Rota e Probes
+
+O `Remote` mede as rotas com:
+
+- `PacoteStatus` direto e via Repeater
+- `PKT_LINK_PROBE` / `PKT_LINK_ACK`
+- callback de envio ESP-NOW
+- RSSI quando disponível no `esp_now_recv_info_t.rx_ctrl`
+
+Regra principal: trocar no próximo envio quando a rota candidata estiver válida e superar a rota atual por margem de score. Se nenhuma rota estiver operacional, `SUBIR` e `DESCER` ficam bloqueados.
+
+### 9.6 Frequência de Envio
 
 | Direção | Condição | Frequência |
 |---|---|---|
 | Remote → Principal | Heartbeat | A cada 100 ms |
 | Remote → Principal | Mudança de estado | Imediato + repetir a cada 100 ms |
 | Principal → Remote | Status | A cada 200 ms ou imediato em mudança de estado |
+| Remote → peers | Probe de link | A cada 250 ms |
 
 ---
 
@@ -432,8 +479,15 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 |---|---|
 | `BOTAO` | Pressionar/soltar SUBIR, DESCER, VEL1/2, RESET, EMERGÊNCIA |
 | `LINK` | Comunicação perdida/restabelecida com o Principal |
+| `ROTA` | Troca preventiva entre rota direta e via Repeater |
 
-### 11.4 Exemplo de Saída Serial — Principal
+### 11.4 Módulos Monitorados — Repeater
+
+| Tag | Eventos logados |
+|---|---|
+| `REPEATER` | Pacotes recebidos, encaminhados, rejeitados e falhas de envio |
+
+### 11.5 Exemplo de Saída Serial — Principal
 
 ```
 [1523] [INFO] [CLP] Sinal SUBIR enviado ao CLP
@@ -442,7 +496,7 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 [9600] [INFO] [WDOG] Watchdog recuperado — emergencia CLP liberada
 ```
 
-### 11.5 Modos de Logging
+### 11.6 Modos de Logging
 
 O build trabalha em **produção por padrão**:
 
@@ -466,9 +520,9 @@ build_flags =
 
 Com `LOG_DISABLED`, `LOG_INFO`, `LOG_WARN` e `LOG_ERROR` compilam como no-op. Os logs de boot e MAC continuam usando `LOG_ALWAYS`.
 
-### 11.6 Arquivo Compartilhado
+### 11.7 Arquivo Compartilhado
 
-O módulo de logging é implementado em `logger.h` (header-only), idêntico em `principal/include/` e `remote/include/`. Inclui macros `LOG_INFO`, `LOG_WARN`, `LOG_ERROR`, `LOG_ALWAYS` e a função auxiliar `comandoParaString()` para saída legível.
+O módulo de logging é implementado em `logger.h` (header-only), usado por `principal/`, `remote/` e `repeater/`. Inclui macros `LOG_INFO`, `LOG_WARN`, `LOG_ERROR`, `LOG_ALWAYS` e a função auxiliar `comandoParaString()` para saída legível.
 
 ---
 
@@ -484,7 +538,27 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 
 ---
 
-## 13. Fora de Escopo (v1.0)
+## 13. Validação Manual
+
+### 13.1 Bancada
+
+1. Configurar `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK`, `ESPNOW_LMK` e `ENABLE_REPEATER_ROUTE=true`.
+2. Compilar `principal/`, `remote/` e `repeater/` com `pio run`.
+3. Ligar os três ESP32 próximos e confirmar logs de peers configurados.
+4. Pressionar `SUBIR`/`DESCER` com feedbacks seguros e verificar sinal no CLP.
+5. Desligar o Repeater e confirmar volta para rota direta ou bloqueio se direto não estiver operacional.
+6. Injetar MAC/chave incorreta em um módulo de teste e confirmar rejeição sem resetar watchdog.
+
+### 13.2 Campo
+
+1. Testar trecho com link direto bom: a rota direta deve permanecer ativa se for a mais estável.
+2. Posicionar o Repeater no ponto intermediário e afastar o Remote: a rota via Repeater deve ser escolhida antes de timeout.
+3. Manter `SUBIR`/`DESCER` pressionado durante a degradação: o hold deve continuar pelo próximo pacote da rota escolhida.
+4. Remover energia do Repeater: o sistema deve voltar para direto se possível; caso contrário, bloquear movimento e deixar o Principal entrar em fail-safe.
+
+---
+
+## 14. Fora de Escopo (v1.0)
 
 - Fim de curso na posição inferior (margem do rio) — temporariamente desabilitado; reservado para reativação futura no Remote GPIO 36.
 - Display LCD/OLED.
@@ -494,7 +568,7 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 
 ---
 
-## 14. Glossário
+## 15. Glossário
 
 | Termo | Definição |
 |---|---|
@@ -507,3 +581,4 @@ O módulo de logging é implementado em `logger.h` (header-only), idêntico em `
 | Ativo em LOW | Lógica de comunicação ESP→CLP: GPIO LOW (GND) = sinal ativo para o CLP |
 | Botão NC com Trava | Botão normalmente fechado (NC) com trava: repouso = LOW; pressionado = HIGH (contato abre, pull-up ativa). Cabo partido = HIGH = emergência (fail-safe). |
 | Pulso CLP | Sinal LOW de 50 ms enviado ao CLP para comandos de pulso (VEL1, VEL2, RESET) |
+| Repeater | ESP32 sem GPIO crítico que encaminha pacotes ESP-NOW autenticados entre Remote e Principal |

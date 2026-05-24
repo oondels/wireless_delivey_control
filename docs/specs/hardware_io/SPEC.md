@@ -8,10 +8,11 @@
 
 ## 1. Visão Geral
 
-O sistema utiliza dois ESP32 WROOM-32U.
+O sistema utiliza dois ESP32 WROOM-32U principais e pode usar um terceiro ESP32 WROOM-32U como Repeater.
 
 - O **Remote** lê botões e envia comandos via ESP-NOW; o sensor de fim de curso fica reservado/desabilitado nesta versão.
 - O **Principal** recebe esses comandos, aciona entradas digitais do CLP por GPIO e lê feedbacks do CLP e da micro do freio para retransmiti-los ao Remote.
+- O **Repeater** opcional apenas encaminha pacotes ESP-NOW autenticados e não usa GPIO crítico.
 
 ---
 
@@ -21,6 +22,7 @@ O sistema utiliza dois ESP32 WROOM-32U.
 |---|---|---|
 | Principal | ESP32 WROOM-32U (DevKit) | Painel fixo no depósito |
 | Remote | ESP32 WROOM-32U (DevKit) | Embarcado no carrinho |
+| Repeater | ESP32 WROOM-32U (DevKit) | Ponto intermediário com melhor visada |
 
 ---
 
@@ -42,6 +44,15 @@ O sistema utiliza dois ESP32 WROOM-32U.
 | Carregador | Módulo TP4056 |
 | Regulador | LM2596 step-down → 3.3V para ESP32 |
 | Proteção | Enclosure mínimo IP54 |
+
+### 3.3 Módulo Repeater
+
+| Parâmetro | Valor |
+|---|---|
+| Fonte | 5V/3.3V estável conforme instalação |
+| Função elétrica | Apenas comunicação ESP-NOW |
+| GPIOs críticos | Nenhum |
+| Observação | Não conectar a motor, freio, emergência ou entradas do CLP |
 
 ---
 
@@ -137,9 +148,19 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 
 **Total de GPIOs no Remote: 11** (6 entradas ativas + 5 saídas)
 
+## 8. Módulo Repeater
+
+O Repeater não possui entradas ou saídas operacionais. Logs via Serial são o diagnóstico principal.
+
+| Item | Valor |
+|---|---|
+| Peers ESP-NOW | Remote e Principal |
+| GPIO motor/freio/emergência | Nenhum |
+| Controle de CLP | Nenhum |
+
 ---
 
-## 8. Restrições de Pinout do ESP32
+## 9. Restrições de Pinout do ESP32
 
 ### 8.1 Pinos a Evitar para Entradas Críticas
 
@@ -164,7 +185,7 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 
 ---
 
-## 9. Configuração de Pull-Up
+## 10. Configuração de Pull-Up
 
 | Componente | Pull-Up |
 |---|---|
@@ -182,7 +203,7 @@ Lógicas importantes:
 
 ---
 
-## 10. Especificações Elétricas dos LEDs
+## 11. Especificações Elétricas dos LEDs
 
 | Parâmetro | Valor |
 |---|---|
@@ -193,7 +214,7 @@ Lógicas importantes:
 
 ---
 
-## 11. Módulo de Relés / Interface com CLP
+## 12. Módulo de Relés / Interface com CLP
 
 Na arquitetura atual, o Principal não aciona diretamente o motor nem o freio. Ele apenas:
 
@@ -205,7 +226,7 @@ Os relés e a lógica de potência ficam sob responsabilidade do CLP e do circui
 
 ---
 
-## 12. Sensor de Fim de Curso de Descida
+## 13. Sensor de Fim de Curso de Descida
 
 | Parâmetro | Valor |
 |---|---|
@@ -216,7 +237,7 @@ Os relés e a lógica de potência ficam sob responsabilidade do CLP e do circui
 
 ---
 
-## 13. Micro do Freio
+## 14. Micro do Freio
 
 | Parâmetro | Valor |
 |---|---|
