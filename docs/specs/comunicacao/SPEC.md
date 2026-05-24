@@ -26,6 +26,7 @@ Rotas suportadas:
 
 - `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do `.env`.
 - `REPEATER_MAC` é obrigatório quando `ENABLE_REPEATER_ROUTE=true` ou ao compilar `repeater/`.
+- `DIRECT_ROUTE_RETRY_INTERVAL_MIN` define o intervalo de teste da rota direta quando a rota ativa está via Repeater.
 - Cada peer é registrado com `encrypt = true` e LMK configurada.
 - A PMK é configurada no boot via `esp_now_set_pmk()`.
 - Pacotes de MAC físico desconhecido são rejeitados.
@@ -96,6 +97,10 @@ Constantes iniciais:
 
 O Remote troca a rota ativa no próximo envio quando a rota candidata está operacional e supera a rota atual por margem de score. Ele não espera a rota atual expirar.
 
+O Principal acompanha a rota do último `PKT_REMOTE_CMD` válido aceito. Enquanto a rota ativa for direta, o Principal envia status pela rota direta e também via Repeater, permitindo que o Remote compare as duas rotas. Quando comandos válidos passam a chegar via Repeater, o Principal deixa de enviar status direto continuamente e mantém apenas `Principal -> Repeater -> Remote`, fazendo um retry direto periódico conforme `DIRECT_ROUTE_RETRY_INTERVAL_MIN`.
+
+Com isso, falha em `Principal -> Remote` não deve travar a comunicação se `Principal -> Repeater -> Remote` e `Remote -> Repeater -> Principal` continuarem operacionais.
+
 ---
 
 ## 6. Frequência e Timing
@@ -105,6 +110,7 @@ O Remote troca a rota ativa no próximo envio quando a rota candidata está oper
 | Remote -> Principal | Heartbeat/comando | A cada 100 ms ou mudança imediata |
 | Principal -> Remote | Status | A cada 200 ms ou mudança imediata |
 | Remote -> peers | Link probe | A cada 250 ms |
+| Principal -> Remote direto | Retry quando rota ativa via Repeater | `DIRECT_ROUTE_RETRY_INTERVAL_MIN` |
 
 ---
 
@@ -117,4 +123,5 @@ O Remote troca a rota ativa no próximo envio quando a rota candidata está oper
 | Origem lógica inválida | Descartado |
 | Replay/duplicata | Descartado por `seq/session_id` |
 | Repeater cai | Remote tenta rota direta se operacional; senão bloqueia movimento |
+| Rota direta cai, Repeater operacional | Sistema continua pela rota via Repeater |
 | Perda total | Principal aciona watchdog; Remote bloqueia `SUBIR`/`DESCER` |

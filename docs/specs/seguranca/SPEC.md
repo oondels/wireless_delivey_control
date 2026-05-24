@@ -110,6 +110,8 @@ Comportamento:
 Com Repeater habilitado:
 
 - se a rota direta degradar, o Remote pode trocar preventivamente para `ROUTE_VIA_REPEATER`
+- perda de `Principal -> Remote` direto não é falha global se comandos válidos continuarem chegando por `Remote -> Repeater -> Principal` e status válido continuar chegando por `Principal -> Repeater -> Remote`
+- quando a rota ativa está via Repeater, o Principal mantém o status operacional via Repeater e testa a rota direta apenas no intervalo configurado
 - se o Repeater cair, o Remote volta para direto se essa rota estiver operacional
 - se nenhuma rota estiver operacional, o Remote bloqueia `SUBIR`/`DESCER`
 - o Principal continua entrando em fail-safe se não receber `PKT_REMOTE_CMD` válido dentro de 500 ms

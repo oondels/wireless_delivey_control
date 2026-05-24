@@ -4,6 +4,12 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### fix(comunicacao): prioriza rota ativa via repeater
+
+- Principal passa a acompanhar a rota do último comando válido recebido do Remote
+- Quando a rota ativa está via Repeater, status contínuo fica somente em `Principal -> Repeater -> Remote`
+- Rota direta é testada periodicamente por `DIRECT_ROUTE_RETRY_INTERVAL_MIN`, evitando que falha direta trave a comunicação via Repeater
+
 ### fix(comunicacao): estabiliza enlace esp-now do repeater
 
 - Principal, Remote e Repeater passam a usar canal ESP-NOW fixo configurado por `ESPNOW_CHANNEL`

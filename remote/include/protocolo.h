@@ -214,6 +214,10 @@ inline uint32_t calcular_auth_tag(const PacoteLink& pacote, const uint8_t key[16
 #define SEC_ESPNOW_CHANNEL          1
 #endif
 
+#ifndef SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS
+#define SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS 120000UL
+#endif
+
 // Qualidade de rota do Remote
 #define LINK_QUALITY_TIMEOUT_MS              500
 #define LINK_PROBE_INTERVALO_MS              250

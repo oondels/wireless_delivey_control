@@ -24,6 +24,12 @@
 #ifndef SEC_ENABLE_REPEATER_ROUTE
 #define SEC_ENABLE_REPEATER_ROUTE 0
 #endif
+#ifndef SEC_FORCE_REPEATER_ROUTE
+#define SEC_FORCE_REPEATER_ROUTE 0
+#endif
+#if SEC_FORCE_REPEATER_ROUTE && !SEC_ENABLE_REPEATER_ROUTE
+#error "SEC_FORCE_REPEATER_ROUTE exige SEC_ENABLE_REPEATER_ROUTE"
+#endif
 #if SEC_ENABLE_REPEATER_ROUTE && !defined(SEC_REPEATER_MAC_STR)
 #error "SEC_REPEATER_MAC_STR nao definido. Configure REPEATER_MAC no .env"
 #endif
@@ -49,9 +55,15 @@ static uint32_t ultimoPacoteRemoteMs = 0;
 static bool sessaoProbeRemoteConhecida = false;
 static uint32_t sessaoProbeRemoteAtual = 0;
 static uint32_t ultimoSeqProbeRemote = 0;
+static uint8_t rotaStatusAtiva = ROUTE_DIRECT;
+static uint32_t ultimoRetryDiretoMs = 0;
 
 static bool macIgual(const uint8_t* a, const uint8_t* b) {
     return a != nullptr && b != nullptr && memcmp(a, b, 6) == 0;
+}
+
+static const char* nomeRota(uint8_t rota) {
+    return rota == ROUTE_VIA_REPEATER ? "via_repeater" : "direta";
 }
 
 static bool aceitarSequencia(
@@ -206,6 +218,15 @@ static void processarPacoteRemote(const uint8_t* macFisico, const uint8_t* data)
         return;
     }
 
+#if SEC_ENABLE_REPEATER_ROUTE
+    const uint8_t novaRotaStatus = SEC_FORCE_REPEATER_ROUTE ? static_cast<uint8_t>(ROUTE_VIA_REPEATER) : pacote.header.rota;
+    if (rotaStatusAtiva != novaRotaStatus) {
+        rotaStatusAtiva = novaRotaStatus;
+        ultimoRetryDiretoMs = millis();
+        LOG_WARN_VAL("ROTA", "Rota operacional do status: ", nomeRota(rotaStatusAtiva));
+    }
+#endif
+
     if (Comunicacao::_pWatchdog) {
         Comunicacao::_pWatchdog->resetar();
     }
@@ -304,6 +325,8 @@ void Comunicacao::init(WatchdogComm& watchdog) {
     } while (sessaoLocalPrincipal == 0);
     seqStatusEnvio = 0;
     seqLinkAckEnvio = 0;
+    rotaStatusAtiva = SEC_FORCE_REPEATER_ROUTE ? ROUTE_VIA_REPEATER : ROUTE_DIRECT;
+    ultimoRetryDiretoMs = 0;
     sessaoRemoteConhecida = false;
     ultimoSeqRemote = 0;
     ultimoPacoteRemoteMs = 0;
@@ -346,6 +369,7 @@ void Comunicacao::init(WatchdogComm& watchdog) {
         MAC_REMOTE_ESPERADO[3], MAC_REMOTE_ESPERADO[4], MAC_REMOTE_ESPERADO[5]
     );
     LOG_ALWAYS_VAL("ESP-NOW", "Peer remoto configurado: ", macPareado);
+    LOG_ALWAYS_VAL("ROTA", "Retry direto de status (ms): ", SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS);
 
 #if SEC_ENABLE_REPEATER_ROUTE
     snprintf(
@@ -356,6 +380,8 @@ void Comunicacao::init(WatchdogComm& watchdog) {
         MAC_REPEATER_ESPERADO[3], MAC_REPEATER_ESPERADO[4], MAC_REPEATER_ESPERADO[5]
     );
     LOG_ALWAYS_VAL("ESP-NOW", "Peer repeater configurado: ", macPareado);
+    LOG_ALWAYS_VAL("ROTA", "FORCE_REPEATER_ROUTE: ", SEC_FORCE_REPEATER_ROUTE ? "ativo" : "inativo");
+    LOG_ALWAYS_VAL("ROTA", "Rota inicial do status: ", nomeRota(rotaStatusAtiva));
 #endif
 }
 
@@ -375,9 +401,27 @@ static void enviarStatusRota(const PacoteStatus& status, uint8_t rota, uint32_t 
 
 void Comunicacao::enviarStatus(const PacoteStatus& status) {
     const uint32_t seq = seqStatusEnvio++;
-    enviarStatusRota(status, ROUTE_DIRECT, seq, MAC_REMOTE_ESPERADO);
 
-#if SEC_ENABLE_REPEATER_ROUTE
+#if !SEC_ENABLE_REPEATER_ROUTE
+    enviarStatusRota(status, ROUTE_DIRECT, seq, MAC_REMOTE_ESPERADO);
+#else
+    const uint8_t rotaAtiva = SEC_FORCE_REPEATER_ROUTE ? static_cast<uint8_t>(ROUTE_VIA_REPEATER) : rotaStatusAtiva;
+
+    if (rotaAtiva == ROUTE_VIA_REPEATER) {
+        enviarStatusRota(status, ROUTE_VIA_REPEATER, seq, MAC_REPEATER_ESPERADO);
+
+#if !SEC_FORCE_REPEATER_ROUTE
+        const uint32_t agora = millis();
+        if (ultimoRetryDiretoMs == 0 || (agora - ultimoRetryDiretoMs) >= SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS) {
+            ultimoRetryDiretoMs = agora;
+            LOG_INFO("ROTA", "Retry direto de status para avaliar rota direta");
+            enviarStatusRota(status, ROUTE_DIRECT, seq, MAC_REMOTE_ESPERADO);
+        }
+#endif
+        return;
+    }
+
+    enviarStatusRota(status, ROUTE_DIRECT, seq, MAC_REMOTE_ESPERADO);
     enviarStatusRota(status, ROUTE_VIA_REPEATER, seq, MAC_REPEATER_ESPERADO);
 #endif
 }

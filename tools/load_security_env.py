@@ -71,6 +71,18 @@ def parse_channel(value, default=1):
     return channel
 
 
+def parse_int_range(value, default, minimum, maximum, name):
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise ValueError(f"{name} invalido no .env: {value}")
+    if parsed < minimum or parsed > maximum:
+        raise ValueError(f"{name} deve estar entre {minimum} e {maximum}")
+    return parsed
+
+
 if not os.path.exists(ENV_PATH):
     raise RuntimeError(
         f"Arquivo .env nao encontrado em {ENV_PATH}. "
@@ -94,6 +106,13 @@ try:
     )
     prefer_direct_route = parse_bool(config.get("PREFER_DIRECT_ROUTE"), False)
     espnow_channel = parse_channel(config.get("ESPNOW_CHANNEL"), 1)
+    direct_route_retry_interval_min = parse_int_range(
+        config.get("DIRECT_ROUTE_RETRY_INTERVAL_MIN"),
+        2,
+        1,
+        60,
+        "DIRECT_ROUTE_RETRY_INTERVAL_MIN",
+    )
 except ValueError as exc:
     raise RuntimeError(str(exc))
 
@@ -122,6 +141,7 @@ defines = [
     ("SEC_PREFER_DIRECT_ROUTE", 1 if prefer_direct_route else 0),
     ("SEC_FORCE_REPEATER_ROUTE", 1 if force_repeater_route else 0),
     ("SEC_ESPNOW_CHANNEL", espnow_channel),
+    ("SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS", direct_route_retry_interval_min * 60 * 1000),
 ]
 
 if enable_repeater_route:
