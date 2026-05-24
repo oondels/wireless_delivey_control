@@ -10,6 +10,7 @@
 #include "comunicacao.h"
 #include "logger.h"
 #include <esp_system.h>
+#include <esp_wifi.h>
 
 #ifndef SEC_REMOTE_MAC_STR
 #error "SEC_REMOTE_MAC_STR nao definido. Configure via .env"
@@ -111,7 +112,7 @@ static bool registrarPeer(const uint8_t mac[6]) {
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, mac, 6);
     memcpy(peerInfo.lmk, ESPNOW_LMK, 16);
-    peerInfo.channel = 0;
+    peerInfo.channel = SEC_ESPNOW_CHANNEL;
     peerInfo.encrypt = true;
 
     if (esp_now_is_peer_exist(mac)) {
@@ -119,6 +120,23 @@ static bool registrarPeer(const uint8_t mac[6]) {
     }
 
     return esp_now_add_peer(&peerInfo) == ESP_OK;
+}
+
+static bool configurarRadioEspNow() {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    WiFi.setSleep(false);
+
+    if (esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) {
+        LOG_ERROR("ESP-NOW", "Falha ao desativar economia de energia WiFi");
+        return false;
+    }
+    if (esp_wifi_set_channel(SEC_ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+        LOG_ERROR("ESP-NOW", "Falha ao configurar canal fixo do ESP-NOW");
+        return false;
+    }
+
+    return true;
 }
 
 static bool headerComandoValido(const PacoteRemote& pacote, const uint8_t* macFisico) {
@@ -292,8 +310,9 @@ void Comunicacao::init(WatchdogComm& watchdog) {
     sessaoProbeRemoteConhecida = false;
     ultimoSeqProbeRemote = 0;
 
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    if (!configurarRadioEspNow()) {
+        return;
+    }
 
     if (esp_now_init() != ESP_OK) {
         LOG_ERROR("ESP-NOW", "Falha ao inicializar ESP-NOW");

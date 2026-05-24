@@ -8,6 +8,7 @@
 #include "comunicacao.h"
 #include "logger.h"
 #include <esp_system.h>
+#include <esp_wifi.h>
 
 #ifndef SEC_PRINCIPAL_MAC_STR
 #error "SEC_PRINCIPAL_MAC_STR nao definido. Configure via .env"
@@ -39,9 +40,21 @@ static uint8_t ESPNOW_PMK[16] = {};
 static uint8_t ESPNOW_LMK[16] = {};
 static uint32_t sessaoLocalRepeater = 0;
 static uint32_t seqLinkAckEnvio = 0;
+static uint32_t ultimoLogCmdRemoteMs = 0;
+static uint32_t ultimoLogEnvioPrincipalOkMs = 0;
+static uint32_t ultimoLogEnvioPrincipalFalhaMs = 0;
+static uint32_t ultimoLogEnvioRemoteFalhaMs = 0;
 static ReplayState replayCmdRemote;
 static ReplayState replayStatusPrincipal;
 static ReplayState replayProbeRemote;
+
+static bool logIntervaloVencido(uint32_t& ultimoLogMs, uint32_t agora) {
+    if (ultimoLogMs != 0 && (agora - ultimoLogMs) < 1000) {
+        return false;
+    }
+    ultimoLogMs = agora;
+    return true;
+}
 
 static bool macIgual(const uint8_t* a, const uint8_t* b) {
     return a != nullptr && b != nullptr && memcmp(a, b, 6) == 0;
@@ -69,7 +82,7 @@ static bool registrarPeer(const uint8_t mac[6]) {
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, mac, 6);
     memcpy(peerInfo.lmk, ESPNOW_LMK, 16);
-    peerInfo.channel = 0;
+    peerInfo.channel = SEC_ESPNOW_CHANNEL;
     peerInfo.encrypt = true;
 
     if (esp_now_is_peer_exist(mac)) {
@@ -77,6 +90,23 @@ static bool registrarPeer(const uint8_t mac[6]) {
     }
 
     return esp_now_add_peer(&peerInfo) == ESP_OK;
+}
+
+static bool configurarRadioEspNow() {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    WiFi.setSleep(false);
+
+    if (esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) {
+        LOG_ERROR("ESP-NOW", "Falha ao desativar economia de energia WiFi");
+        return false;
+    }
+    if (esp_wifi_set_channel(SEC_ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+        LOG_ERROR("ESP-NOW", "Falha ao configurar canal fixo do ESP-NOW");
+        return false;
+    }
+
+    return true;
 }
 
 static bool validarComandoViaRepeater(const PacoteRemote& pacote, const uint8_t* macFisico) {
@@ -149,12 +179,19 @@ static void processarComandoRemote(const uint8_t* macFisico, const uint8_t* data
         return;
     }
 
-    LOG_INFO_VAL("REPEATER", "Pacote recebido do Remote: ", comandoParaString(pacote.comando));
+    const uint32_t agora = millis();
+    if (logIntervaloVencido(ultimoLogCmdRemoteMs, agora)) {
+        LOG_ALWAYS_VAL("REPEATER", "Comando valido recebido do Remote: ", comandoParaString(pacote.comando));
+        LOG_ALWAYS_VAL("REPEATER", "Repassando comando para Principal seq=", pacote.seq);
+    }
+
     esp_err_t resultado = esp_now_send(MAC_PRINCIPAL_ESPERADO, data, sizeof(PacoteRemote));
     if (resultado != ESP_OK) {
         LOG_WARN("REPEATER", "Falha ao encaminhar comando para Principal");
     } else {
-        LOG_INFO("REPEATER", "Comando encaminhado para Principal");
+        if (logIntervaloVencido(ultimoLogEnvioPrincipalOkMs, agora)) {
+            LOG_ALWAYS("REPEATER", "Envio para Principal solicitado ao ESP-NOW");
+        }
     }
 }
 
@@ -255,13 +292,21 @@ void Comunicacao::onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
 #endif
 
 void Comunicacao::onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
+    const uint32_t agora = millis();
+
     if (status == ESP_NOW_SEND_SUCCESS) {
+        if (macIgual(mac, MAC_PRINCIPAL_ESPERADO) &&
+            logIntervaloVencido(ultimoLogEnvioPrincipalOkMs, agora)) {
+            LOG_ALWAYS("REPEATER", "Envio confirmado para Principal");
+        }
         return;
     }
 
-    if (macIgual(mac, MAC_PRINCIPAL_ESPERADO)) {
+    if (macIgual(mac, MAC_PRINCIPAL_ESPERADO) &&
+        logIntervaloVencido(ultimoLogEnvioPrincipalFalhaMs, agora)) {
         LOG_WARN("REPEATER", "Falha confirmada no envio para Principal");
-    } else if (macIgual(mac, MAC_REMOTE_ESPERADO)) {
+    } else if (macIgual(mac, MAC_REMOTE_ESPERADO) &&
+               logIntervaloVencido(ultimoLogEnvioRemoteFalhaMs, agora)) {
         LOG_WARN("REPEATER", "Falha confirmada no envio para Remote");
     }
 }
@@ -280,12 +325,17 @@ void Comunicacao::init() {
         sessaoLocalRepeater = esp_random();
     } while (sessaoLocalRepeater == 0);
     seqLinkAckEnvio = 0;
+    ultimoLogCmdRemoteMs = 0;
+    ultimoLogEnvioPrincipalOkMs = 0;
+    ultimoLogEnvioPrincipalFalhaMs = 0;
+    ultimoLogEnvioRemoteFalhaMs = 0;
     replayCmdRemote = ReplayState();
     replayStatusPrincipal = ReplayState();
     replayProbeRemote = ReplayState();
 
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    if (!configurarRadioEspNow()) {
+        return;
+    }
 
     if (esp_now_init() != ESP_OK) {
         LOG_ERROR("ESP-NOW", "Falha ao inicializar ESP-NOW");

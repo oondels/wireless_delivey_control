@@ -10,6 +10,7 @@
 #include "comunicacao.h"
 #include "logger.h"
 #include <esp_system.h>
+#include <esp_wifi.h>
 #include <esp_wifi_types.h>
 
 #ifndef SEC_PRINCIPAL_MAC_STR
@@ -27,8 +28,14 @@
 #ifndef SEC_PREFER_DIRECT_ROUTE
 #define SEC_PREFER_DIRECT_ROUTE 0
 #endif
+#ifndef SEC_FORCE_REPEATER_ROUTE
+#define SEC_FORCE_REPEATER_ROUTE 0
+#endif
 #if SEC_ENABLE_REPEATER_ROUTE && !defined(SEC_REPEATER_MAC_STR)
 #error "SEC_REPEATER_MAC_STR nao definido. Configure REPEATER_MAC no .env"
+#endif
+#if SEC_FORCE_REPEATER_ROUTE && !SEC_ENABLE_REPEATER_ROUTE
+#error "SEC_FORCE_REPEATER_ROUTE exige SEC_ENABLE_REPEATER_ROUTE"
 #endif
 
 struct ReplayState {
@@ -164,7 +171,7 @@ static bool registrarPeer(const uint8_t mac[6]) {
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, mac, 6);
     memcpy(peerInfo.lmk, ESPNOW_LMK, 16);
-    peerInfo.channel = 0;
+    peerInfo.channel = SEC_ESPNOW_CHANNEL;
     peerInfo.encrypt = true;
 
     if (esp_now_is_peer_exist(mac)) {
@@ -172,6 +179,23 @@ static bool registrarPeer(const uint8_t mac[6]) {
     }
 
     return esp_now_add_peer(&peerInfo) == ESP_OK;
+}
+
+static bool configurarRadioEspNow() {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    WiFi.setSleep(false);
+
+    if (esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) {
+        LOG_ERROR("ESP-NOW", "Falha ao desativar economia de energia WiFi");
+        return false;
+    }
+    if (esp_wifi_set_channel(SEC_ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+        LOG_ERROR("ESP-NOW", "Falha ao configurar canal fixo do ESP-NOW");
+        return false;
+    }
+
+    return true;
 }
 
 static int rssiDoCallback(const esp_now_recv_info_t* info) {
@@ -387,7 +411,7 @@ void Comunicacao::init() {
     seqProbeEnvio = 0;
     ultimoProbeMs = 0;
     ultimaAvaliacaoRotaMs = 0;
-    candidatoRota = ROUTE_DIRECT;
+    candidatoRota = SEC_FORCE_REPEATER_ROUTE ? ROUTE_VIA_REPEATER : ROUTE_DIRECT;
     amostrasCandidato = 0;
     replayStatusDirect = ReplayState();
     replayStatusRepeater = ReplayState();
@@ -395,10 +419,11 @@ void Comunicacao::init() {
     replayAckRepeater = ReplayState();
     qualidadeDirect = QualidadeRota();
     qualidadeRepeater = QualidadeRota();
-    _rotaAtual = ROUTE_DIRECT;
+    _rotaAtual = SEC_FORCE_REPEATER_ROUTE ? ROUTE_VIA_REPEATER : ROUTE_DIRECT;
 
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    if (!configurarRadioEspNow()) {
+        return;
+    }
 
     if (esp_now_init() != ESP_OK) {
         LOG_ERROR("ESP-NOW", "Falha ao inicializar ESP-NOW");
@@ -472,7 +497,9 @@ void Comunicacao::enviarProbes() {
     }
     ultimoProbeMs = agora;
 
-    enviarProbePara(MAC_PRINCIPAL_ESPERADO, NODE_PRINCIPAL);
+    if (!SEC_FORCE_REPEATER_ROUTE) {
+        enviarProbePara(MAC_PRINCIPAL_ESPERADO, NODE_PRINCIPAL);
+    }
 #if SEC_ENABLE_REPEATER_ROUTE
     enviarProbePara(MAC_REPEATER_ESPERADO, NODE_REPEATER);
 #endif
@@ -483,6 +510,10 @@ void Comunicacao::atualizarRota() {
     _rotaAtual = ROUTE_DIRECT;
     return;
 #else
+#if SEC_FORCE_REPEATER_ROUTE
+    _rotaAtual = ROUTE_VIA_REPEATER;
+    return;
+#endif
     const uint32_t agora = millis();
     if (agora - ultimaAvaliacaoRotaMs < HEARTBEAT_INTERVALO_MS) {
         return;

@@ -59,6 +59,18 @@ def parse_bool(value, default=False):
     raise ValueError(f"Valor booleano invalido no .env: {value}")
 
 
+def parse_channel(value, default=1):
+    if value is None:
+        return default
+    try:
+        channel = int(value)
+    except ValueError:
+        raise ValueError(f"Canal ESP-NOW invalido no .env: {value}")
+    if channel < 1 or channel > 13:
+        raise ValueError("ESPNOW_CHANNEL deve estar entre 1 e 13")
+    return channel
+
+
 if not os.path.exists(ENV_PATH):
     raise RuntimeError(
         f"Arquivo .env nao encontrado em {ENV_PATH}. "
@@ -74,8 +86,14 @@ if missing:
     raise RuntimeError(f"Campos obrigatorios ausentes no .env: {', '.join(missing)}")
 
 try:
-    enable_repeater_route = parse_bool(config.get("ENABLE_REPEATER_ROUTE"), False) or is_repeater_project
+    force_repeater_route = parse_bool(config.get("FORCE_REPEATER_ROUTE"), False)
+    enable_repeater_route = (
+        parse_bool(config.get("ENABLE_REPEATER_ROUTE"), False)
+        or force_repeater_route
+        or is_repeater_project
+    )
     prefer_direct_route = parse_bool(config.get("PREFER_DIRECT_ROUTE"), False)
+    espnow_channel = parse_channel(config.get("ESPNOW_CHANNEL"), 1)
 except ValueError as exc:
     raise RuntimeError(str(exc))
 
@@ -102,6 +120,8 @@ defines = [
     ("SEC_ESPNOW_LMK_STR", f'\\\"{config["ESPNOW_LMK"]}\\\"'),
     ("SEC_ENABLE_REPEATER_ROUTE", 1 if enable_repeater_route else 0),
     ("SEC_PREFER_DIRECT_ROUTE", 1 if prefer_direct_route else 0),
+    ("SEC_FORCE_REPEATER_ROUTE", 1 if force_repeater_route else 0),
+    ("SEC_ESPNOW_CHANNEL", espnow_channel),
 ]
 
 if enable_repeater_route:

@@ -209,6 +209,11 @@ inline uint32_t calcular_auth_tag(const PacoteLink& pacote, const uint8_t key[16
 #define STATUS_INTERVALO_MS      200
 #define PULSO_CLP_MS              50  // Duração do pulso enviado ao CLP (VEL1/VEL2/RESET)
 
+// Canal fixo do ESP-NOW. Todos os módulos devem usar o mesmo canal.
+#ifndef SEC_ESPNOW_CHANNEL
+#define SEC_ESPNOW_CHANNEL          1
+#endif
+
 // Qualidade de rota do Remote
 #define LINK_QUALITY_TIMEOUT_MS              500
 #define LINK_PROBE_INTERVALO_MS              250

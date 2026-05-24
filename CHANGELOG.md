@@ -4,6 +4,12 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### fix(comunicacao): estabiliza enlace esp-now do repeater
+
+- Principal, Remote e Repeater passam a usar canal ESP-NOW fixo configurado por `ESPNOW_CHANNEL`
+- Economia de energia WiFi é desativada nos três módulos antes de inicializar ESP-NOW
+- Peers criptografados deixam de depender do canal implícito, reduzindo falhas intermitentes de envio entre Repeater, Remote e Principal
+
 ### feat(comunicacao): adiciona repetidor esp-now com rota preventiva
 
 - Novo firmware `repeater/` encaminha comandos e status autenticados entre Remote e Principal sem autoridade sobre movimento
