@@ -28,7 +28,7 @@
 #define PIN_CLP_DESCER      16  // DESCER hold ativo enquanto botão pressionado no Remote
 #define PIN_CLP_VEL1        17  // VEL1 selecionada (pulso PULSO_CLP_MS ms)
 #define PIN_CLP_VEL2        5   // VEL2 selecionada (pulso PULSO_CLP_MS ms)
-#define PIN_CLP_EMERGENCIA  18  // Emergência: botão Remote travado OU watchdog expirado
+#define PIN_CLP_EMERGENCIA  18  // Emergência: botão Remote travado OU perda de sinal prolongada
 #define PIN_CLP_RESET       19  // RESET: pulso de PULSO_CLP_MS ms
 #define PIN_CLP_FIM_CURSO   22  // Reservado; FDC descida temporariamente desabilitado
 

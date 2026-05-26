@@ -93,7 +93,7 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 | DESCER | 16 | Saída | Nível LOW estável enquanto comando remoto de descida permanecer válido |
 | VEL1 | 17 | Saída | Pulso LOW de 50 ms |
 | VEL2 | 5 | Saída | Pulso LOW de 50 ms |
-| EMERGÊNCIA | 18 | Saída | LOW quando emergência remota ou watchdog expirado |
+| EMERGÊNCIA | 18 | Saída | LOW quando emergência remota ou perda de sinal prolongada configurada |
 | RESET | 19 | Saída | Pulso LOW de 50 ms |
 | FIM_CURSO | 22 | Saída | Temporariamente desabilitado; mantido HIGH |
 

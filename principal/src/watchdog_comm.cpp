@@ -17,3 +17,7 @@ void WatchdogComm::resetar() {
 bool WatchdogComm::expirado() const {
     return (millis() - _ultimoPacoteMs) > WATCHDOG_TIMEOUT_MS;
 }
+
+uint32_t WatchdogComm::tempoSemPacoteMs() const {
+    return millis() - _ultimoPacoteMs;
+}

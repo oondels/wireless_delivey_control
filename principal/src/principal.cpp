@@ -12,11 +12,11 @@
  *   HIGH = sinal inativo (repouso)
  *
  * Fail-safe: se o Remote ficar silencioso > WATCHDOG_TIMEOUT_MS,
- * PIN_CLP_EMERGENCIA vai a LOW imediatamente (emergência ao CLP).
- * Todos os demais sinais de movimento ficam em HIGH (inativos).
+ * todos os sinais de movimento ficam em HIGH (inativos). A emergencia
+ * por perda de sinal usa timeout separado e configuravel.
  *
  * Sequência do loop:
- *   1. Verificar watchdog — se expirado, acionar emergência no CLP
+ *   1. Verificar watchdog — se expirado, bloquear movimento remoto
  *   2. Se novo pacote recebido:
  *      a. Resetar watchdog
  *      b. Mapear campos do PacoteRemote para GPIOs do CLP
@@ -107,6 +107,7 @@ bool           sinalDescerAnteriorAtivo = false;
 bool           sinalEmergenciaAnteriorAtivo = false;
 bool           sinalFimCursoAnteriorAtivo   = false;
 bool           bloqueioRemotoAnterior   = false;
+bool           emergenciaPerdaSinalAnteriorAtiva = false;
 
 static bool statusMudou(const PacoteStatus& atual, const PacoteStatus& anterior) {
     return memcmp(&atual, &anterior, sizeof(PacoteStatus) - 1) != 0;
@@ -267,6 +268,8 @@ void setup() {
     comunicacao.init(watchdog);
 
     LOG_ALWAYS_VAL("BOOT", "MAC local: ", WiFi.macAddress());
+    LOG_ALWAYS_VAL("WDOG", "Emergencia por perda de sinal: ", SEC_ENABLE_SIGNAL_LOSS_EMERGENCY ? "habilitada" : "desabilitada");
+    LOG_ALWAYS_VAL("WDOG", "Timeout emergencia por perda de sinal (ms): ", SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS);
     LOG_ALWAYS("BOOT", "=== Modulo Principal - Pronto. Aguardando Remote... ===");
 }
 
@@ -321,27 +324,33 @@ void loop() {
         microFreioAnteriorAtiva = microFreioAtiva;
     }
 
-    // 1. Verificar watchdog
+    // 1. Verificar watchdog: timeout curto bloqueia movimento; timeout longo pode acionar emergencia.
     bool watchdogExpirado = watchdog.expirado();
+    bool emergenciaPerdaSinalAtiva =
+        watchdogExpirado &&
+        SEC_ENABLE_SIGNAL_LOSS_EMERGENCY &&
+        watchdog.tempoSemPacoteMs() > SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS;
 
     if (watchdogExpirado) {
-        // Fail-safe: Remote silencioso → emergência no CLP, movimento parado
         pararMovimento();
-        setEmergencia(true);
         holdRemotoAtivo       = false;
         direcaoRemotaAtual    = DIRECAO_REMOTA_NENHUMA;
-        emergenciaRemotaAtiva = false;
         fimCursoRemotoAtivo   = false;
 
         if (!watchdogAnteriorExpirado) {
-            LOG_ERROR("WDOG", "Watchdog EXPIRADO — emergencia ativada no CLP");
+            LOG_WARN("WDOG", "Watchdog expirado — movimento remoto bloqueado por perda de link");
         }
     } else if (watchdogAnteriorExpirado) {
-        // Comunicação restaurada → liberar emergência
-        setEmergencia(false);
-        LOG_INFO("WDOG", "Watchdog recuperado — emergencia CLP liberada");
+        LOG_INFO("WDOG", "Watchdog recuperado — link com Remote restaurado");
     }
     watchdogAnteriorExpirado = watchdogExpirado;
+
+    if (emergenciaPerdaSinalAtiva && !emergenciaPerdaSinalAnteriorAtiva) {
+        LOG_ERROR("WDOG", "Perda prolongada de sinal — emergencia ativada no CLP");
+    } else if (!emergenciaPerdaSinalAtiva && emergenciaPerdaSinalAnteriorAtiva) {
+        LOG_INFO("WDOG", "Emergencia por perda de sinal liberada");
+    }
+    emergenciaPerdaSinalAnteriorAtiva = emergenciaPerdaSinalAtiva;
 
     // 2. Processar novo pacote do Remote
     if (comunicacao.novoPacoteRecebido()) {
@@ -439,14 +448,13 @@ void loop() {
     atualizarPulsos();
 
     // Sinais sustentados para o CLP
-    if (!watchdogExpirado) {
-        setEmergencia(emergenciaRemotaAtiva);
-    }
+    bool emergenciaSaidaAtiva = emergenciaRemotaAtiva || emergenciaPerdaSinalAtiva;
+    setEmergencia(emergenciaSaidaAtiva);
     digitalWrite(PIN_CLP_FIM_CURSO, fimCursoRemotoAtivo ? LOW : HIGH);
     registrarMudancaSaidasSustentadas(
         subirAtivo,
         descerAtivo,
-        watchdogExpirado || emergenciaRemotaAtiva,
+        emergenciaSaidaAtiva,
         fimCursoRemotoAtivo
     );
 

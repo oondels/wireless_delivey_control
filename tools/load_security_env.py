@@ -99,6 +99,7 @@ if missing:
 
 try:
     force_repeater_route = parse_bool(config.get("FORCE_REPEATER_ROUTE"), False)
+    enable_signal_loss_emergency = parse_bool(config.get("ENABLE_SIGNAL_LOSS_EMERGENCY"), True)
     enable_repeater_route = (
         parse_bool(config.get("ENABLE_REPEATER_ROUTE"), False)
         or force_repeater_route
@@ -112,6 +113,13 @@ try:
         1,
         60,
         "DIRECT_ROUTE_RETRY_INTERVAL_MIN",
+    )
+    signal_loss_emergency_timeout_ms = parse_int_range(
+        config.get("SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS"),
+        5000,
+        500,
+        600000,
+        "SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS",
     )
 except ValueError as exc:
     raise RuntimeError(str(exc))
@@ -142,6 +150,8 @@ defines = [
     ("SEC_FORCE_REPEATER_ROUTE", 1 if force_repeater_route else 0),
     ("SEC_ESPNOW_CHANNEL", espnow_channel),
     ("SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS", direct_route_retry_interval_min * 60 * 1000),
+    ("SEC_ENABLE_SIGNAL_LOSS_EMERGENCY", 1 if enable_signal_loss_emergency else 0),
+    ("SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS", signal_loss_emergency_timeout_ms),
 ]
 
 if enable_repeater_route:

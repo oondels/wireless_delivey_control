@@ -136,13 +136,14 @@ O CLP executa toda a sequência de aplicação e liberação do freio. O papel d
 
 | # | Condição | Origem | Estado resultante |
 |---|---|---|---|
-| 1 | Perda de heartbeat do Remote (watchdog timeout) | Comunicação | `FALHA_COMUNICACAO` |
-| 2 | Queda de energia ou desligamento do Remote | Hardware | `FALHA_COMUNICACAO` |
-| 3 | Botão de EMERGÊNCIA acionado no Painel Central | Operador | `EMERGENCIA_ATIVA` |
-| 4 | Botão de EMERGÊNCIA acionado no Remote | Operador | `EMERGENCIA_ATIVA` |
-| 5 | Soltura do botão de acionamento (regra Homem-Morto) | Operador | `PARADO` |
-| 6 | Microchave indicando freio engatado com motor ativo | Hardware | `PARADO` |
-| 7 | Fim de curso do estacionamento acionado | Hardware | `PARADO` |
+| 1 | Perda curta de heartbeat do Remote (watchdog timeout) | Comunicação | Movimento bloqueado |
+| 2 | Perda prolongada de heartbeat do Remote | Comunicação | `FALHA_COMUNICACAO` se habilitado por configuração |
+| 3 | Queda de energia ou desligamento do Remote | Hardware | Movimento bloqueado; emergência depende da política de perda de sinal |
+| 4 | Botão de EMERGÊNCIA acionado no Painel Central | Operador | `EMERGENCIA_ATIVA` |
+| 5 | Botão de EMERGÊNCIA acionado no Remote | Operador | `EMERGENCIA_ATIVA` |
+| 6 | Soltura do botão de acionamento (regra Homem-Morto) | Operador | `PARADO` |
+| 7 | Microchave indicando freio engatado com motor ativo | Hardware | `PARADO` |
+| 8 | Fim de curso do estacionamento acionado | Hardware | `PARADO` |
 
 ### 6.2 Botão de Emergência com Trava Mecânica
 
@@ -172,9 +173,9 @@ Na arquitetura atual do firmware ESP32, não existe campo `rearme_ativo` no `Pac
 ### 6.5 Watchdog de Comunicação
 
 - Timeout: **500 ms** (configurável em firmware).
-- Se nenhum pacote for recebido dentro do timeout: freio acionado, motor cortado, estado `FALHA_COMUNICACAO`.
+- Se nenhum pacote for recebido dentro do timeout: motor cortado e movimento remoto bloqueado.
 - Remote envia heartbeat a cada **100 ms** mesmo sem botão pressionado.
-- `FALHA_COMUNICACAO` exige rearme manual pelo Painel Central.
+- `FALHA_COMUNICACAO` por perda de sinal só ocorre após timeout prolongado configurável e se essa política estiver habilitada.
 
 ---
 

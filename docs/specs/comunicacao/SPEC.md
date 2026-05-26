@@ -27,6 +27,7 @@ Rotas suportadas:
 - `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do `.env`.
 - `REPEATER_MAC` é obrigatório quando `ENABLE_REPEATER_ROUTE=true` ou ao compilar `repeater/`.
 - `DIRECT_ROUTE_RETRY_INTERVAL_MIN` define o intervalo de teste da rota direta quando a rota ativa está via Repeater.
+- `ENABLE_SIGNAL_LOSS_EMERGENCY` e `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` controlam se perda prolongada de sinal aciona emergência no Principal.
 - Cada peer é registrado com `encrypt = true` e LMK configurada.
 - A PMK é configurada no boot via `esp_now_set_pmk()`.
 - Pacotes de MAC físico desconhecido são rejeitados.
@@ -111,6 +112,7 @@ Com isso, falha em `Principal -> Remote` não deve travar a comunicação se `Pr
 | Principal -> Remote | Status | A cada 200 ms ou mudança imediata |
 | Remote -> peers | Link probe | A cada 250 ms |
 | Principal -> Remote direto | Retry quando rota ativa via Repeater | `DIRECT_ROUTE_RETRY_INTERVAL_MIN` |
+| Principal | Emergência por perda de sinal | `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` |
 
 ---
 
@@ -124,4 +126,5 @@ Com isso, falha em `Principal -> Remote` não deve travar a comunicação se `Pr
 | Replay/duplicata | Descartado por `seq/session_id` |
 | Repeater cai | Remote tenta rota direta se operacional; senão bloqueia movimento |
 | Rota direta cai, Repeater operacional | Sistema continua pela rota via Repeater |
-| Perda total | Principal aciona watchdog; Remote bloqueia `SUBIR`/`DESCER` |
+| Perda total curta | Principal bloqueia movimento por watchdog; Remote bloqueia `SUBIR`/`DESCER` |
+| Perda total prolongada | Principal aciona emergência se `ENABLE_SIGNAL_LOSS_EMERGENCY=true` |

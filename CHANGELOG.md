@@ -4,6 +4,12 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### fix(seguranca): temporiza emergencia por perda de sinal
+
+- Watchdog curto continua bloqueando movimento em 500 ms sem comando válido
+- `PIN_CLP_EMERGENCIA` por perda de sinal passa a depender de `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS`
+- `.env` recebe `ENABLE_SIGNAL_LOSS_EMERGENCY` para desativar emergência automática por perda de sinal
+
 ### fix(comunicacao): prioriza rota ativa via repeater
 
 - Principal passa a acompanhar a rota do último comando válido recebido do Remote

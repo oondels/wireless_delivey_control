@@ -61,9 +61,9 @@ Quando bloqueado:
 
 Se nenhum `PacoteRemote` válido for recebido por mais de `500 ms`:
 
-1. `PIN_CLP_EMERGENCIA` vai para LOW
-2. `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` vão para HIGH
-3. `PacoteStatus.link_ok` passa a `0`
+1. `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` vão para HIGH
+2. `PacoteStatus.link_ok` passa a `0`
+3. `PIN_CLP_EMERGENCIA` vai para LOW apenas se a perda exceder o timeout configurável de emergência
 
 ### 4.2 Replicação para o CLP
 

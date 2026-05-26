@@ -218,6 +218,14 @@ inline uint32_t calcular_auth_tag(const PacoteLink& pacote, const uint8_t key[16
 #define SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS 120000UL
 #endif
 
+#ifndef SEC_ENABLE_SIGNAL_LOSS_EMERGENCY
+#define SEC_ENABLE_SIGNAL_LOSS_EMERGENCY 1
+#endif
+
+#ifndef SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS
+#define SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS 5000UL
+#endif
+
 // Qualidade de rota do Remote
 #define LINK_QUALITY_TIMEOUT_MS              500
 #define LINK_PROBE_INTERVALO_MS              250

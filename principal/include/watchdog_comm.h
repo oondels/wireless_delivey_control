@@ -1,8 +1,9 @@
 /**
  * watchdog_comm.h — Watchdog de comunicação com o Remote
  *
- * Timeout: 500 ms (WATCHDOG_TIMEOUT_MS em protocolo.h).
- * Se nenhum pacote válido recebido no timeout → FALHA_COMUNICACAO.
+ * Timeout curto: 500 ms (WATCHDOG_TIMEOUT_MS em protocolo.h).
+ * Se nenhum pacote valido recebido no timeout, o movimento remoto e bloqueado.
+ * A emergencia por perda prolongada usa timeout separado configuravel.
  *
  * Ref: seguranca/SPEC.md §4
  */
@@ -18,6 +19,7 @@ public:
     void init();
     void resetar();          // Chamar ao receber pacote válido
     bool expirado() const;   // true se timeout excedido
+    uint32_t tempoSemPacoteMs() const;
 
 private:
     volatile uint32_t _ultimoPacoteMs = 0;

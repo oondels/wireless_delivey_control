@@ -10,7 +10,7 @@
 
 Na arquitetura atual, o CLP executa a lógica de potência e segurança. Os ESP32 atuam como ponte de comunicação e devem falhar para um estado seguro:
 
-- perda de comunicação Remote → Principal aciona `PIN_CLP_EMERGENCIA` em LOW
+- perda curta de comunicação Remote → Principal bloqueia movimento; perda prolongada pode acionar `PIN_CLP_EMERGENCIA` conforme configuração
 - comandos de movimento são interrompidos imediatamente quando condições de operação deixam de ser válidas
 - o Remote nunca assume que pode mover apenas pelo botão local; ele depende do status válido vindo do Principal
 - o Repeater opcional não tem autoridade sobre movimento, emergência, freio ou fim de curso
@@ -34,7 +34,7 @@ Se qualquer uma dessas condições falhar:
 
 - `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` vão para HIGH
 - o hold remoto é bloqueado
-- a perda de watchdog também força `PIN_CLP_EMERGENCIA` para LOW
+- a perda curta de watchdog força apenas parada de movimento; emergência por perda de sinal depende de timeout configurável
 
 ### 2.2 No Remote
 
@@ -71,7 +71,7 @@ Quando ativo:
 O Principal propaga emergência ao CLP por `PIN_CLP_EMERGENCIA`:
 
 - LOW quando a emergência remota está ativa
-- LOW quando o watchdog do Remote expira
+- LOW quando a perda de sinal excede `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` e `ENABLE_SIGNAL_LOSS_EMERGENCY=true`
 - HIGH quando a comunicação é restaurada e não há emergência remota ativa
 
 O feedback de emergência efetiva do sistema vem do CLP por `EMERGENCIA_ATIVA`:
@@ -91,6 +91,7 @@ O feedback de emergência efetiva do sistema vem do CLP por `EMERGENCIA_ATIVA`:
 | Heartbeat Remote → Principal | 100 ms |
 | Status Principal → Remote | 200 ms |
 | Timeout de watchdog | 500 ms |
+| Timeout de emergência por perda de sinal | `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` (padrão 5000 ms) |
 | Probe de qualidade de rota | 250 ms |
 
 Comportamento:
@@ -99,10 +100,11 @@ Comportamento:
 - pacote inválido por MAC, checksum, autenticação ou replay **não** reseta watchdog
 - `PKT_LINK_PROBE`, `PKT_LINK_ACK` e `PacoteStatus` não resetam watchdog
 - ao expirar:
-  - `PIN_CLP_EMERGENCIA` vai para LOW
   - `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` vão para HIGH
   - o estado remoto persistente é limpo
   - `link_ok` passa a 0 no `PacoteStatus`
+- se a perda persistir além de `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` e `ENABLE_SIGNAL_LOSS_EMERGENCY=true`:
+  - `PIN_CLP_EMERGENCIA` vai para LOW
 - ao recuperar comunicação:
   - `PIN_CLP_EMERGENCIA` volta para HIGH se não houver emergência remota ativa
   - o LED LINK do Principal volta ao estado fixo
@@ -162,8 +164,8 @@ O Principal não possui botões de teste local. Os sinais `SUBIR` e `DESCER` env
 
 Estas condições devem permanecer verdadeiras no firmware atual:
 
-1. watchdog expirado implica `PIN_CLP_EMERGENCIA = LOW`
-2. watchdog expirado implica `PIN_CLP_SUBIR = HIGH` e `PIN_CLP_DESCER = HIGH`
+1. watchdog expirado implica `PIN_CLP_SUBIR = HIGH` e `PIN_CLP_DESCER = HIGH`
+2. perda prolongada de sinal implica `PIN_CLP_EMERGENCIA = LOW` apenas se `ENABLE_SIGNAL_LOSS_EMERGENCY=true`
 3. `SUBIR` e `DESCER` nunca ficam ativos ao mesmo tempo
 4. emergência local do Remote impede envio de `SUBIR` e `DESCER`
 5. `EMERGENCIA_ATIVA` reportada pelo CLP impede movimento remoto

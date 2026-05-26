@@ -12,9 +12,9 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 
 - manter `SUBIR` e `DESCER` em nível estável enquanto o hold remoto continuar válido
 - gerar pulsos de 50 ms para `VEL1`, `VEL2` e `RESET`
-- acionar `PIN_CLP_EMERGENCIA` em LOW se a emergência remota estiver ativa ou o watchdog expirar
+- acionar `PIN_CLP_EMERGENCIA` em LOW se a emergência remota estiver ativa ou a perda de sinal exceder o timeout configurável
 - bloquear movimento remoto quando houver:
-  - watchdog expirado
+  - watchdog expirado para movimento; perda prolongada configurável para emergência
   - emergência remota
   - `EMERGENCIA_ATIVA` do CLP
   - `micro_freio_ativa == 1`
@@ -30,7 +30,7 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 | `PIN_CLP_DESCER` | 16 | LOW estável durante hold remoto |
 | `PIN_CLP_VEL1` | 17 | Pulso LOW de 50 ms |
 | `PIN_CLP_VEL2` | 5 | Pulso LOW de 50 ms |
-| `PIN_CLP_EMERGENCIA` | 18 | LOW em emergência remota ou watchdog expirado |
+| `PIN_CLP_EMERGENCIA` | 18 | LOW em emergência remota ou perda de sinal prolongada |
 | `PIN_CLP_RESET` | 19 | Pulso LOW de 50 ms |
 | `PIN_CLP_FIM_CURSO` | 22 | Temporariamente desabilitado; mantido HIGH |
 | `PIN_LED_LINK` | 21 | Fixo com link válido; pisca 2 Hz sem link |

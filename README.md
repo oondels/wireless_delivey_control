@@ -100,9 +100,9 @@ flowchart LR
 ### 2.2 Fail-Safe
 
 Se o Remote ficar silencioso por mais de `WATCHDOG_TIMEOUT_MS` (500 ms):
-1. `PIN_CLP_EMERGENCIA` vai a LOW imediatamente → CLP recebe emergência
-2. Todos os sinais de movimento voltam a HIGH (inativos)
-3. Comunicação restaurada → `PIN_CLP_EMERGENCIA` volta a HIGH
+1. Todos os sinais de movimento voltam a HIGH (inativos)
+2. `link_ok` passa a 0 no status enviado ao Remote
+3. `PIN_CLP_EMERGENCIA` só vai a LOW se a perda exceder `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` e `ENABLE_SIGNAL_LOSS_EMERGENCY=true`
 
 ---
 
@@ -173,7 +173,7 @@ GPIO ESP32 (OUTPUT)
 | DESCER | 16 | Entrada CLP | Nível | LOW estável enquanto hold remoto DESCER permanecer válido |
 | VEL1 | 17 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL1 |
 | VEL2 | 5 | Entrada CLP | Pulso | LOW por 50 ms ao selecionar VEL2 |
-| EMERGÊNCIA | 18 | Entrada CLP | Nível | LOW se emergência Remote OU watchdog expirado |
+| EMERGÊNCIA | 18 | Entrada CLP | Nível | LOW se emergência Remote OU perda de sinal prolongada configurada |
 | RESET | 19 | Entrada CLP | Pulso | LOW por 50 ms ao pressionar RESET |
 | FIM_CURSO | 22 | Entrada CLP | Nível | Temporariamente desabilitado; mantido HIGH |
 
@@ -196,9 +196,9 @@ Funcionalidade temporariamente desabilitada nesta versão. O campo `fim_curso_de
 ### 4.4 Fail-Safe de Comunicação
 
 Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
-1. `PIN_CLP_EMERGENCIA` = LOW → CLP aplica freio imediatamente
-2. `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` = HIGH (movimento inativo)
-3. Quando comunicação é restaurada: `PIN_CLP_EMERGENCIA` = HIGH automaticamente
+1. `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` = HIGH (movimento inativo)
+2. `link_ok` = 0 no `PacoteStatus`
+3. Se a perda passar do timeout configurável, `PIN_CLP_EMERGENCIA` = LOW quando essa política estiver habilitada
 
 ---
 
@@ -278,7 +278,7 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 
 - Botão EMERGÊNCIA no Remote (NC com trava): HIGH = emergência ativa.
 - `PIN_CLP_EMERGENCIA` vai a LOW enquanto `emergencia == 1` no pacote.
-- Watchdog timeout também ativa `PIN_CLP_EMERGENCIA` (Remote silencioso = emergência).
+- Watchdog timeout curto apenas para o movimento; perda prolongada de sinal pode ativar `PIN_CLP_EMERGENCIA` conforme `.env`.
 - O CLP aplica freio e bloqueia movimento ao receber o sinal de emergência.
 
 ### 6.4 RESET
@@ -296,8 +296,8 @@ Se o Remote ficar silencioso por mais de 500 ms (watchdog do Principal):
 | # | Condição | Origem | Sinal para CLP |
 |---|---|---|---|
 | 1 | Botão EMERGÊNCIA no Remote | Remote → ESP-NOW → Principal | `PIN_CLP_EMERGENCIA` LOW |
-| 2 | Remote silencioso > 500 ms (watchdog) | Principal (watchdog) | `PIN_CLP_EMERGENCIA` LOW |
-| 3 | Desligamento / queda de bateria do Remote | Principal (watchdog) | `PIN_CLP_EMERGENCIA` LOW |
+| 2 | Remote silencioso > `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` | Principal | `PIN_CLP_EMERGENCIA` LOW se habilitado |
+| 3 | Desligamento / queda de bateria do Remote | Principal | Movimento para; emergência depende da política de perda de sinal |
 | 4 | Soltura do botão de direção (Homem-Morto) | Remote → Principal | `PIN_CLP_SUBIR` e `PIN_CLP_DESCER` HIGH |
 
 > O CLP decide como reagir a cada sinal — corte de motor, aplicação de freio, bloqueio de movimento, etc.
@@ -310,16 +310,16 @@ Botões de emergência são do tipo **NC (normalmente fechado) com trava**: em r
 
 **Liberação da emergência:**
 - Operador destravar o botão de emergência no Remote → `emergencia = 0` → `PIN_CLP_EMERGENCIA` HIGH
-- Se watchdog estava expirado: restaurar comunicação → `PIN_CLP_EMERGENCIA` HIGH automaticamente
+- Se emergência por perda de sinal estava ativa: restaurar comunicação → `PIN_CLP_EMERGENCIA` HIGH automaticamente
 - RESET no Remote pode ser usado para solicitar rearme ao CLP (lógica definida no Ladder)
 
 ### 7.3 Watchdog de Comunicação (Principal)
 
 - Timeout: **500 ms** (`WATCHDOG_TIMEOUT_MS`)
 - Remote envia heartbeat a cada **100 ms**
-- Ao expirar: `PIN_CLP_EMERGENCIA` LOW + todos os sinais de movimento HIGH
-- Ao restaurar: `PIN_CLP_EMERGENCIA` HIGH automaticamente (sem necessidade de RESET manual no ESP)
-- O CLP define se exige RESET após watchdog — configurado no Ladder
+- Ao expirar: todos os sinais de movimento HIGH e `link_ok = 0`
+- Emergência por perda de sinal: `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` (padrão 5000 ms), desativável por `ENABLE_SIGNAL_LOSS_EMERGENCY=false`
+- Ao restaurar: emergência por perda de sinal é liberada automaticamente se não houver emergência remota ativa
 
 ---
 
@@ -333,7 +333,7 @@ A máquina de estados é executada inteiramente no CLP (Ladder). O ESP Principal
 | `PIN_CLP_DESCER` | LOW | Operador mantendo DESCER pressionado e condições remotas liberadas |
 | `PIN_CLP_VEL1` | Pulso LOW 50ms | Selecionar velocidade 1 |
 | `PIN_CLP_VEL2` | Pulso LOW 50ms | Selecionar velocidade 2 |
-| `PIN_CLP_EMERGENCIA` | LOW | Emergência ativa (botão ou watchdog) |
+| `PIN_CLP_EMERGENCIA` | LOW | Emergência ativa (botão ou perda de sinal prolongada configurada) |
 | `PIN_CLP_RESET` | Pulso LOW 50ms | Reset / rearme |
 | `PIN_CLP_FIM_CURSO` | HIGH | Temporariamente desabilitado |
 
@@ -492,8 +492,9 @@ Níveis: `INFO` (operação normal), `WARN` (alerta/bloqueio), `ERRO` (falha).
 ```
 [1523] [INFO] [CLP] Sinal SUBIR enviado ao CLP
 [5012] [INFO] [CLP] Sinal SUBIR — GPIO voltou a HIGH (botao solto)
-[9100] [ERRO] [WDOG] Watchdog EXPIRADO — emergencia ativada no CLP
-[9600] [INFO] [WDOG] Watchdog recuperado — emergencia CLP liberada
+[9100] [WARN] [WDOG] Watchdog expirado — movimento remoto bloqueado por perda de link
+[14100] [ERRO] [WDOG] Perda prolongada de sinal — emergencia ativada no CLP
+[14600] [INFO] [WDOG] Watchdog recuperado — link com Remote restaurado
 ```
 
 ### 11.6 Modos de Logging
