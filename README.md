@@ -358,8 +358,9 @@ Este modo é usado quando movimento, velocidade, reset e fim de curso são contr
 
 - O protocolo permanece compatível; `PacoteRemote` e `PacoteStatus` não mudam de formato.
 - O Remote lê apenas `PIN_BTN_EMERGENCIA` e envia `CMD_HEARTBEAT` com `emergencia` em nível contínuo.
-- O Principal ignora `SUBIR`, `DESCER`, `VEL1`, `VEL2`, `RESET` e `fim_curso_descida`.
+- O Principal lê também o botão local de emergência NC em `GPIO 33` e ignora `SUBIR`, `DESCER`, `VEL1`, `VEL2`, `RESET` e `fim_curso_descida`.
 - `PIN_CLP_SUBIR`, `PIN_CLP_DESCER`, `PIN_CLP_VEL1`, `PIN_CLP_VEL2`, `PIN_CLP_RESET` e `PIN_CLP_FIM_CURSO` permanecem em HIGH.
+- No Principal, o pinout reduzido do modo usa `GPIO 18` para emergência ao CLP, `GPIO 26` para LED LINK e `GPIO 27` para LED EMERGÊNCIA.
 - Perda de link não ativa nova emergência nesse modo; apenas `link_ok` passa a `0`.
 - Se a emergência remota já estava ativa quando o link caiu, `PIN_CLP_EMERGENCIA` permanece LOW até o Principal receber pacote válido com `emergencia = 0`.
 
@@ -566,11 +567,13 @@ O módulo de logging é implementado em `logger.h` (header-only), usado por `pri
 ### 13.1.1 Bancada — Modo Somente Emergência
 
 1. Configurar `ONLY_EMERGENCY_MODE=true` no `.env` e compilar `principal/`, `remote/` e `repeater/`.
-2. Confirmar que SUBIR, DESCER, VEL1, VEL2, RESET e FIM_CURSO permanecem em HIGH no Principal.
-3. Acionar o botão de emergência do Remote e confirmar `PIN_CLP_EMERGENCIA` em LOW.
-4. Liberar o botão de emergência do Remote e confirmar `PIN_CLP_EMERGENCIA` em HIGH.
-5. Perder o link com emergência inativa e confirmar apenas `link_ok = 0`, sem nova emergência.
-6. Perder o link após emergência ativa e confirmar que `PIN_CLP_EMERGENCIA` permanece LOW até pacote válido liberar.
+2. No Principal, conectar apenas `GPIO 33` (botão emergência local NC), `GPIO 18` (emergência ao CLP), `GPIO 26` (LED LINK), `GPIO 27` (LED EMERGÊNCIA) e alimentação.
+3. Confirmar que SUBIR, DESCER, VEL1, VEL2, RESET e FIM_CURSO permanecem em HIGH no Principal.
+4. Acionar o botão local de emergência no Principal e confirmar `PIN_CLP_EMERGENCIA` em LOW e LED EMERGÊNCIA aceso.
+5. Acionar o botão de emergência do Remote e confirmar `PIN_CLP_EMERGENCIA` em LOW.
+6. Liberar os botões de emergência local e remoto e confirmar `PIN_CLP_EMERGENCIA` em HIGH.
+7. Perder o link com emergência inativa e confirmar apenas `link_ok = 0`, sem nova emergência.
+8. Perder o link após emergência remota ativa e confirmar que `PIN_CLP_EMERGENCIA` permanece LOW até pacote válido liberar.
 
 ### 13.2 Campo
 

@@ -4,6 +4,12 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### chore(pinout): reduz principal no modo somente emergencia
+
+- Principal em `ONLY_EMERGENCY_MODE=true` passa a usar `GPIO 33` como emergência local NC
+- LED LINK do Principal passa para `GPIO 26` e LED EMERGÊNCIA para `GPIO 27` nesse modo
+- Saída de emergência ao CLP permanece em `GPIO 18`
+
 ### feat(seguranca): adiciona modo somente emergencia
 
 - `.env` recebe `ONLY_EMERGENCY_MODE` para compilar Principal e Remote como ponte exclusiva de emergência

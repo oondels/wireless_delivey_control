@@ -14,7 +14,7 @@ O sistema utiliza dois ESP32 WROOM-32U principais e pode usar um terceiro ESP32 
 - O **Principal** recebe esses comandos, aciona entradas digitais do CLP por GPIO e lê feedbacks do CLP e da micro do freio para retransmiti-los ao Remote.
 - O **Repeater** opcional apenas encaminha pacotes ESP-NOW autenticados e não usa GPIO crítico.
 
-Com `ONLY_EMERGENCY_MODE=true`, os ESP32 usam apenas `PIN_BTN_EMERGENCIA`, `PIN_CLP_EMERGENCIA` e os LEDs de link/emergência. As demais saídas ao CLP permanecem em HIGH.
+Com `ONLY_EMERGENCY_MODE=true`, o Principal usa apenas `GPIO 33` para botão local de emergência NC, `GPIO 18` para emergência ao CLP, `GPIO 26` para LED LINK e `GPIO 27` para LED EMERGÊNCIA. As demais saídas ao CLP permanecem em HIGH.
 
 ---
 
@@ -64,6 +64,8 @@ Com `ONLY_EMERGENCY_MODE=true`, os ESP32 usam apenas `PIN_BTN_EMERGENCIA`, `PIN_
 
 Todos configurados com `INPUT_PULLUP`.
 
+No modo `ONLY_EMERGENCY_MODE=true`, estes feedbacks não são lidos pelo Principal; `GPIO 33`, `GPIO 26` e `GPIO 27` são reaproveitados pelo pinout reduzido.
+
 | Sinal | GPIO | Origem | Leitura | Descrição |
 |---|---|---|---|---|
 | MOTOR_ATIVO | 23 | CLP | LOW = ativo | Informa motor em operação |
@@ -105,6 +107,8 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 |---|---|---|
 | LINK REMOTE | 21 | Indica comunicação ativa com o Remote |
 
+No modo `ONLY_EMERGENCY_MODE=true`, o LED LINK do Principal usa `GPIO 26` e o LED EMERGÊNCIA usa `GPIO 27`.
+
 > Os canais de saída para o CLP podem acender LEDs físicos do módulo de relé ou da instalação externa, mas o firmware não controla esses indicadores separadamente.
 
 **Total de saídas no Principal: 8 GPIOs**
@@ -125,6 +129,8 @@ Todas as saídas para o CLP operam em **ativo LOW** e passam antes por um **mód
 | VEL2 | 34 | Táctil | Externo obrigatório | 50 ms | LOW = pressionado | Pulso |
 | RESET | 255 | Desabilitado | — | — | — | Não utilizado nesta versão |
 | EMERGÊNCIA | 13 | NC com trava | Interno (`INPUT_PULLUP`) | — | HIGH = ativo | Emergência local |
+
+No Principal em `ONLY_EMERGENCY_MODE=true`, o botão local de emergência usa `GPIO 33` como NC com `INPUT_PULLUP`: LOW = repouso, HIGH = ativo.
 
 ### 6.2 Sensores
 

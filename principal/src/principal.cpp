@@ -48,6 +48,7 @@ static const uint8_t PINOS_CLP[] = {
 };
 static constexpr int NUM_PINOS_CLP = sizeof(PINOS_CLP) / sizeof(PINOS_CLP[0]);
 
+#if !SEC_ONLY_EMERGENCY_MODE
 static const uint8_t PINOS_FEEDBACK[] = {
     PIN_FB_MOTOR_ATIVO,
     PIN_FB_EMERGENCIA_ATIVA,
@@ -56,6 +57,7 @@ static const uint8_t PINOS_FEEDBACK[] = {
     PIN_MICRO_FREIO
 };
 static constexpr int NUM_PINOS_FEEDBACK = sizeof(PINOS_FEEDBACK) / sizeof(PINOS_FEEDBACK[0]);
+#endif
 
 // ============================================================
 // Estado de pulso (VEL1, VEL2, RESET são pulsos, não níveis)
@@ -90,6 +92,9 @@ static bool          fimCursoRemotoAtivo   = false;
 WatchdogComm   watchdog;
 Comunicacao    comunicacao;
 Led            ledLink(PIN_LED_LINK);
+#if SEC_ONLY_EMERGENCY_MODE
+Led            ledEmergencia(PIN_LED_EMERGENCIA);
+#endif
 
 // Controle de envio periódico de status
 uint32_t       ultimoEnvioStatusMs = 0;
@@ -108,6 +113,9 @@ bool           sinalEmergenciaAnteriorAtivo = false;
 bool           sinalFimCursoAnteriorAtivo   = false;
 bool           bloqueioRemotoAnterior   = false;
 bool           emergenciaPerdaSinalAnteriorAtiva = false;
+#if SEC_ONLY_EMERGENCY_MODE
+bool           emergenciaLocalAnteriorAtiva = false;
+#endif
 
 static bool statusMudou(const PacoteStatus& atual, const PacoteStatus& anterior) {
     return memcmp(&atual, &anterior, sizeof(PacoteStatus) - 1) != 0;
@@ -259,10 +267,14 @@ void setup() {
         digitalWrite(PINOS_CLP[i], HIGH);
     }
 
+#if SEC_ONLY_EMERGENCY_MODE
+    pinMode(PIN_BTN_EMERGENCIA_LOCAL, INPUT_PULLUP);
+#else
     // Feedbacks do CLP e micro do freio
     for (int i = 0; i < NUM_PINOS_FEEDBACK; i++) {
         pinMode(PINOS_FEEDBACK[i], INPUT_PULLUP);
     }
+#endif
 
     watchdog.init();
     comunicacao.init(watchdog);
@@ -281,8 +293,10 @@ void setup() {
 void loop() {
     uint32_t agora = millis();
 
-    if (SEC_ONLY_EMERGENCY_MODE) {
+#if SEC_ONLY_EMERGENCY_MODE
+    {
         bool watchdogExpirado = watchdog.expirado();
+        bool emergenciaLocalAtiva = (digitalRead(PIN_BTN_EMERGENCIA_LOCAL) == HIGH);
 
         if (comunicacao.novoPacoteRecebido()) {
             const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
@@ -297,6 +311,13 @@ void loop() {
             emergenciaRemotaAtiva = emergenciaRecebida;
             comunicacao.limparNovoPacote();
         }
+
+        if (emergenciaLocalAtiva && !emergenciaLocalAnteriorAtiva) {
+            LOG_WARN("CLP", "Emergencia local ATIVA — GPIO 33 HIGH");
+        } else if (!emergenciaLocalAtiva && emergenciaLocalAnteriorAtiva) {
+            LOG_INFO("CLP", "Emergencia local liberada — GPIO 33 LOW");
+        }
+        emergenciaLocalAnteriorAtiva = emergenciaLocalAtiva;
 
         if (watchdogExpirado && !watchdogAnteriorExpirado) {
             LOG_WARN("WDOG", "Watchdog expirado — modo somente emergencia reporta link inativo");
@@ -314,11 +335,13 @@ void loop() {
         pulsoVel2Ativo = false;
         pulsoResetAtivo = false;
 
-        setEmergencia(emergenciaRemotaAtiva);
+        bool emergenciaSaidaAtiva = emergenciaLocalAtiva || emergenciaRemotaAtiva;
+
+        setEmergencia(emergenciaSaidaAtiva);
         registrarMudancaSaidasSustentadas(
             false,
             false,
-            emergenciaRemotaAtiva,
+            emergenciaSaidaAtiva,
             false
         );
 
@@ -338,9 +361,16 @@ void loop() {
         } else {
             ledLink.piscar(250);
         }
+        if (emergenciaSaidaAtiva) {
+            ledEmergencia.ligar();
+        } else {
+            ledEmergencia.desligar();
+        }
         ledLink.atualizar();
+        ledEmergencia.atualizar();
         return;
     }
+#endif
 
     bool fbMotorAtivo      = (digitalRead(PIN_FB_MOTOR_ATIVO) == LOW);
     bool fbEmergenciaAtiva = (digitalRead(PIN_FB_EMERGENCIA_ATIVA) == LOW);

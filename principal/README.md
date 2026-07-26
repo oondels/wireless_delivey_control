@@ -22,11 +22,13 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
 
 Com `ONLY_EMERGENCY_MODE=true` no `.env`, este módulo:
 
+- lê o botão local de emergência NC em `GPIO 33`
 - ignora movimento, velocidade, reset e fim de curso
 - mantém todas as saídas de controle em HIGH, exceto `PIN_CLP_EMERGENCIA`
 - não lê feedbacks do CLP nem micro do freio para montar status
 - reporta apenas `link_ok` real no `PacoteStatus`
 - mantém emergência ativa se o link cair depois de receber `emergencia = 1`
+- usa `GPIO 26` para LED LINK e `GPIO 27` para LED EMERGÊNCIA
 
 ## GPIOs
 
@@ -43,6 +45,8 @@ Com `ONLY_EMERGENCY_MODE=true` no `.env`, este módulo:
 | `PIN_CLP_FIM_CURSO` | 22 | Temporariamente desabilitado; mantido HIGH |
 | `PIN_LED_LINK` | 21 | Fixo com link válido; pisca 2 Hz sem link |
 
+No modo `ONLY_EMERGENCY_MODE=true`, `PIN_LED_LINK` usa `GPIO 26` e `PIN_LED_EMERGENCIA` usa `GPIO 27`.
+
 ### Entradas
 
 | Sinal | GPIO | Leitura |
@@ -52,6 +56,8 @@ Com `ONLY_EMERGENCY_MODE=true` no `.env`, este módulo:
 | `PIN_FB_VEL1_ATIVA` | 26 | LOW = ativo |
 | `PIN_FB_VEL2_ATIVA` | 27 | LOW = ativo |
 | `PIN_MICRO_FREIO` | 14 | HIGH = freio ativo |
+
+No modo `ONLY_EMERGENCY_MODE=true`, estes feedbacks não são lidos. `GPIO 33` passa a ser `PIN_BTN_EMERGENCIA_LOCAL`, com contato NC: LOW = repouso e HIGH = emergência ativa.
 
 ## Comunicação
 

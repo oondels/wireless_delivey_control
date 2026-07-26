@@ -59,8 +59,12 @@ Os comandos de pulso (`VEL1`, `VEL2`, `RESET`) continuam podendo ser transmitido
 Quando `ONLY_EMERGENCY_MODE=true`, os ESP32 atuam apenas como ponte sem fio de emergência:
 
 - o Remote lê somente o botão de emergência NC e transmite heartbeat com `emergencia`
+- o Principal lê o botão local de emergência NC em `GPIO 33`
+- emergência local do Principal e emergência remota via ESP-NOW são combinadas por OR lógico
 - o Principal ignora comandos de movimento, velocidade, reset e fim de curso
 - todos os sinais de controle ao CLP permanecem em HIGH, exceto `PIN_CLP_EMERGENCIA`
+- a saída de emergência ao CLP permanece em `GPIO 18`, ativo em LOW
+- o Principal usa `GPIO 26` para LED LINK e `GPIO 27` para LED EMERGÊNCIA
 - perda de link não cria nova emergência; apenas reporta `link_ok = 0`
 - emergência já ativa permanece em LOW se o link cair, até chegar pacote válido liberando o botão
 

@@ -21,6 +21,8 @@ Não há controle de cor por software.
 | LED | GPIO | Função |
 |---|---|---|
 | LINK REMOTE | 21 | Indica se o watchdog do Remote está válido |
+| LINK REMOTE (`ONLY_EMERGENCY_MODE=true`) | 26 | Indica se o watchdog do Remote está válido |
+| EMERGÊNCIA (`ONLY_EMERGENCY_MODE=true`) | 27 | Indica `PIN_CLP_EMERGENCIA` ativo |
 
 > As saídas do Principal para o CLP podem acender LEDs físicos do módulo de relé ou da instalação elétrica, mas esses indicadores não têm controle lógico separado no firmware.
 
@@ -89,6 +91,8 @@ void atualizarLeds(const PacoteStatus& status) {
 |---|---|---|
 | LINK REMOTE | Ligado fixo | Comunicação com Remote ativa (`watchdog` válido) |
 | LINK REMOTE | Piscando 2 Hz | Watchdog expirado / Remote ausente |
+| EMERGÊNCIA (`ONLY_EMERGENCY_MODE=true`) | Ligado fixo | Emergência local ou remota ativa |
+| EMERGÊNCIA (`ONLY_EMERGENCY_MODE=true`) | Desligado | Nenhuma emergência ativa |
 
 ---
 

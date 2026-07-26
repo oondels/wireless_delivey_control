@@ -18,6 +18,10 @@
 #ifndef PINOUT_H
 #define PINOUT_H
 
+#ifndef SEC_ONLY_EMERGENCY_MODE
+#define SEC_ONLY_EMERGENCY_MODE 0
+#endif
+
 // ============================================================
 // SAÍDAS — Sinais para entradas digitais do CLP
 // Lógica ativa em LOW (GND): LOW = ativo, HIGH = inativo
@@ -36,7 +40,20 @@
 // SAÍDAS — LED exclusivo
 // ============================================================
 
+#if SEC_ONLY_EMERGENCY_MODE
+#define PIN_LED_LINK        26  // Modo somente emergencia: link com Remote
+#define PIN_LED_EMERGENCIA  27  // Modo somente emergencia: emergência ativa
+#else
 #define PIN_LED_LINK        21  // Comunicação ativa com Remote (aceso = link OK)
+#endif
+
+// ============================================================
+// ENTRADAS — Modo somente emergência
+// ============================================================
+
+#if SEC_ONLY_EMERGENCY_MODE
+#define PIN_BTN_EMERGENCIA_LOCAL 33  // NC: repouso LOW, ativo HIGH — INPUT_PULLUP
+#endif
 
 // ============================================================
 // ENTRADAS — Feedbacks do CLP e micro do freio
