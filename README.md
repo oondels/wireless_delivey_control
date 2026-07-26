@@ -10,7 +10,7 @@
 
 O sistema moderniza o controle de um carrinho de transporte de jet skis movido por guincho motorizado. A operação, antes restrita a um painel fixo no depósito, passa a ser realizada por controle remoto sem fio, permitindo que o operador acompanhe o equipamento ao longo de todo o trajeto entre o depósito e a margem do rio.
 
-A **prioridade absoluta do sistema é a segurança (Fail-Safe):** qualquer falha de comunicação ou acionamento de emergência resulta no sinal de emergência sendo enviado imediatamente ao CLP, que aplica o freio mecânico.
+A **prioridade absoluta do sistema é a segurança (Fail-Safe):** falhas de comunicação podem acionar o sinal de emergência ao CLP conforme a política configurada, e o acionamento de emergência sempre resulta em sinal imediato ao CLP, que aplica o freio mecânico.
 
 > **Nota arquitetural (v4.0):** interferência eletromagnética do motor e do inversor (VFD) comprometia a operação dos ESP32 como controladores. A partir desta versão, um **CLP programado em Ladder** gerencia toda a lógica de controle (motor, freio, estados, segurança). Os ESP32 atuam exclusivamente como **pontes de comunicação** sem fio.
 
@@ -319,6 +319,7 @@ Botões de emergência são do tipo **NC (normalmente fechado) com trava**: em r
 - Remote envia heartbeat a cada **100 ms**
 - Ao expirar: todos os sinais de movimento HIGH e `link_ok = 0`
 - Emergência por perda de sinal: `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` (padrão 5000 ms), desativável por `ENABLE_SIGNAL_LOSS_EMERGENCY=false`
+- Com `ONLY_EMERGENCY_MODE=true`, perda de link não ativa nova emergência; se `PIN_CLP_EMERGENCIA` já estava LOW por emergência remota, permanece LOW até pacote válido com `emergencia = 0`
 - Ao restaurar: emergência por perda de sinal é liberada automaticamente se não houver emergência remota ativa
 
 ---
@@ -542,7 +543,7 @@ O módulo de logging é implementado em `logger.h` (header-only), usado por `pri
 ## 12. Requisitos Não-Funcionais
 
 - **Latência ESP:** < 100 ms entre botão pressionado e sinal chegando ao CLP.
-- **Watchdog:** Timeout padrão 500 ms — emergência ao CLP se Remote silencioso.
+- **Watchdog:** Timeout padrão 500 ms — movimento remoto bloqueado; emergência por perda de sinal depende da política configurada e é desativada como nova emergência em `ONLY_EMERGENCY_MODE=true`.
 - **Alcance:** Mínimo 50 metros em linha de visada.
 - **Robustez:** Enclosure Remote mínimo IP54.
 - **Segurança elétrica:** CLP e ESP32 com GND comum; isolação galvânica recomendada entre rede elétrica e lógica de controle.
@@ -561,6 +562,15 @@ O módulo de logging é implementado em `logger.h` (header-only), usado por `pri
 4. Pressionar `SUBIR`/`DESCER` com feedbacks seguros e verificar sinal no CLP.
 5. Desligar o Repeater e confirmar volta para rota direta ou bloqueio se direto não estiver operacional.
 6. Injetar MAC/chave incorreta em um módulo de teste e confirmar rejeição sem resetar watchdog.
+
+### 13.1.1 Bancada — Modo Somente Emergência
+
+1. Configurar `ONLY_EMERGENCY_MODE=true` no `.env` e compilar `principal/`, `remote/` e `repeater/`.
+2. Confirmar que SUBIR, DESCER, VEL1, VEL2, RESET e FIM_CURSO permanecem em HIGH no Principal.
+3. Acionar o botão de emergência do Remote e confirmar `PIN_CLP_EMERGENCIA` em LOW.
+4. Liberar o botão de emergência do Remote e confirmar `PIN_CLP_EMERGENCIA` em HIGH.
+5. Perder o link com emergência inativa e confirmar apenas `link_ok = 0`, sem nova emergência.
+6. Perder o link após emergência ativa e confirmar que `PIN_CLP_EMERGENCIA` permanece LOW até pacote válido liberar.
 
 ### 13.2 Campo
 

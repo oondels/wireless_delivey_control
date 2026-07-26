@@ -15,6 +15,8 @@ Na arquitetura atual, o CLP executa a lógica de potência e segurança. Os ESP3
 - o Remote nunca assume que pode mover apenas pelo botão local; ele depende do status válido vindo do Principal
 - o Repeater opcional não tem autoridade sobre movimento, emergência, freio ou fim de curso
 
+Com `ONLY_EMERGENCY_MODE=true`, movimento e velocidade pertencem a outro dispositivo. Nesse modo, perda de link apenas reporta link inativo; emergência já ativa permanece travada no Principal até chegada de pacote válido com o botão liberado.
+
 ---
 
 ## 2. Prioridades de Bloqueio
@@ -115,6 +117,9 @@ Comportamento:
   - `link_ok` passa a 0 no `PacoteStatus`
 - se a perda persistir além de `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` e `ENABLE_SIGNAL_LOSS_EMERGENCY=true`:
   - `PIN_CLP_EMERGENCIA` vai para LOW
+- em `ONLY_EMERGENCY_MODE=true`:
+  - perda de link não cria nova emergência
+  - `PIN_CLP_EMERGENCIA` preserva o último estado de emergência remota recebido
 - ao recuperar comunicação:
   - `PIN_CLP_EMERGENCIA` volta para HIGH se não houver emergência remota ativa
   - o LED LINK do Principal volta ao estado fixo

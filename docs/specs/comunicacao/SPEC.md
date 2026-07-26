@@ -131,3 +131,4 @@ No modo somente emergência, a seleção de rota continua ativa. O Remote envia 
 | Rota direta cai, Repeater operacional | Sistema continua pela rota via Repeater |
 | Perda total curta | Principal bloqueia movimento por watchdog; Remote bloqueia `SUBIR`/`DESCER` |
 | Perda total prolongada | Principal aciona emergência se `ENABLE_SIGNAL_LOSS_EMERGENCY=true` |
+| Perda de link com `ONLY_EMERGENCY_MODE=true` | Principal reporta `link_ok = 0`, não cria nova emergência e preserva emergência remota já ativa |

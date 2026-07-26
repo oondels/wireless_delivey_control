@@ -10,6 +10,7 @@
 | Palavra-chave / tema | Arquivo | Seção |
 |---|---|---|
 | emergência, rearme, fail-safe, EMERGENCIA_ATIVA | `seguranca/SPEC.md` | §3 (emergência), §3.4–3.5 (rearme) |
+| ONLY_EMERGENCY_MODE, modo somente emergência | `seguranca/SPEC.md`, `comunicacao/SPEC.md`, `hardware_io/SPEC.md`, `leds/SPEC.md` | segurança §3.0; comunicação §2/§5; hardware §1; LEDs §3 |
 | watchdog, timeout, heartbeat, FALHA_COMUNICACAO | `seguranca/SPEC.md` | §4 |
 | homem-morto, dead-man, botão hold | `seguranca/SPEC.md` | §5 |
 | invariantes de segurança | `seguranca/SPEC.md` | §9 |
@@ -57,6 +58,8 @@ Visão completa do sistema: arquitetura mestre-escravo, descrição dos módulos
 ### `seguranca/SPEC.md` — Segurança e Emergência
 
 Hierarquia de prioridades de segurança, botões de emergência com trava, watchdog de comunicação, regra homem-morto, proteções de hardware e invariantes de segurança.
+
+Também documenta `ONLY_EMERGENCY_MODE`, em que os ESP32 viram ponte sem fio exclusiva de emergência: sem comando de movimento, sem comando de velocidade e sem nova emergência por perda de link.
 
 **Depende de:** `comunicacao/SPEC.md` (estrutura de pacotes para campo `emergencia`), `motor/SPEC.md` (relé de freio e motor).
 

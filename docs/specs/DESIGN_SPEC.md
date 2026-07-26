@@ -5,6 +5,7 @@
 **Status:** Documento histórico
 
 > **Nota:** este documento preserva contexto de versões anteriores. Quando houver divergência com o firmware atual, use `README.md`, `docs/specs/*.md` e os `README.md` de `principal/` e `remote/` como fonte autoritativa.
+> **Nota sobre `ONLY_EMERGENCY_MODE`:** no modo somente emergência, a perda de link apenas reporta `link_ok = 0`; ela não cria nova emergência. Emergência remota já ativa permanece aplicada até pacote válido liberar o botão.
 
 ---
 
