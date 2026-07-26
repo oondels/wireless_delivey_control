@@ -268,6 +268,7 @@ void setup() {
     comunicacao.init(watchdog);
 
     LOG_ALWAYS_VAL("BOOT", "MAC local: ", WiFi.macAddress());
+    LOG_ALWAYS_VAL("BOOT", "Modo somente emergencia: ", SEC_ONLY_EMERGENCY_MODE ? "habilitado" : "desabilitado");
     LOG_ALWAYS_VAL("WDOG", "Emergencia por perda de sinal: ", SEC_ENABLE_SIGNAL_LOSS_EMERGENCY ? "habilitada" : "desabilitada");
     LOG_ALWAYS_VAL("WDOG", "Timeout emergencia por perda de sinal (ms): ", SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS);
     LOG_ALWAYS("BOOT", "=== Modulo Principal - Pronto. Aguardando Remote... ===");
@@ -279,6 +280,67 @@ void setup() {
 
 void loop() {
     uint32_t agora = millis();
+
+    if (SEC_ONLY_EMERGENCY_MODE) {
+        bool watchdogExpirado = watchdog.expirado();
+
+        if (comunicacao.novoPacoteRecebido()) {
+            const volatile PacoteRemote& pkt = comunicacao.ultimoPacote();
+            const bool emergenciaRecebida = (pkt.emergencia == 1);
+
+            if (emergenciaRecebida && !emergenciaRemotaAtiva) {
+                LOG_WARN("CLP", "Emergencia ATIVA — sinal enviado ao CLP");
+            } else if (!emergenciaRecebida && emergenciaRemotaAtiva) {
+                LOG_INFO("CLP", "Emergencia liberada pelo Remote");
+            }
+
+            emergenciaRemotaAtiva = emergenciaRecebida;
+            comunicacao.limparNovoPacote();
+        }
+
+        if (watchdogExpirado && !watchdogAnteriorExpirado) {
+            LOG_WARN("WDOG", "Watchdog expirado — modo somente emergencia reporta link inativo");
+        } else if (!watchdogExpirado && watchdogAnteriorExpirado) {
+            LOG_INFO("WDOG", "Watchdog recuperado — link com Remote restaurado");
+        }
+        watchdogAnteriorExpirado = watchdogExpirado;
+
+        pararMovimento();
+        digitalWrite(PIN_CLP_VEL1, HIGH);
+        digitalWrite(PIN_CLP_VEL2, HIGH);
+        digitalWrite(PIN_CLP_RESET, HIGH);
+        digitalWrite(PIN_CLP_FIM_CURSO, HIGH);
+        pulsoVel1Ativo = false;
+        pulsoVel2Ativo = false;
+        pulsoResetAtivo = false;
+
+        setEmergencia(emergenciaRemotaAtiva);
+        registrarMudancaSaidasSustentadas(
+            false,
+            false,
+            emergenciaRemotaAtiva,
+            false
+        );
+
+        PacoteStatus status = {};
+        status.link_ok = watchdogExpirado ? 0 : 1;
+
+        bool envioPeriodicoStatus = (agora - ultimoEnvioStatusMs >= STATUS_INTERVALO_MS);
+        bool envioImediatoStatus = statusMudou(status, ultimoStatusEnviado);
+        if (envioPeriodicoStatus || envioImediatoStatus) {
+            comunicacao.enviarStatus(status);
+            ultimoEnvioStatusMs = agora;
+            ultimoStatusEnviado = status;
+        }
+
+        if (!watchdogExpirado) {
+            ledLink.ligar();
+        } else {
+            ledLink.piscar(250);
+        }
+        ledLink.atualizar();
+        return;
+    }
 
     bool fbMotorAtivo      = (digitalRead(PIN_FB_MOTOR_ATIVO) == LOW);
     bool fbEmergenciaAtiva = (digitalRead(PIN_FB_EMERGENCIA_ATIVA) == LOW);

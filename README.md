@@ -347,8 +347,20 @@ Em produção, o pareamento é **fixo**. Cada módulo registra apenas o MAC espe
 
 - `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do arquivo `.env` local no build
 - `ENABLE_REPEATER_ROUTE=true` habilita peers e rota via Repeater em `remote/` e `principal/`
+- `ONLY_EMERGENCY_MODE=true` compila Principal e Remote como ponte exclusiva de emergência: o Remote envia apenas heartbeat com o estado do botão de emergência, e o Principal mantém todos os sinais de controle em HIGH exceto `PIN_CLP_EMERGENCIA`
 - `.env` não deve ser versionado
 - `.env.example` documenta o formato esperado
+
+### 9.1.1 Modo Somente Emergência
+
+Este modo é usado quando movimento, velocidade, reset e fim de curso são controlados por outro dispositivo. Os ESP32 permanecem apenas como canal sem fio de segurança.
+
+- O protocolo permanece compatível; `PacoteRemote` e `PacoteStatus` não mudam de formato.
+- O Remote lê apenas `PIN_BTN_EMERGENCIA` e envia `CMD_HEARTBEAT` com `emergencia` em nível contínuo.
+- O Principal ignora `SUBIR`, `DESCER`, `VEL1`, `VEL2`, `RESET` e `fim_curso_descida`.
+- `PIN_CLP_SUBIR`, `PIN_CLP_DESCER`, `PIN_CLP_VEL1`, `PIN_CLP_VEL2`, `PIN_CLP_RESET` e `PIN_CLP_FIM_CURSO` permanecem em HIGH.
+- Perda de link não ativa nova emergência nesse modo; apenas `link_ok` passa a `0`.
+- Se a emergência remota já estava ativa quando o link caiu, `PIN_CLP_EMERGENCIA` permanece LOW até o Principal receber pacote válido com `emergencia = 0`.
 
 ### 9.2 Cabeçalho de Roteamento
 

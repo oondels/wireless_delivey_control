@@ -40,6 +40,8 @@ Não há controle de cor por software.
 
 ## 3. LEDs do Módulo Remote
 
+Com `ONLY_EMERGENCY_MODE=true`, o Remote mantém apenas `LINK` e `EMERGÊNCIA` operacionais. `MOTOR`, `VEL1` e `VEL2` ficam apagados.
+
 ### 3.1 Tabela Completa
 
 | LED | Comportamento | Condição | Frequência |

@@ -4,6 +4,13 @@ Todas as mudanças relevantes do projeto são documentadas neste arquivo.
 
 ## [Unreleased]
 
+### feat(seguranca): adiciona modo somente emergencia
+
+- `.env` recebe `ONLY_EMERGENCY_MODE` para compilar Principal e Remote como ponte exclusiva de emergência
+- Remote passa a enviar apenas heartbeat com estado do botão de emergência quando o modo está habilitado
+- Principal mantém todas as saídas de controle em repouso e aciona somente `PIN_CLP_EMERGENCIA`
+- Perda de link no modo somente emergência apenas reporta `link_ok = 0`; se a emergência já estava ativa, ela permanece ativa até pacote válido liberar
+
 ### fix(seguranca): temporiza emergencia por perda de sinal
 
 - Watchdog curto continua bloqueando movimento em 500 ms sem comando válido

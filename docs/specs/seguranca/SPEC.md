@@ -52,6 +52,16 @@ Os comandos de pulso (`VEL1`, `VEL2`, `RESET`) continuam podendo ser transmitido
 
 ## 3. Emergência
 
+### 3.0 Modo Somente Emergência
+
+Quando `ONLY_EMERGENCY_MODE=true`, os ESP32 atuam apenas como ponte sem fio de emergência:
+
+- o Remote lê somente o botão de emergência NC e transmite heartbeat com `emergencia`
+- o Principal ignora comandos de movimento, velocidade, reset e fim de curso
+- todos os sinais de controle ao CLP permanecem em HIGH, exceto `PIN_CLP_EMERGENCIA`
+- perda de link não cria nova emergência; apenas reporta `link_ok = 0`
+- emergência já ativa permanece em LOW se o link cair, até chegar pacote válido liberando o botão
+
 ### 3.1 Emergência Local do Remote
 
 O botão de emergência do Remote é NC com trava:

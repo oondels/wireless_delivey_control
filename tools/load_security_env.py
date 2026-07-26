@@ -99,6 +99,7 @@ if missing:
 
 try:
     force_repeater_route = parse_bool(config.get("FORCE_REPEATER_ROUTE"), False)
+    only_emergency_mode = parse_bool(config.get("ONLY_EMERGENCY_MODE"), False)
     enable_signal_loss_emergency = parse_bool(config.get("ENABLE_SIGNAL_LOSS_EMERGENCY"), True)
     enable_repeater_route = (
         parse_bool(config.get("ENABLE_REPEATER_ROUTE"), False)
@@ -148,6 +149,7 @@ defines = [
     ("SEC_ENABLE_REPEATER_ROUTE", 1 if enable_repeater_route else 0),
     ("SEC_PREFER_DIRECT_ROUTE", 1 if prefer_direct_route else 0),
     ("SEC_FORCE_REPEATER_ROUTE", 1 if force_repeater_route else 0),
+    ("SEC_ONLY_EMERGENCY_MODE", 1 if only_emergency_mode else 0),
     ("SEC_ESPNOW_CHANNEL", espnow_channel),
     ("SEC_DIRECT_ROUTE_RETRY_INTERVAL_MS", direct_route_retry_interval_min * 60 * 1000),
     ("SEC_ENABLE_SIGNAL_LOSS_EMERGENCY", 1 if enable_signal_loss_emergency else 0),

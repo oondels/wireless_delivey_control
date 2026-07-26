@@ -17,6 +17,14 @@ Firmware do ESP32 embarcado no carrinho. Este módulo lê botões locais, escolh
   - `emergencia_ativa == 1` recebido do Principal
 - atualizar LEDs de `LINK`, `MOTOR`, `VEL1`, `VEL2` e `EMERGÊNCIA`
 
+Com `ONLY_EMERGENCY_MODE=true` no `.env`, este módulo:
+
+- lê apenas `PIN_BTN_EMERGENCIA`
+- envia somente heartbeat com `emergencia` refletindo o botão NC
+- mantém seleção de rota direta/repeater
+- deixa `MOTOR`, `VEL1` e `VEL2` apagados
+- usa apenas LEDs `LINK` e `EMERGÊNCIA`
+
 ## GPIOs
 
 ### Entradas
@@ -64,6 +72,7 @@ Campos do `.env` usados aqui:
 - `REPEATER_MAC` (quando `ENABLE_REPEATER_ROUTE=true`)
 - `ENABLE_REPEATER_ROUTE`
 - `PREFER_DIRECT_ROUTE`
+- `ONLY_EMERGENCY_MODE`
 - `ESPNOW_PMK`
 - `ESPNOW_LMK`
 

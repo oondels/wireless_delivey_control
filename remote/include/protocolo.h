@@ -222,6 +222,10 @@ inline uint32_t calcular_auth_tag(const PacoteLink& pacote, const uint8_t key[16
 #define SEC_ENABLE_SIGNAL_LOSS_EMERGENCY 1
 #endif
 
+#ifndef SEC_ONLY_EMERGENCY_MODE
+#define SEC_ONLY_EMERGENCY_MODE 0
+#endif
+
 #ifndef SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS
 #define SEC_SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS 5000UL
 #endif

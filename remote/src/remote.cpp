@@ -42,21 +42,104 @@ bool    linkAnteriorOk          = false;
 bool    bloqueioMovimentoAnterior = false;
 bool    microFreioAnteriorAtiva   = false;
 bool    aguardandoPartidaAnterior = false;
+bool    emergenciaOnlyAnterior    = false;
+bool    emergenciaOnlyUltimaLeitura = Botoes::NIVEL_REPOUSO_EMERGENCIA;
+bool    emergenciaOnlyFiltrada = Botoes::NIVEL_REPOUSO_EMERGENCIA;
+uint32_t emergenciaOnlyUltimoCambioMs = 0;
+
+static bool lerEmergenciaSomente() {
+    uint32_t agora = millis();
+    bool leitura = digitalRead(PIN_BTN_EMERGENCIA);
+
+    if (leitura != emergenciaOnlyUltimaLeitura) {
+        emergenciaOnlyUltimoCambioMs = agora;
+        emergenciaOnlyUltimaLeitura = leitura;
+    }
+    if ((agora - emergenciaOnlyUltimoCambioMs) >= Botoes::DEBOUNCE_MS) {
+        emergenciaOnlyFiltrada = emergenciaOnlyUltimaLeitura;
+    }
+
+    return emergenciaOnlyFiltrada == Botoes::NIVEL_ATIVO_EMERGENCIA;
+}
 
 void setup() {
     Serial.begin(115200);
     LOG_ALWAYS("BOOT", "=== Modulo Remote - Inicializando ===");
 
-    botoes.init();
+    if (SEC_ONLY_EMERGENCY_MODE) {
+        pinMode(PIN_BTN_EMERGENCIA, INPUT_PULLUP);
+    } else {
+        botoes.init();
+    }
     comunicacao.init();
 
     LOG_ALWAYS_VAL("BOOT", "MAC local: ", WiFi.macAddress());
+    LOG_ALWAYS_VAL("BOOT", "Modo somente emergencia: ", SEC_ONLY_EMERGENCY_MODE ? "habilitado" : "desabilitado");
     LOG_ALWAYS("BOOT", "=== Modulo Remote - Pronto ===");
 }
 
 void loop() {
     comunicacao.enviarProbes();
     comunicacao.atualizarRota();
+
+    if (SEC_ONLY_EMERGENCY_MODE) {
+        bool emergenciaLocal = lerEmergenciaSomente();
+
+        if (emergenciaLocal && !emergenciaOnlyAnterior) {
+            LOG_WARN("BOTAO", "Botao EMERGENCIA ativado (NC aberto)");
+        } else if (!emergenciaLocal && emergenciaOnlyAnterior) {
+            LOG_INFO("BOTAO", "Botao EMERGENCIA liberado (NC fechado)");
+        }
+
+        PacoteRemote pacote = {};
+        pacote.comando = CMD_HEARTBEAT;
+        pacote.botao_hold = 0;
+        pacote.emergencia = emergenciaLocal ? 1 : 0;
+        pacote.fim_curso_descida = 0;
+        pacote.timestamp = millis();
+
+        bool mudouEstado = (emergenciaLocal != emergenciaOnlyAnterior);
+        bool envioPeriodicoVencido = (millis() - ultimoEnvioMs >= HEARTBEAT_INTERVALO_MS);
+
+        if (mudouEstado || envioPeriodicoVencido) {
+            comunicacao.enviarPacote(pacote);
+            ultimoEnvioMs = millis();
+        }
+
+        emergenciaOnlyAnterior = emergenciaLocal;
+
+        const volatile PacoteStatus& st = comunicacao.ultimoStatus();
+        bool linkAtualOk = (st.link_ok == 1) &&
+                           (millis() - comunicacao.ultimoStatusRecebidoMs() <= WATCHDOG_TIMEOUT_MS) &&
+                           comunicacao.rotaAtualOperacional();
+        if (linkAtualOk && !linkAnteriorOk) {
+            LOG_INFO("LINK", "Comunicacao com Principal restabelecida");
+        } else if (!linkAtualOk && linkAnteriorOk) {
+            LOG_WARN("LINK", "Comunicacao com Principal perdida (timeout > 500ms)");
+        }
+        linkAnteriorOk = linkAtualOk;
+
+        if (linkAtualOk) {
+            ledLink.ligar();
+        } else {
+            ledLink.piscar(500);
+        }
+        ledMotor.desligar();
+        ledVel1.desligar();
+        ledVel2.desligar();
+        if (emergenciaLocal) {
+            ledEmergencia.piscar(125);
+        } else {
+            ledEmergencia.desligar();
+        }
+
+        ledLink.atualizar();
+        ledMotor.atualizar();
+        ledVel1.atualizar();
+        ledVel2.atualizar();
+        ledEmergencia.atualizar();
+        return;
+    }
 
     // 1. Ler botões locais (debounce interno)
     EstadoBotoes btn = botoes.ler();

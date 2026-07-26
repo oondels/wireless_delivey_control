@@ -20,6 +20,14 @@ Firmware do ESP32 instalado no painel fixo. Este módulo faz a ponte entre o `Re
   - `micro_freio_ativa == 1`
 - tratar `MOTOR_ATIVO` apenas como telemetria; esse feedback não bloqueia `SUBIR`/`DESCER`
 
+Com `ONLY_EMERGENCY_MODE=true` no `.env`, este módulo:
+
+- ignora movimento, velocidade, reset e fim de curso
+- mantém todas as saídas de controle em HIGH, exceto `PIN_CLP_EMERGENCIA`
+- não lê feedbacks do CLP nem micro do freio para montar status
+- reporta apenas `link_ok` real no `PacoteStatus`
+- mantém emergência ativa se o link cair depois de receber `emergencia = 1`
+
 ## GPIOs
 
 ### Saídas
@@ -58,6 +66,7 @@ Campos do `.env` usados aqui:
 - `REMOTE_MAC`
 - `REPEATER_MAC` (quando `ENABLE_REPEATER_ROUTE=true`)
 - `ENABLE_REPEATER_ROUTE`
+- `ONLY_EMERGENCY_MODE`
 - `ESPNOW_PMK`
 - `ESPNOW_LMK`
 

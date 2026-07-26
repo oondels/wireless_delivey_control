@@ -27,6 +27,7 @@ Rotas suportadas:
 - `PRINCIPAL_MAC`, `REMOTE_MAC`, `REPEATER_MAC`, `ESPNOW_PMK` e `ESPNOW_LMK` são carregados do `.env`.
 - `REPEATER_MAC` é obrigatório quando `ENABLE_REPEATER_ROUTE=true` ou ao compilar `repeater/`.
 - `DIRECT_ROUTE_RETRY_INTERVAL_MIN` define o intervalo de teste da rota direta quando a rota ativa está via Repeater.
+- `ONLY_EMERGENCY_MODE=true` mantém o mesmo protocolo, mas restringe o uso operacional aos heartbeats com estado de emergência.
 - `ENABLE_SIGNAL_LOSS_EMERGENCY` e `SIGNAL_LOSS_EMERGENCY_TIMEOUT_MS` controlam se perda prolongada de sinal aciona emergência no Principal.
 - Cada peer é registrado com `encrypt = true` e LMK configurada.
 - A PMK é configurada no boot via `esp_now_set_pmk()`.
@@ -101,6 +102,8 @@ O Remote troca a rota ativa no próximo envio quando a rota candidata está oper
 O Principal acompanha a rota do último `PKT_REMOTE_CMD` válido aceito. Enquanto a rota ativa for direta, o Principal envia status pela rota direta e também via Repeater, permitindo que o Remote compare as duas rotas. Quando comandos válidos passam a chegar via Repeater, o Principal deixa de enviar status direto continuamente e mantém apenas `Principal -> Repeater -> Remote`, fazendo um retry direto periódico conforme `DIRECT_ROUTE_RETRY_INTERVAL_MIN`.
 
 Com isso, falha em `Principal -> Remote` não deve travar a comunicação se `Principal -> Repeater -> Remote` e `Remote -> Repeater -> Principal` continuarem operacionais.
+
+No modo somente emergência, a seleção de rota continua ativa. O Remote envia `PKT_REMOTE_CMD` como heartbeat com `comando=CMD_HEARTBEAT`, `botao_hold=0`, `fim_curso_descida=0` e `emergencia` refletindo o botão NC.
 
 ---
 

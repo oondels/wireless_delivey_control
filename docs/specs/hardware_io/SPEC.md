@@ -14,6 +14,8 @@ O sistema utiliza dois ESP32 WROOM-32U principais e pode usar um terceiro ESP32 
 - O **Principal** recebe esses comandos, aciona entradas digitais do CLP por GPIO e lê feedbacks do CLP e da micro do freio para retransmiti-los ao Remote.
 - O **Repeater** opcional apenas encaminha pacotes ESP-NOW autenticados e não usa GPIO crítico.
 
+Com `ONLY_EMERGENCY_MODE=true`, os ESP32 usam apenas `PIN_BTN_EMERGENCIA`, `PIN_CLP_EMERGENCIA` e os LEDs de link/emergência. As demais saídas ao CLP permanecem em HIGH.
+
 ---
 
 ## 2. Microcontroladores
